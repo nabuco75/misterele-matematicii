@@ -1,0 +1,11 @@
+.selectField {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 5px;
+  border: 2px solid #ccc;
+}
+
+.selectionContainer {
+  margin-bottom: 20px;
+}
