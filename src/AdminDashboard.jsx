@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { collection, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from "firebase/firestore"; // Asigură-te că importurile sunt corecte
 import { db } from "./firebase";
 import NavBar from "./NavBar"; // Import NavBar
 import styles from "./AdminDashboard.module.css";
@@ -32,11 +32,23 @@ function AdminDashboard() {
   };
 
   const handleDeleteSchool = async (schoolId) => {
+    console.log("Ștergerea școlii cu ID:", schoolId); // Verificăm dacă funcția este apelată corect
     try {
+      // Șterge școala din colecția "schools"
       await deleteDoc(doc(db, "schools", schoolId));
-      fetchSchools();
+
+      // Găsește și șterge elevii asociați cu această școală din colecția "registration"
+      const q = query(collection(db, "registration"), where("schoolId", "==", schoolId));
+      const querySnapshot = await getDocs(q);
+      querySnapshot.forEach(async (doc) => {
+        console.log("Ștergem documentul elevului cu ID:", doc.id); // Verificăm dacă documentele elevilor sunt găsite
+        await deleteDoc(doc.ref); // Șterge fiecare document găsit
+      });
+
+      console.log("Școala și elevii asociați au fost șterși.");
+      fetchSchools(); // Actualizează lista școlilor
     } catch (err) {
-      console.error("Eroare la ștergerea școlii", err);
+      console.error("Eroare la ștergerea școlii și a elevilor:", err);
     }
   };
 

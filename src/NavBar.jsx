@@ -1,23 +1,22 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import styles from "./NavBar.module.css"; // Asigură-te că stilurile sunt importate corect
+import styles from "./NavBar.module.css";
 
 function NavBar() {
   const navigate = useNavigate();
 
   const handleLoginClick = () => {
-    navigate("/login"); // Redirecționează utilizatorul către pagina de login
+    navigate("/login");
   };
 
   const handleHomeClick = () => {
-    navigate("/"); // Redirecționează utilizatorul către pagina de acasă (Landing)
+    console.log("Butonul Acasă a fost apăsat");
+    window.location.href = "/"; // Forțăm reîncărcarea completă a paginii pentru a naviga la "/"
   };
 
   return (
     <div className={styles.navbar}>
       <div className={styles.navButtonsContainer}>
-        {" "}
-        {/* Container pentru butoane */}
         <button onClick={handleHomeClick} className={styles.navButton}>
           Acasă
         </button>

@@ -8,16 +8,13 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Ruta pentru pagina principală */}
-        <Route path="/" element={<Landing />} />
+        {/* Forțăm remontarea componentei Landing folosind un key unic */}
+        <Route path="/" element={<Landing key={Date.now()} />} />
 
-        {/* Ruta pentru autentificare (Login) */}
         <Route path="/login" element={<LoginForm />} />
 
-        {/* Ruta pentru dashboard-ul admin */}
         <Route path="/admin" element={<AdminDashboard />} />
 
-        {/* Redirecționare în caz că ruta nu este găsită */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>
