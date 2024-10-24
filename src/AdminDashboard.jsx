@@ -11,6 +11,7 @@ function AdminDashboard() {
   const [localitate, setLocalitate] = useState("");
   const [schools, setSchools] = useState([]);
 
+  // Funție pentru a adăuga o școală
   const handleAddSchool = async (e) => {
     e.preventDefault();
     if (schoolName.trim() !== "" && judet.trim() !== "" && localitate.trim() !== "") {
@@ -31,27 +32,31 @@ function AdminDashboard() {
     }
   };
 
+  // Funție pentru a șterge o școală
   const handleDeleteSchool = async (schoolId) => {
     console.log("Ștergerea școlii cu ID:", schoolId); // Verificăm dacă funcția este apelată corect
     try {
-      // Șterge școala din colecția "schools"
-      await deleteDoc(doc(db, "schools", schoolId));
-
-      // Găsește și șterge elevii asociați cu această școală din colecția "registration"
+      // Șterge elevii asociați cu această școală din colecția "registration"
       const q = query(collection(db, "registration"), where("schoolId", "==", schoolId));
       const querySnapshot = await getDocs(q);
+
+      // Șterge fiecare document găsit pentru elevi
       querySnapshot.forEach(async (doc) => {
         console.log("Ștergem documentul elevului cu ID:", doc.id); // Verificăm dacă documentele elevilor sunt găsite
         await deleteDoc(doc.ref); // Șterge fiecare document găsit
       });
 
+      // Apoi ștergem școala
+      await deleteDoc(doc(db, "schools", schoolId));
+
       console.log("Școala și elevii asociați au fost șterși.");
-      fetchSchools(); // Actualizează lista școlilor
+      fetchSchools(); // Actualizează lista de școli
     } catch (err) {
       console.error("Eroare la ștergerea școlii și a elevilor:", err);
     }
   };
 
+  // Afișăm lista de școli
   const fetchSchools = async () => {
     try {
       const querySnapshot = await getDocs(collection(db, "schools"));

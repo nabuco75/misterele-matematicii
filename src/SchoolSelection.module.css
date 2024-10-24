@@ -1,11 +1,23 @@
-.selectField {
+.selectionContainer {
+  margin-bottom: 20px;
   width: 100%;
+  max-width: 500px; /* Setează o lățime maximă */
+  margin: 0 auto; /* Centrează containerul */
+  margin-top: 100px;
+}
+
+.selectField {
+  width: 100%; /* Asigură-te că toate select-urile ocupă întreaga lățime a containerului */
   padding: 10px;
   margin-bottom: 15px;
   border-radius: 5px;
   border: 2px solid #ccc;
+  box-sizing: border-box; /* Asigură că padding-ul și bordura sunt incluse în lățime */
 }
 
-.selectionContainer {
-  margin-bottom: 20px;
+label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 1rem;
+  color: #34495e;
 }

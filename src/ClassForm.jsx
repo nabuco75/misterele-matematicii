@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import emailjs from "emailjs-com";
 import { db } from "./firebase";
 import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
-import "./ClassForm.module.css";
+import styles from "./ClassForm.module.css";
 
 function ClassForm({ selectedSchool, schoolId }) {
   const [studentsByClass, setStudentsByClass] = useState({
@@ -14,20 +14,15 @@ function ClassForm({ selectedSchool, schoolId }) {
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ type: "", content: "" }); // Stare pentru mesaje dinamice
-  const [alreadyRegistered, setAlreadyRegistered] = useState(false); // Stare pentru verificarea duplicatelor
+  const [message, setMessage] = useState({ type: "", content: "" });
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
 
-  // Verifică dacă școala a înscris deja elevi
   useEffect(() => {
-    console.log("Verificare schoolId:", schoolId); // Verificăm dacă schoolId este transmis corect
     if (schoolId) {
       const checkIfAlreadyRegistered = async () => {
         const q = query(collection(db, "registration"), where("schoolId", "==", schoolId));
         const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          setAlreadyRegistered(true); // Marchez că sunt deja elevi înscriși
-          console.log("Elevi deja înscriși pentru schoolId:", schoolId);
-        }
+        setAlreadyRegistered(!querySnapshot.empty);
       };
       checkIfAlreadyRegistered();
     }
@@ -44,8 +39,6 @@ function ClassForm({ selectedSchool, schoolId }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    console.log("School ID trimis la Firebase:", schoolId); // Verificăm dacă schoolId este corect la trimiterea formularului
 
     if (!email) {
       setMessage({ type: "error", content: "Adresa de email este necesară!" });
@@ -67,14 +60,12 @@ function ClassForm({ selectedSchool, schoolId }) {
           await addDoc(collection(db, "registration"), {
             class: className,
             school: selectedSchool,
-            schoolId: schoolId, // Asociază elevii cu ID-ul școlii
+            schoolId: schoolId,
             students: filteredStudents,
           });
-          console.log("Elevii au fost înscriși pentru clasa:", className);
         }
       }
 
-      // Construim tabelul HTML cu fiecare elev pe o linie separată
       let emailContent = "<table border='1' cellpadding='5' cellspacing='0'>";
       emailContent += "<thead><tr><th>Clasa</th><th>Elevi</th></tr></thead><tbody>";
 
@@ -91,7 +82,6 @@ function ClassForm({ selectedSchool, schoolId }) {
 
       emailContent += "</tbody></table>";
 
-      // Configurăm parametrii pentru email
       const templateParams = {
         to_name: email,
         from_name: "Școala Stefan cel Mare Vaslui",
@@ -99,7 +89,6 @@ function ClassForm({ selectedSchool, schoolId }) {
         reply_to: email,
       };
 
-      // Trimitem emailul folosind EmailJS
       const response = await emailjs.send("service_e2pf9w6", "template_st5cb5c", templateParams, "IpIiJlmFDSQJ6WnbS");
 
       if (response.status === 200) {
@@ -123,27 +112,67 @@ function ClassForm({ selectedSchool, schoolId }) {
   };
 
   return (
-    <div className="form-container">
+    <div className={styles["form-container"]}>
       <h2>Înscriere elevi</h2>
 
-      {/* Afișare mesaje dinamice */}
-      {message.content && <div className={`message ${message.type}`}>{message.content}</div>}
+      {message.content && (
+        <div className={`message ${message.type}`} style={{ textAlign: "center", color: message.type === "success" ? "green" : "red" }}>
+          {message.content}
+        </div>
+      )}
 
       {alreadyRegistered && <div className="message error">Ați înscris deja elevi de la această școală.</div>}
 
-      <form onSubmit={handleSubmit} className="form-group">
-        {Object.keys(studentsByClass).map((className) => (
-          <div key={className}>
-            <h3>{`Clasa ${className}`}</h3>
-            {studentsByClass[className].map((student, index) => (
-              <input key={index} type="text" placeholder={`Nume Elev ${index + 1}`} value={student} onChange={(e) => handleChange(className, index, e.target.value)} className="input-field" />
+      <form onSubmit={handleSubmit} className={styles["form-group"]}>
+        <div className={styles["class-groups"]}>
+          <div className={styles["class-group"]}>
+            <h3>Clasa a IV-a</h3>
+            {studentsByClass["a IV-a"].map((student, index) => (
+              <input key={index} type="text" placeholder={`Nume Elev ${index + 1}`} value={student} onChange={(e) => handleChange("a IV-a", index, e.target.value)} className={styles["input-field"]} />
             ))}
           </div>
-        ))}
+          <div className={styles["class-group"]}>
+            <h3>Clasa a V-a</h3>
+            {studentsByClass["a V-a"].map((student, index) => (
+              <input key={index} type="text" placeholder={`Nume Elev ${index + 1}`} value={student} onChange={(e) => handleChange("a V-a", index, e.target.value)} className={styles["input-field"]} />
+            ))}
+          </div>
+        </div>
 
-        <input type="email" placeholder="Introduceți adresa de email" value={email} onChange={(e) => setEmail(e.target.value)} className="input-field" required />
+        <div className={styles["class-groups"]}>
+          <div className={styles["class-group"]}>
+            <h3>Clasa a VI-a</h3>
+            {studentsByClass["a VI-a"].map((student, index) => (
+              <input key={index} type="text" placeholder={`Nume Elev ${index + 1}`} value={student} onChange={(e) => handleChange("a VI-a", index, e.target.value)} className={styles["input-field"]} />
+            ))}
+          </div>
+          <div className={styles["class-group"]}>
+            <h3>Clasa a VII-a</h3>
+            {studentsByClass["a VII-a"].map((student, index) => (
+              <input
+                key={index}
+                type="text"
+                placeholder={`Nume Elev ${index + 1}`}
+                value={student}
+                onChange={(e) => handleChange("a VII-a", index, e.target.value)}
+                className={styles["input-field"]}
+              />
+            ))}
+          </div>
+        </div>
 
-        <button type="submit" className="submit-button" disabled={loading || alreadyRegistered}>
+        <div className={styles["email-container"]}>
+          <input
+            type="email"
+            placeholder="Introduceți adresa de email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={`${styles["input-field"]} ${styles["email-input"]}`}
+            required
+          />
+        </div>
+
+        <button type="submit" className={styles["submit-button"]} disabled={loading || alreadyRegistered}>
           {loading ? "Înscriere în curs..." : "Înscrie Elevi"}
         </button>
       </form>

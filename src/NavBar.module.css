@@ -1,36 +1,78 @@
 /* src/components/NavBar.module.css */
 .navbar {
   display: flex;
-  justify-content: space-between; /* Distribuie titlul și butoanele pe toată lățimea */
+  justify-content: space-between;
   align-items: center;
-  background-color: #f5f5f5;
-  padding: 10px 20px;
-  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(90deg, #1e3c72, #2a5298); /* Gradient marin profund */
+  padding: 15px 30px;
+  box-shadow: 0px 6px 10px rgba(0, 0, 0, 0.15); /* Umbră ușor mai intensă pentru adâncime */
   position: sticky;
   top: 0;
   z-index: 1000;
+  height: 70px; /* Setăm o înălțime fixă pentru navbar */
+  transition: background 0.5s ease;
+}
+
+.navbar:hover {
+  background: linear-gradient(90deg, #2a5298, #1e3c72); /* Inversăm nuanțele la hover */
 }
 
 .navButtonsContainer {
   display: flex;
-  gap: 15px; /* Spațiu între butoane */
+  gap: 20px; /* Spațiu generos între butoane */
 }
 
 .navButton {
-  background-color: #007bff;
+  background-color: #f39c12; /* Auriu vibrant */
   color: white;
   border: none;
-  padding: 10px 15px;
-  border-radius: 4px;
+  padding: 12px 25px;
+  border-radius: 30px;
+  font-size: 1.1rem;
+  font-weight: bold;
   cursor: pointer;
+  transition: background-color 0.4s ease, transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0px 4px 10px rgba(243, 156, 18, 0.4); /* Efect de lumină */
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2); /* Ușoară umbră pentru text */
 }
 
 .navButton:hover {
-  background-color: #0056b3;
+  background-color: #d68910; /* Schimbare la un auriu mai închis la hover */
+  transform: translateY(-3px); /* Efect subtil de ridicare */
+  box-shadow: 0px 6px 12px rgba(243, 156, 18, 0.6); /* Umbră mai mare la hover */
+}
+
+.navButton:active {
+  transform: translateY(0);
+  box-shadow: 0px 2px 5px rgba(243, 156, 18, 0.4); /* Umbră mică la click */
+}
+
+.navButton:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(241, 196, 15, 0.4); /* Inel de focus accesibil în auriu deschis */
 }
 
 .navbar h3 {
-  font-size: 24px;
+  font-size: 2rem;
   font-weight: bold;
-  color: #333;
+  color: #ecf0f1; /* Alb-gri elegant */
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3); /* Umbră discretă */
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    flex-direction: column;
+    gap: 15px;
+    padding: 10px;
+  }
+
+  .navButton {
+    font-size: 1rem;
+    padding: 10px 20px;
+  }
+
+  .navbar h3 {
+    font-size: 1.6rem;
+  }
 }

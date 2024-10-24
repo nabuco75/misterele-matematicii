@@ -1,37 +1,52 @@
-/* AdminDashboard.module.css */
+:root {
+  --primary-color: #1abc9c; /* Verde vibrant */
+  --primary-hover-color: #16a085; /* Verde închis pentru hover */
+  --button-color: #2980b9; /* Albastru pentru butoane */
+  --button-hover-color: #1a6b98; /* Albastru închis pentru hover */
+  --danger-color: #e74c3c; /* Roșu pentru butonul de ștergere */
+  --danger-hover-color: #c0392b; /* Roșu închis pentru hover */
+  --text-color-dark: #2c3e50; /* Culoare text închis */
+  --text-color-light: #ecf0f1; /* Text deschis */
+  --background-light: #ecf0f1; /* Fundal deschis */
+}
+
 .container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh; /* Pentru a ocupa întregul ecran */
-  background-color: #f5f5f5;
+  min-height: 100vh;
+  width: 100vw;
+  background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%); /* Gradient consistent */
   padding: 20px;
 }
 
 .title {
-  font-size: 2rem;
+  font-size: 2.5rem;
   margin-bottom: 20px;
-  color: #333;
+  color: var(--text-color-dark); /* Culoare text închisă */
   text-align: center;
 }
 
-.addButton {
-  background-color: #28a745;
-  color: white;
+.addButton,
+.statsButton {
+  background-color: var(--primary-color); /* Verde vibrant */
+  color: var(--text-color-light); /* Text alb */
   padding: 10px 20px;
   border: none;
-  border-radius: 5px;
+  border-radius: 8px;
   cursor: pointer;
   margin-bottom: 20px;
-  font-size: 1rem;
-  transition: background-color 0.3s ease;
-  width: 200px;
+  font-size: 1.2rem;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  width: 240px;
   text-align: center;
 }
 
-.addButton:hover {
-  background-color: #218838;
+.addButton:hover,
+.statsButton:hover {
+  background-color: var(--primary-hover-color); /* Schimbare la hover */
+  transform: translateY(-2px); /* Efect de ridicare la hover */
 }
 
 .formContainer {
@@ -41,42 +56,43 @@
   justify-content: center;
   background-color: white;
   padding: 30px;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15); /* Efect de umbră elegant */
   width: 100%;
-  max-width: 500px;
+  max-width: 600px;
   margin: 0 auto;
 }
 
 .inputField {
   padding: 12px;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   margin-bottom: 15px;
   width: 100%;
-  border: 2px solid #ccc;
-  border-radius: 5px;
+  border: 2px solid var(--text-color-light);
+  border-radius: 8px;
 }
 
 .submitButton {
-  background-color: #007bff;
-  color: white;
+  background-color: var(--button-color); /* Albastru */
+  color: var(--text-color-light);
   padding: 12px 20px;
   border: none;
-  border-radius: 5px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 1.2rem;
   text-align: center;
   width: 100%;
+  transition: background-color 0.3s ease;
 }
 
 .submitButton:hover {
-  background-color: #0056b3;
+  background-color: var(--button-hover-color); /* Albastru închis */
 }
 
 .schoolListTitle {
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   margin-bottom: 10px;
-  color: #333;
+  color: var(--text-color-dark);
   text-align: center;
 }
 
@@ -84,26 +100,55 @@
   list-style: none;
   padding: 0;
   margin-top: 20px;
+  width: 100%;
+  max-width: 600px;
 }
 
 .schoolList li {
   font-size: 1.2rem;
-  color: #333;
+  color: var(--text-color-dark);
   margin: 10px 0;
   display: flex;
   justify-content: space-between;
+  padding: 12px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .deleteButton {
-  background-color: #dc3545;
+  background-color: var(--danger-color); /* Roșu */
   color: white;
   border: none;
-  padding: 5px 10px;
+  padding: 10px 15px;
   border-radius: 5px;
   cursor: pointer;
   transition: background-color 0.3s ease;
 }
 
 .deleteButton:hover {
-  background-color: #c82333;
+  background-color: var(--danger-hover-color); /* Roșu închis */
+}
+
+.statistics {
+  background-color: white;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  margin-top: 20px;
+  width: 100%;
+  max-width: 600px;
+  text-align: center;
+}
+
+.statistics h2 {
+  font-size: 1.8rem;
+  color: var(--text-color-dark);
+  margin-bottom: 15px;
+}
+
+.statistics p,
+.statistics ul {
+  font-size: 1.2rem;
+  color: var(--text-color-dark);
 }

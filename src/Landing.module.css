@@ -1,28 +1,90 @@
-/* src/components/Landing.module.css */
+:root {
+  --primary-color: #1abc9c; /* Verde vibrant */
+  --primary-hover-color: #16a085; /* Verde închis pentru hover */
+  --text-color-dark: #2c3e50; /* Culoare text închisă */
+  --text-color-light: #ecf0f1; /* Text deschis */
+  --background-light: #ecf0f1; /* Fundal deschis */
+}
+
 .landingContainer {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
-  text-align: center;
+  min-height: 100vh; /* Face containerul să ocupe întregul ecran */
+  width: 100vw;
+  background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%); /* Fundal gradient consistent */
   padding: 20px;
+  text-align: center;
 }
 
 .welcomeMessage {
-  font-size: 28px;
-  font-weight: bold;
+  font-size: 2.5rem; /* Text mare și vizibil pentru mesajul de bun venit */
+  color: var(--text-color-dark); /* Nuanță de albastru-închis pentru text */
   margin-bottom: 20px;
+  font-weight: bold;
 }
 
 .instructions {
-  font-size: 1.5rem;
+  font-size: 1.2rem; /* Instrucțiuni clare și lizibile */
+  color: #34495e; /* Culoare subtilă pentru text */
   margin-bottom: 30px;
 }
 
-select {
-  padding: 10px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
+.inscrieButton {
+  background-color: var(--primary-color); /* Culoare verde pentru buton */
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  margin-top: 20px;
+}
+
+.inscrieButton:hover {
+  background-color: var(--primary-hover-color); /* Schimbare ușoară la hover */
+  transform: translateY(-2px); /* Mică mișcare în sus la hover */
+}
+
+.inscrieButton:active {
+  transform: translateY(0); /* Revine la poziția inițială la click */
+}
+
+.selectField {
+  padding: 12px;
+  font-size: 1rem;
   margin-bottom: 20px;
+  border-radius: 5px;
+  border: 2px solid #bdc3c7; /* Bordură subțire și neutră */
+  width: 100%;
+  max-width: 400px;
+}
+
+.formContainer {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  max-width: 500px;
+  width: 100%;
+  margin: 0 auto;
+  text-align: left;
+}
+
+@media (max-width: 768px) {
+  .landingContainer {
+    padding: 10px;
+  }
+
+  .welcomeMessage {
+    font-size: 2rem;
+  }
+
+  .inscrieButton {
+    font-size: 1.1rem;
+    padding: 10px 20px;
+  }
 }

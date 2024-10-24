@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { auth } from "./firebase"; // Importă Authentication din Firebase
 import { useNavigate } from "react-router-dom"; // Importă useNavigate pentru redirecționare
 import styles from "./LoginForm.module.css"; // Importă stilurile
@@ -13,6 +13,10 @@ function LoginForm() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
+      // Setăm persistența autentificării în localStorage
+      await setPersistence(auth, browserLocalPersistence);
+
+      // Autentificare cu email și parolă
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       console.log("Autentificare reușită:", user);
