@@ -1,23 +1,82 @@
+:root {
+  --primary-color: #1abc9c; /* Verde vibrant */
+  --primary-hover-color: #16a085; /* Verde închis pentru hover */
+  --secondary-color: #3498db; /* Albastru vibrant */
+  --text-color-dark: #2c3e50; /* Culoare text închisă */
+  --text-color-light: #ecf0f1; /* Text deschis */
+  --shadow-light: rgba(0, 0, 0, 0.1); /* Umbră discretă */
+}
+
 .selectionContainer {
   margin-bottom: 20px;
   width: 100%;
   max-width: 500px; /* Setează o lățime maximă */
   margin: 0 auto; /* Centrează containerul */
-  margin-top: 100px;
+  margin-top: 50px;
+  padding: 20px;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2); /* Umbră subtilă pentru container */
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.selectionContainer:hover {
+  transform: translateY(-5px); /* Efect subtil de ridicare la hover */
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); /* Umbră mai intensă la hover */
 }
 
 .selectField {
   width: 100%; /* Asigură-te că toate select-urile ocupă întreaga lățime a containerului */
-  padding: 10px;
-  margin-bottom: 15px;
-  border-radius: 5px;
+  padding: 12px;
+  margin-bottom: 20px;
+  border-radius: 10px;
   border: 2px solid #ccc;
-  box-sizing: border-box; /* Asigură că padding-ul și bordura sunt incluse în lățime */
+  background: linear-gradient(135deg, #ffffff, #e0e0e0); /* Gradient subtil pentru select */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Umbră discretă pentru câmpurile de selectare */
+  font-size: 1.1rem;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.selectField:focus {
+  border-color: var(--secondary-color); /* Culoare de focus */
+  box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); /* Efect subtil de glow la focus */
+  outline: none;
 }
 
 label {
   display: block;
-  margin-bottom: 5px;
-  font-size: 1rem;
-  color: #34495e;
+  margin-bottom: 8px;
+  font-size: 1.2rem;
+  color: var(--text-color-dark);
+  font-weight: bold;
+  transition: color 0.3s ease;
+}
+
+label:hover {
+  color: var(--primary-color); /* Schimbare de culoare la hover */
+}
+
+option {
+  padding: 10px;
+  background-color: white;
+  color: var(--text-color-dark);
+}
+
+option[disabled] {
+  color: #ccc; /* Școlile care au deja elevi înscriși sunt gri */
+}
+
+@media (max-width: 768px) {
+  .selectionContainer {
+    padding: 15px;
+  }
+
+  .selectField {
+    font-size: 1rem;
+    padding: 10px;
+  }
+
+  label {
+    font-size: 1rem;
+  }
 }

@@ -1,7 +1,7 @@
 /* src/components/NavBar.module.css */
 .navbar {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-around;
   align-items: center;
   background: linear-gradient(90deg, #1e3c72, #2a5298); /* Gradient marin profund */
   padding: 15px 30px;

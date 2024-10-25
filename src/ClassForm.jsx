@@ -13,6 +13,8 @@ function ClassForm({ selectedSchool, schoolId }) {
   });
 
   const [email, setEmail] = useState("");
+  const [profesorIndrumator, setProfesorIndrumator] = useState("");
+  const [telefon, setTelefon] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", content: "" });
   const [alreadyRegistered, setAlreadyRegistered] = useState(false);
@@ -62,6 +64,8 @@ function ClassForm({ selectedSchool, schoolId }) {
             school: selectedSchool,
             schoolId: schoolId,
             students: filteredStudents,
+            profesorIndrumatorEmail: profesorIndrumator,
+            telefon: telefon,
           });
         }
       }
@@ -100,6 +104,8 @@ function ClassForm({ selectedSchool, schoolId }) {
           "a VII-a": Array(5).fill(""),
         });
         setEmail("");
+        setProfesorIndrumator("");
+        setTelefon("");
       } else {
         setMessage({ type: "error", content: "Eroare la trimiterea emailului. Încercați din nou." });
       }
@@ -115,15 +121,10 @@ function ClassForm({ selectedSchool, schoolId }) {
     <div className={styles["form-container"]}>
       <h2>Înscriere elevi</h2>
 
-      {message.content && (
-        <div className={`message ${message.type}`} style={{ textAlign: "center", color: message.type === "success" ? "green" : "red" }}>
-          {message.content}
-        </div>
-      )}
-
-      {alreadyRegistered && <div className="message error">Ați înscris deja elevi de la această școală.</div>}
+      {alreadyRegistered && <div className={`${styles.message} ${styles.error}`}>Ați înscris deja elevi de la această școală.</div>}
 
       <form onSubmit={handleSubmit} className={styles["form-group"]}>
+        {/* Grup pentru clasele a IV-a și a V-a */}
         <div className={styles["class-groups"]}>
           <div className={styles["class-group"]}>
             <h3>Clasa a IV-a</h3>
@@ -131,6 +132,7 @@ function ClassForm({ selectedSchool, schoolId }) {
               <input key={index} type="text" placeholder={`Nume Elev ${index + 1}`} value={student} onChange={(e) => handleChange("a IV-a", index, e.target.value)} className={styles["input-field"]} />
             ))}
           </div>
+
           <div className={styles["class-group"]}>
             <h3>Clasa a V-a</h3>
             {studentsByClass["a V-a"].map((student, index) => (
@@ -139,6 +141,7 @@ function ClassForm({ selectedSchool, schoolId }) {
           </div>
         </div>
 
+        {/* Grup pentru clasele a VI-a și a VII-a */}
         <div className={styles["class-groups"]}>
           <div className={styles["class-group"]}>
             <h3>Clasa a VI-a</h3>
@@ -146,6 +149,7 @@ function ClassForm({ selectedSchool, schoolId }) {
               <input key={index} type="text" placeholder={`Nume Elev ${index + 1}`} value={student} onChange={(e) => handleChange("a VI-a", index, e.target.value)} className={styles["input-field"]} />
             ))}
           </div>
+
           <div className={styles["class-group"]}>
             <h3>Clasa a VII-a</h3>
             {studentsByClass["a VII-a"].map((student, index) => (
@@ -162,19 +166,19 @@ function ClassForm({ selectedSchool, schoolId }) {
         </div>
 
         <div className={styles["email-container"]}>
-          <input
-            type="email"
-            placeholder="Introduceți adresa de email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={`${styles["input-field"]} ${styles["email-input"]}`}
-            required
-          />
+          <div className={styles["guide-container"]}>
+            <input type="text" placeholder="Profesor îndrumător" value={profesorIndrumator} onChange={(e) => setProfesorIndrumator(e.target.value)} className={styles["input-field"]} />
+            <input type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} className={styles["input-field"]} required />
+            <input type="tel" placeholder="Telefon" value={telefon} onChange={(e) => setTelefon(e.target.value)} className={styles["input-field"]} />
+          </div>
         </div>
 
         <button type="submit" className={styles["submit-button"]} disabled={loading || alreadyRegistered}>
           {loading ? "Înscriere în curs..." : "Înscrie Elevi"}
         </button>
+
+        {/* Mesaj de succes/eroare sub buton */}
+        {message.content && <div className={`${styles.message} ${message.type === "success" ? styles.success : styles.error}`}>{message.content}</div>}
       </form>
     </div>
   );
