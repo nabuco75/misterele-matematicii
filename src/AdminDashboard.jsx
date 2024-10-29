@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { getDoc } from "firebase/firestore";
-
-import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from "firebase/firestore";
+import { getDoc, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, query, where } from "firebase/firestore";
 import { db } from "./firebase";
-import * as XLSX from "xlsx"; // Pentru exportul în Excel
+import * as XLSX from "xlsx";
 import NavBar from "./NavBar";
 import styles from "./AdminDashboard.module.css";
 
@@ -13,40 +11,72 @@ function AdminDashboard() {
   const [judet, setJudet] = useState("");
   const [localitate, setLocalitate] = useState("");
   const [schools, setSchools] = useState([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState(""); // Store selected school ID
+  const [isEditing, setIsEditing] = useState(false); // Track edit mode
   const [statistics, setStatistics] = useState(null);
   const [showStatistics, setShowStatistics] = useState(false);
 
-  const handleAddSchool = async (e) => {
+  const handleAddOrEditSchool = async (e) => {
     e.preventDefault();
     if (schoolName.trim() !== "" && judet.trim() !== "" && localitate.trim() !== "") {
       try {
-        await addDoc(collection(db, "schools"), {
-          name: schoolName,
-          county: judet,
-          locality: localitate,
-        });
+        if (isEditing && selectedSchoolId) {
+          // Update existing school
+          await updateDoc(doc(db, "schools", selectedSchoolId), {
+            name: schoolName,
+            county: judet,
+            locality: localitate,
+          });
+        } else {
+          // Add new school
+          await addDoc(collection(db, "schools"), {
+            name: schoolName,
+            county: judet,
+            locality: localitate,
+          });
+        }
+
+        // Reset form and state after operation
         setSchoolName("");
         setJudet("");
         setLocalitate("");
+        setSelectedSchoolId("");
+        setIsEditing(false);
         fetchSchools();
         setShowAddSchoolForm(false);
       } catch (err) {
-        console.error("Eroare la adăugarea școlii", err);
+        console.error("Eroare la adăugarea sau actualizarea școlii", err);
       }
     }
   };
 
-  const handleDeleteSchool = async (schoolId) => {
-    try {
-      const q = query(collection(db, "registration"), where("schoolId", "==", schoolId));
-      const querySnapshot = await getDocs(q);
-      querySnapshot.forEach(async (doc) => {
-        await deleteDoc(doc.ref);
-      });
-      await deleteDoc(doc(db, "schools", schoolId));
-      fetchSchools();
-    } catch (err) {
-      console.error("Eroare la ștergerea școlii și a elevilor:", err);
+  const handleDeleteSchool = async () => {
+    if (selectedSchoolId) {
+      try {
+        const q = query(collection(db, "registration"), where("schoolId", "==", selectedSchoolId));
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach(async (doc) => {
+          await deleteDoc(doc.ref);
+        });
+        await deleteDoc(doc(db, "schools", selectedSchoolId));
+        setSelectedSchoolId(""); // Reset selected school
+        fetchSchools();
+      } catch (err) {
+        console.error("Eroare la ștergerea școlii și a elevilor:", err);
+      }
+    }
+  };
+
+  const handleEditSchool = () => {
+    if (selectedSchoolId) {
+      const selectedSchool = schools.find((school) => school.id === selectedSchoolId);
+      if (selectedSchool) {
+        setSchoolName(selectedSchool.name);
+        setJudet(selectedSchool.county);
+        setLocalitate(selectedSchool.locality);
+        setIsEditing(true);
+        setShowAddSchoolForm(true); // Show the form for editing
+      }
     }
   };
 
@@ -103,20 +133,14 @@ function AdminDashboard() {
     setShowStatistics(!showStatistics);
   };
 
-  // Funcție pentru a exporta datele în Excel
-
-  // Funcție pentru a exporta datele în Excel
   const exportToExcel = async () => {
     try {
-      // Obținem datele din colecția 'registration'
       const registrationsSnapshot = await getDocs(collection(db, "registration"));
-
       if (registrationsSnapshot.empty) {
         console.error("Nu există date de înscriere.");
         return;
       }
 
-      // Capul de tabel este adăugat la început, o singură dată
       const rows = [
         {
           nrCrt: "Nr. crt",
@@ -128,63 +152,27 @@ function AdminDashboard() {
         },
       ];
 
-      let rowNumber = 1; // Începem de la numărul 1 pentru rânduri
-
-      // Parcurgem toate înregistrările din 'registration'
+      let rowNumber = 1;
       for (const registrationDoc of registrationsSnapshot.docs) {
         const registrationData = registrationDoc.data();
-        const schoolId = registrationData.schoolId;
-        const className = registrationData.class || "";
-        const professorIndrumator = registrationData.profesorIndrumatorEmail || "";
-        const telefonElev = registrationData.telefon || ""; // Extragem telefonul direct din registrationData
-
-        console.log("Procesăm înscrierea:", registrationData);
-
-        // Obținem numele școlii
-        const schoolDoc = await getDoc(doc(db, "schools", schoolId));
+        const schoolDoc = await getDoc(doc(db, "schools", registrationData.schoolId));
         const schoolName = schoolDoc.exists() ? schoolDoc.data().name : "";
 
-        console.log("Școala:", schoolName);
-
-        if (registrationData.students && registrationData.students.length > 0) {
-          registrationData.students.forEach((student) => {
-            console.log("Elevul procesat:", student);
-            console.log("Telefon elev:", telefonElev); // Folosim telefonul extras din registrationData
-
-            // Adăugăm rânduri pentru fiecare elev
-            rows.push({
-              nrCrt: rowNumber,
-              elev: student.nume || "", // Numele elevului
-              clasa: className,
-              scoala: schoolName, // Numele școlii
-              profesorIndrumator: professorIndrumator, // Profesor îndrumător
-              telefon: student.telefon || telefonElev, // Telefonul elevului sau al profesorului
-            });
-            rowNumber++;
-          });
-        } else {
-          // Dacă nu există elevi în această înscriere, adăugăm un rând gol
-          console.log("Nu există elevi pentru această înscriere.");
+        registrationData.students?.forEach((student) => {
           rows.push({
-            nrCrt: rowNumber,
-            elev: "", // Gol pentru elev
-            clasa: className,
-            scoala: schoolName, // Numele școlii
-            profesorIndrumator: professorIndrumator, // Profesor îndrumător
-            telefon: telefonElev, // Gol pentru telefon
+            nrCrt: rowNumber++,
+            elev: student.nume || "",
+            clasa: registrationData.class || "",
+            scoala: schoolName,
+            profesorIndrumator: registrationData.profesorIndrumatorEmail || "",
+            telefon: student.telefon || registrationData.telefon || "",
           });
-          rowNumber++;
-        }
+        });
       }
 
-      console.log("Datele finale pentru export:", rows);
-
-      // Generăm fișierul Excel
       const worksheet = XLSX.utils.json_to_sheet(rows);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Elevi Înscriși");
-
-      // Salvăm fișierul Excel
       XLSX.writeFile(workbook, "elevi_inscrisi.xlsx");
     } catch (error) {
       console.error("Eroare la exportul în Excel:", error);
@@ -197,7 +185,6 @@ function AdminDashboard() {
       <div className={styles.container}>
         <h1 className={styles.title}>Bine ai venit în panoul de administrare!</h1>
 
-        {/* Butoane pentru adăugare și statistici */}
         <div className={styles.buttonContainer}>
           <button onClick={() => setShowAddSchoolForm(!showAddSchoolForm)} className={styles.addButton}>
             {showAddSchoolForm ? "Ascunde formularul" : "Adaugă o școală"}
@@ -210,17 +197,14 @@ function AdminDashboard() {
           </button>
         </div>
 
-        {/* Afișarea formularului */}
         {showAddSchoolForm && (
-          <form className={styles.formContainer} onSubmit={handleAddSchool}>
+          <form className={styles.formContainer} onSubmit={handleAddOrEditSchool}>
             <input type="text" placeholder="Nume școală" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} className={styles.inputField} />
             <input type="text" placeholder="Județul școlii" value={judet} onChange={(e) => setJudet(e.target.value)} className={styles.inputField} />
             <input type="text" placeholder="Localitatea școlii" value={localitate} onChange={(e) => setLocalitate(e.target.value)} className={styles.inputField} />
-
-            {/* Butoane Adaugă și Anulează */}
             <div className={styles.formActions}>
               <button type="submit" className={styles.submitButton}>
-                Adaugă
+                {isEditing ? "Salvează modificările" : "Adaugă"}
               </button>
               <button type="button" className={styles.cancelButton} onClick={() => setShowAddSchoolForm(false)}>
                 Anulează
@@ -229,7 +213,6 @@ function AdminDashboard() {
           </form>
         )}
 
-        {/* Afișarea statisticilor */}
         {showStatistics && statistics && (
           <div className={styles.statistics}>
             <h2>Statistici înscrieri</h2>
@@ -242,18 +225,29 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* Afișarea listei școlilor */}
         <h2 className={styles.schoolListTitle}>Lista școlilor:</h2>
-        <ul className={styles.schoolList}>
-          {schools.map((school) => (
-            <li key={school.id}>
-              {school.name} - {school.county} - {school.locality}
-              <button className={styles.deleteButton} onClick={() => handleDeleteSchool(school.id)}>
-                Șterge
-              </button>
-            </li>
-          ))}
-        </ul>
+
+        {/* Dropdown for selecting schools */}
+        <div className={styles.dropdownContainer}>
+          <select value={selectedSchoolId} onChange={(e) => setSelectedSchoolId(e.target.value)} className={styles.dropdown}>
+            <option value="" disabled>
+              Selectează o școală
+            </option>
+            {schools.map((school) => (
+              <option key={school.id} value={school.id}>
+                {school.name} - {school.county} - {school.locality}
+              </option>
+            ))}
+          </select>
+
+          {/* Buttons to delete or edit the selected school */}
+          <button onClick={handleDeleteSchool} disabled={!selectedSchoolId} className={styles.deleteButton}>
+            Șterge școala selectată
+          </button>
+          <button onClick={handleEditSchool} disabled={!selectedSchoolId} className={styles.editButton}>
+            Editează școala selectată
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -18,6 +18,10 @@ function ClassForm({ selectedSchool, schoolId }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", content: "" });
   const [alreadyRegistered, setAlreadyRegistered] = useState(false);
+  const [errors, setErrors] = useState({ email: "", telefon: "", profesorIndrumator: "" });
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneRegex = /^\d{10}$/;
 
   useEffect(() => {
     if (schoolId) {
@@ -39,11 +43,25 @@ function ClassForm({ selectedSchool, schoolId }) {
     }));
   };
 
+  const handleBlur = (field) => {
+    let errorMessage = "";
+    if (field === "email") {
+      errorMessage = emailRegex.test(email) ? "" : "Adresa de email nu este validă!";
+      setErrors((prev) => ({ ...prev, email: errorMessage }));
+    } else if (field === "telefon") {
+      errorMessage = phoneRegex.test(telefon) ? "" : "Numărul de telefon trebuie să conțină 10 cifre!";
+      setErrors((prev) => ({ ...prev, telefon: errorMessage }));
+    } else if (field === "profesorIndrumator") {
+      errorMessage = profesorIndrumator.trim() !== "" ? "" : "Numele profesorului îndrumător este necesar!";
+      setErrors((prev) => ({ ...prev, profesorIndrumator: errorMessage }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!email) {
-      setMessage({ type: "error", content: "Adresa de email este necesară!" });
+    if (!emailRegex.test(email) || !phoneRegex.test(telefon) || profesorIndrumator.trim() === "") {
+      setMessage({ type: "error", content: "Vă rugăm să completați corect toate câmpurile!" });
       return;
     }
 
@@ -106,6 +124,7 @@ function ClassForm({ selectedSchool, schoolId }) {
         setEmail("");
         setProfesorIndrumator("");
         setTelefon("");
+        setErrors({ email: "", telefon: "", profesorIndrumator: "" });
       } else {
         setMessage({ type: "error", content: "Eroare la trimiterea emailului. Încercați din nou." });
       }
@@ -124,7 +143,6 @@ function ClassForm({ selectedSchool, schoolId }) {
       {alreadyRegistered && <div className={`${styles.message} ${styles.error}`}>Ați înscris deja elevi de la această școală.</div>}
 
       <form onSubmit={handleSubmit} className={styles["form-group"]}>
-        {/* Grup pentru clasele a IV-a și a V-a */}
         <div className={styles["class-groups"]}>
           <div className={styles["class-group"]}>
             <h3>Clasa a IV-a</h3>
@@ -141,7 +159,6 @@ function ClassForm({ selectedSchool, schoolId }) {
           </div>
         </div>
 
-        {/* Grup pentru clasele a VI-a și a VII-a */}
         <div className={styles["class-groups"]}>
           <div className={styles["class-group"]}>
             <h3>Clasa a VI-a</h3>
@@ -167,9 +184,42 @@ function ClassForm({ selectedSchool, schoolId }) {
 
         <div className={styles["email-container"]}>
           <div className={styles["guide-container"]}>
-            <input type="text" placeholder="Profesor îndrumător" value={profesorIndrumator} onChange={(e) => setProfesorIndrumator(e.target.value)} className={styles["input-field"]} />
-            <input type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} className={styles["input-field"]} required />
-            <input type="tel" placeholder="Telefon" value={telefon} onChange={(e) => setTelefon(e.target.value)} className={styles["input-field"]} />
+            <div className={styles["input-group"]}>
+              <input
+                type="text"
+                placeholder="Profesor îndrumător"
+                value={profesorIndrumator}
+                onChange={(e) => setProfesorIndrumator(e.target.value)}
+                onBlur={() => handleBlur("profesorIndrumator")}
+                className={`${styles["input-field"]} ${errors.profesorIndrumator ? styles.invalid : ""}`}
+              />
+              {errors.profesorIndrumator && <div className={styles["error-message"]}>{errors.profesorIndrumator}</div>}
+            </div>
+
+            <div className={styles["input-group"]}>
+              <input
+                type="email"
+                placeholder="E-mail"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onBlur={() => handleBlur("email")}
+                className={`${styles["input-field"]} ${errors.email ? styles.invalid : ""}`}
+                required
+              />
+              {errors.email && <div className={styles["error-message"]}>{errors.email}</div>}
+            </div>
+
+            <div className={styles["input-group"]}>
+              <input
+                type="tel"
+                placeholder="Telefon (10 cifre)"
+                value={telefon}
+                onChange={(e) => setTelefon(e.target.value)}
+                onBlur={() => handleBlur("telefon")}
+                className={`${styles["input-field"]} ${errors.telefon ? styles.invalid : ""}`}
+              />
+              {errors.telefon && <div className={styles["error-message"]}>{errors.telefon}</div>}
+            </div>
           </div>
         </div>
 
@@ -177,7 +227,6 @@ function ClassForm({ selectedSchool, schoolId }) {
           {loading ? "Înscriere în curs..." : "Înscrie Elevi"}
         </button>
 
-        {/* Mesaj de succes/eroare sub buton */}
         {message.content && <div className={`${styles.message} ${message.type === "success" ? styles.success : styles.error}`}>{message.content}</div>}
       </form>
     </div>
