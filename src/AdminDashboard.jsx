@@ -11,24 +11,23 @@ function AdminDashboard() {
   const [judet, setJudet] = useState("");
   const [localitate, setLocalitate] = useState("");
   const [schools, setSchools] = useState([]);
-  const [selectedSchoolId, setSelectedSchoolId] = useState(""); // Store selected school ID
-  const [isEditing, setIsEditing] = useState(false); // Track edit mode
+  const [selectedSchoolId, setSelectedSchoolId] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
   const [statistics, setStatistics] = useState(null);
   const [showStatistics, setShowStatistics] = useState(false);
+  const [bulkUploadStatus, setBulkUploadStatus] = useState(null); // Track bulk upload status
 
   const handleAddOrEditSchool = async (e) => {
     e.preventDefault();
     if (schoolName.trim() !== "" && judet.trim() !== "" && localitate.trim() !== "") {
       try {
         if (isEditing && selectedSchoolId) {
-          // Update existing school
           await updateDoc(doc(db, "schools", selectedSchoolId), {
             name: schoolName,
             county: judet,
             locality: localitate,
           });
         } else {
-          // Add new school
           await addDoc(collection(db, "schools"), {
             name: schoolName,
             county: judet,
@@ -36,7 +35,6 @@ function AdminDashboard() {
           });
         }
 
-        // Reset form and state after operation
         setSchoolName("");
         setJudet("");
         setLocalitate("");
@@ -59,7 +57,7 @@ function AdminDashboard() {
           await deleteDoc(doc.ref);
         });
         await deleteDoc(doc(db, "schools", selectedSchoolId));
-        setSelectedSchoolId(""); // Reset selected school
+        setSelectedSchoolId("");
         fetchSchools();
       } catch (err) {
         console.error("Eroare la ștergerea școlii și a elevilor:", err);
@@ -75,7 +73,7 @@ function AdminDashboard() {
         setJudet(selectedSchool.county);
         setLocalitate(selectedSchool.locality);
         setIsEditing(true);
-        setShowAddSchoolForm(true); // Show the form for editing
+        setShowAddSchoolForm(true);
       }
     }
   };
@@ -87,6 +85,7 @@ function AdminDashboard() {
         id: doc.id,
         ...doc.data(),
       }));
+      console.log("Școlile din Firebase:", schoolList); // Verifică datele aici
       setSchools(schoolList);
     } catch (err) {
       console.error("Eroare la aducerea listei de școli", err);
@@ -179,6 +178,35 @@ function AdminDashboard() {
     }
   };
 
+  const handleBulkUpload = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+
+        const uploadPromises = rows.map(async (row) => {
+          if (row.Nume && row.Județ && row.Localitate) {
+            return addDoc(collection(db, "schools"), {
+              name: row.Nume,
+              county: row.Județ,
+              locality: row.Localitate,
+            });
+          }
+        });
+
+        await Promise.all(uploadPromises);
+        setBulkUploadStatus("Școlile au fost încărcate cu succes!");
+        fetchSchools();
+      } catch (err) {
+        console.error("Eroare la încărcarea bulk a școlilor:", err);
+        setBulkUploadStatus("Eroare la încărcarea bulk a școlilor.");
+      }
+    }
+  };
+
   return (
     <div>
       <NavBar />
@@ -195,6 +223,11 @@ function AdminDashboard() {
           <button className={styles.exportButton} onClick={exportToExcel}>
             Descarcă elevii înscriși
           </button>
+          <input type="file" accept=".xlsx, .xls" onChange={handleBulkUpload} className={styles.fileInput} />
+          <button onClick={() => document.querySelector(`.${styles.fileInput}`).click()} className={styles.bulkUploadButton}>
+            Încarcă școli din Excel
+          </button>
+          {bulkUploadStatus && <p className={styles.successMessage}>{bulkUploadStatus}</p>}
         </div>
 
         {showAddSchoolForm && (
@@ -227,7 +260,6 @@ function AdminDashboard() {
 
         <h2 className={styles.schoolListTitle}>Lista școlilor:</h2>
 
-        {/* Dropdown for selecting schools */}
         <div className={styles.dropdownContainer}>
           <select value={selectedSchoolId} onChange={(e) => setSelectedSchoolId(e.target.value)} className={styles.dropdown}>
             <option value="" disabled>
@@ -240,7 +272,6 @@ function AdminDashboard() {
             ))}
           </select>
 
-          {/* Buttons to delete or edit the selected school */}
           <button onClick={handleDeleteSchool} disabled={!selectedSchoolId} className={styles.deleteButton}>
             Șterge școala selectată
           </button>

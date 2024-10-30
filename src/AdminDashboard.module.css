@@ -1,3 +1,4 @@
+/* Root variables */
 :root {
   --primary-color: #1abc9c;
   --primary-hover-color: #16a085;
@@ -13,6 +14,7 @@
   --shadow-light: rgba(0, 0, 0, 0.15);
 }
 
+/* Main container */
 .container {
   display: flex;
   flex-direction: column;
@@ -24,6 +26,7 @@
   padding: 20px;
 }
 
+/* Title styles */
 .title {
   font-size: 3rem;
   margin-bottom: 30px;
@@ -33,6 +36,7 @@
   animation: glow 1.5s infinite alternate;
 }
 
+/* Glow animation */
 @keyframes glow {
   from {
     text-shadow: 3px 3px 15px rgba(255, 255, 255, 0.4), 0 0 30px rgba(255, 255, 255, 0.1);
@@ -42,17 +46,21 @@
   }
 }
 
+/* Button container */
 .buttonContainer {
   display: flex;
-  justify-content: center;
+  flex-direction: row;
+  align-items: center;
   gap: 20px;
   margin-top: 20px;
   margin-bottom: 40px;
 }
 
+/* Add, stats, export buttons */
 .addButton,
 .statsButton,
-.exportButton {
+.exportButton,
+.bulkUploadButton {
   background-color: var(--primary-color);
   color: var(--text-color-light);
   padding: 12px 24px;
@@ -67,19 +75,34 @@
   box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
+/* Hover effects for buttons */
 .addButton:hover,
 .statsButton:hover,
-.exportButton:hover {
+.exportButton:hover,
+.bulkUploadButton:hover {
   background-color: var(--primary-hover-color);
   transform: translateY(-3px);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
 }
 
+/* File input for bulk upload (hidden by default) */
+.fileInput {
+  display: none;
+}
+
+/* Bulk upload status message */
+.uploadStatus {
+  margin-top: 10px;
+  font-size: 1.2rem;
+  color: var(--primary-color);
+  text-align: center;
+}
+
+/* Form container */
 .formContainer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   background-color: white;
   padding: 40px;
   border-radius: 12px;
@@ -89,6 +112,7 @@
   margin: 0 auto;
 }
 
+/* Input field styles */
 .inputField {
   padding: 14px;
   font-size: 1.3rem;
@@ -105,6 +129,7 @@
   outline: none;
 }
 
+/* Form actions container */
 .formActions {
   display: flex;
   justify-content: space-between;
@@ -112,6 +137,7 @@
   width: 100%;
 }
 
+/* Submit button */
 .submitButton {
   background-color: var(--button-color);
   color: var(--text-color-light);
@@ -128,6 +154,7 @@
   box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
+/* Cancel button */
 .cancelButton {
   background-color: var(--danger-color);
   color: var(--text-color-light);
@@ -152,6 +179,7 @@
   margin-top: 20px;
 }
 
+/* Dropdown */
 .dropdown {
   padding: 12px;
   font-size: 1.3rem;
@@ -168,7 +196,7 @@
   box-shadow: 0 0 10px rgba(26, 188, 156, 0.3);
 }
 
-/* Button styles for delete and edit buttons */
+/* Delete button */
 .deleteButton {
   background-color: var(--danger-color);
   color: var(--text-color-light);
@@ -186,7 +214,7 @@
   box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
-/* Edit button styling */
+/* Edit button */
 .editButton {
   background-color: var(--edit-color);
   color: var(--text-color-light);
@@ -204,7 +232,7 @@
   box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
-/* Styling for statistics display */
+/* Statistics display */
 .statistics {
   margin-top: 20px;
   padding: 25px;
@@ -226,4 +254,14 @@
   margin: 10px 0;
   font-size: 1.2rem;
   color: var(--text-color-dark);
+}
+.successMessage {
+  color: #28a745;
+  font-weight: bold;
+  margin-top: 10px;
+  background-color: #d4edda;
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #c3e6cb;
+  text-align: center;
 }
