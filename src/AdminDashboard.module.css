@@ -56,7 +56,7 @@
   margin-bottom: 40px;
 }
 
-/* Add, stats, export buttons */
+/* Button styles */
 .addButton,
 .statsButton,
 .exportButton,
@@ -75,7 +75,6 @@
   box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
-/* Hover effects for buttons */
 .addButton:hover,
 .statsButton:hover,
 .exportButton:hover,
@@ -85,16 +84,20 @@
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
 }
 
-/* File input for bulk upload (hidden by default) */
+/* Hidden file input */
 .fileInput {
   display: none;
 }
 
-/* Bulk upload status message */
-.uploadStatus {
+/* Success message */
+.successMessage {
+  color: #28a745;
+  font-weight: bold;
   margin-top: 10px;
-  font-size: 1.2rem;
-  color: var(--primary-color);
+  background-color: #d4edda;
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #c3e6cb;
   text-align: center;
 }
 
@@ -129,7 +132,7 @@
   outline: none;
 }
 
-/* Form actions container */
+/* Form actions */
 .formActions {
   display: flex;
   justify-content: space-between;
@@ -137,7 +140,7 @@
   width: 100%;
 }
 
-/* Submit button */
+/* Submit and cancel buttons */
 .submitButton {
   background-color: var(--button-color);
   color: var(--text-color-light);
@@ -154,7 +157,6 @@
   box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
-/* Cancel button */
 .cancelButton {
   background-color: var(--danger-color);
   color: var(--text-color-light);
@@ -171,7 +173,7 @@
   box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
-/* Dropdown container for school selection */
+/* Dropdown container */
 .dropdownContainer {
   display: flex;
   align-items: center;
@@ -179,7 +181,7 @@
   margin-top: 20px;
 }
 
-/* Dropdown */
+/* Dropdown styles */
 .dropdown {
   padding: 12px;
   font-size: 1.3rem;
@@ -196,7 +198,7 @@
   box-shadow: 0 0 10px rgba(26, 188, 156, 0.3);
 }
 
-/* Delete button */
+/* Delete and edit buttons */
 .deleteButton {
   background-color: var(--danger-color);
   color: var(--text-color-light);
@@ -214,7 +216,6 @@
   box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
-/* Edit button */
 .editButton {
   background-color: var(--edit-color);
   color: var(--text-color-light);
@@ -255,13 +256,86 @@
   font-size: 1.2rem;
   color: var(--text-color-dark);
 }
-.successMessage {
-  color: #28a745;
-  font-weight: bold;
-  margin-top: 10px;
-  background-color: #d4edda;
-  padding: 10px;
-  border-radius: 5px;
-  border: 1px solid #c3e6cb;
-  text-align: center;
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+
+  .title {
+    font-size: 2rem;
+    margin-bottom: 20px;
+  }
+
+  .buttonContainer {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .addButton,
+  .statsButton,
+  .exportButton,
+  .bulkUploadButton {
+    font-size: 1rem;
+    padding: 10px 20px;
+    width: 100%;
+  }
+
+  .formContainer {
+    padding: 20px;
+    width: 90%;
+  }
+
+  .inputField {
+    font-size: 1rem;
+    padding: 10px;
+  }
+
+  .dropdown {
+    font-size: 1rem;
+    padding: 10px;
+    width: 100%;
+  }
+
+  .deleteButton,
+  .editButton {
+    font-size: 1rem;
+    padding: 8px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .title {
+    font-size: 1.5rem;
+  }
+
+  .buttonContainer {
+    gap: 5px;
+  }
+
+  .addButton,
+  .statsButton,
+  .exportButton,
+  .bulkUploadButton {
+    font-size: 0.9rem;
+    padding: 8px 16px;
+  }
+
+  .formContainer {
+    padding: 15px;
+  }
+
+  .inputField {
+    font-size: 0.9rem;
+    padding: 8px;
+  }
+
+  .statistics h2 {
+    font-size: 1.5rem;
+  }
+
+  .statistics p {
+    font-size: 1rem;
+  }
 }

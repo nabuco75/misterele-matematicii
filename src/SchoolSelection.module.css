@@ -8,38 +8,36 @@
 }
 
 .selectionContainer {
-  margin-bottom: 20px;
   width: 100%;
-  max-width: 500px; /* Setează o lățime maximă */
-  margin: 0 auto; /* Centrează containerul */
-  margin-top: 50px;
+  max-width: 500px; /* Lățime maximă */
+  margin: 50px auto 20px; /* Centrează containerul cu spațiu sus și jos */
   padding: 20px;
   background-color: white;
   border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2); /* Umbră subtilă pentru container */
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2); /* Umbră subtilă */
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .selectionContainer:hover {
-  transform: translateY(-5px); /* Efect subtil de ridicare la hover */
+  transform: translateY(-5px); /* Efect de ridicare la hover */
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); /* Umbră mai intensă la hover */
 }
 
 .selectField {
-  width: 100%; /* Asigură-te că toate select-urile ocupă întreaga lățime a containerului */
+  width: 100%;
   padding: 12px;
   margin-bottom: 20px;
   border-radius: 10px;
   border: 2px solid #ccc;
-  background: linear-gradient(135deg, #ffffff, #e0e0e0); /* Gradient subtil pentru select */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Umbră discretă pentru câmpurile de selectare */
+  background: linear-gradient(135deg, #ffffff, #e0e0e0); /* Gradient subtil */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Umbră discretă */
   font-size: 1.1rem;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .selectField:focus {
-  border-color: var(--secondary-color); /* Culoare de focus */
-  box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); /* Efect subtil de glow la focus */
+  border-color: var(--secondary-color);
+  box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); /* Glow subtil */
   outline: none;
 }
 
@@ -63,9 +61,10 @@ option {
 }
 
 option[disabled] {
-  color: #ccc; /* Școlile care au deja elevi înscriși sunt gri */
+  color: #ccc; /* Gri pentru școlile cu elevi deja înscriși */
 }
 
+/* Responsive styles */
 @media (max-width: 768px) {
   .selectionContainer {
     padding: 15px;
@@ -78,5 +77,20 @@ option[disabled] {
 
   label {
     font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .selectionContainer {
+    padding: 10px;
+  }
+
+  .selectField {
+    font-size: 0.9rem;
+    padding: 8px;
+  }
+
+  label {
+    font-size: 0.9rem;
   }
 }

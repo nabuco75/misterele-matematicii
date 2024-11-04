@@ -53,6 +53,12 @@
   display: flex;
   justify-content: space-between;
   gap: 20px;
+  flex-wrap: wrap;
+}
+
+.input-group {
+  flex: 1;
+  min-width: 250px;
 }
 
 .submit-button {
@@ -64,12 +70,13 @@
   cursor: pointer;
   font-size: 16px;
   transition: background-color 0.3s ease;
-  width: 70%;
-  margin: auto;
+  width: 100%;
+  max-width: 300px;
+  margin: 0 auto;
 }
 
 .submit-button:hover {
-  background-color: #28a745;
+  background-color: #0056b3;
 }
 
 .submit-button:disabled {
@@ -77,11 +84,6 @@
   cursor: not-allowed;
 }
 
-@media (max-width: 600px) {
-  .class-groups {
-    flex-direction: column;
-  }
-}
 .message {
   margin-top: 20px;
   text-align: center;
@@ -105,4 +107,40 @@
   color: red;
   font-size: 0.875em;
   margin-top: 5px;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .class-groups {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .guide-container {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .submit-button {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .form-container {
+    padding: 15px;
+  }
+
+  .class-group {
+    padding: 8px;
+  }
+
+  .input-field {
+    font-size: 14px;
+    padding: 10px;
+  }
+
+  .submit-button {
+    font-size: 14px;
+  }
 }
