@@ -113,6 +113,7 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); /* Umbră mai intensă la hover */
 }
 
+/* Responsive styles */
 @media (max-width: 768px) {
   .landingContainer {
     padding: 10px;
@@ -129,5 +130,21 @@
   .inscrieButton {
     font-size: 1.2rem;
     padding: 12px 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .welcomeMessage {
+    font-size: 2rem;
+  }
+
+  .instructions {
+    font-size: 1rem;
+    margin-bottom: 20px;
+  }
+
+  .inscrieButton {
+    font-size: 1rem;
+    padding: 10px 20px;
   }
 }

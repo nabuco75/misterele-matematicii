@@ -68,6 +68,8 @@ option[disabled] {
 @media (max-width: 768px) {
   .selectionContainer {
     padding: 15px;
+    max-width: 95%; /* Lățimea maximă de 95% pentru a păstra spațiu pe margini */
+    margin: 0 auto; /* Centrarea containerului */
   }
 
   .selectField {
@@ -83,6 +85,8 @@ option[disabled] {
 @media (max-width: 480px) {
   .selectionContainer {
     padding: 10px;
+    max-width: 90%; /* Lățimea maximă de 90% pentru ecrane foarte mici */
+    margin: 0 auto; /* Centrarea containerului */
   }
 
   .selectField {

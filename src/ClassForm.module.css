@@ -144,3 +144,64 @@
     font-size: 14px;
   }
 }
+/* Modal de confirmare */
+.confirmationModal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  z-index: 1000;
+}
+
+.confirmationModal p {
+  font-size: 16px;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.confirmButton,
+.cancelButton {
+  padding: 10px 20px;
+  font-size: 14px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  margin: 5px;
+  transition: background-color 0.3s ease;
+}
+
+.confirmButton {
+  background-color: #28a745; /* Verde pentru butonul de confirmare */
+  color: white;
+}
+
+.confirmButton:hover {
+  background-color: #218838;
+}
+
+.cancelButton {
+  background-color: #dc3545; /* Roșu pentru butonul de anulare */
+  color: white;
+}
+
+.cancelButton:hover {
+  background-color: #c82333;
+}
+
+/* Stil pentru overlay-ul de fundal */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}

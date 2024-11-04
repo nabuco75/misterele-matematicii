@@ -19,6 +19,7 @@ function ClassForm({ selectedSchool, schoolId }) {
   const [message, setMessage] = useState({ type: "", content: "" });
   const [alreadyRegistered, setAlreadyRegistered] = useState(false);
   const [errors, setErrors] = useState({ email: "", telefon: "", profesorIndrumator: "" });
+  const [showConfirmation, setShowConfirmation] = useState(false); // Nou state pentru modalul de confirmare
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const phoneRegex = /^\d{10}$/;
@@ -57,19 +58,21 @@ function ClassForm({ selectedSchool, schoolId }) {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleInscrieClick = (e) => {
     e.preventDefault();
-
     if (!emailRegex.test(email) || !phoneRegex.test(telefon) || profesorIndrumator.trim() === "") {
       setMessage({ type: "error", content: "Vă rugăm să completați corect toate câmpurile!" });
       return;
     }
-
     if (alreadyRegistered) {
       setMessage({ type: "error", content: "Ați înscris deja elevi de la această școală." });
       return;
     }
+    setShowConfirmation(true); // Afișează modalul de confirmare
+  };
 
+  const handleConfirmInscriere = async () => {
+    setShowConfirmation(false);
     setLoading(true);
 
     try {
@@ -88,9 +91,9 @@ function ClassForm({ selectedSchool, schoolId }) {
         }
       }
 
+      // Trimiterea emailului cu EmailJS
       let emailContent = "<table border='1' cellpadding='5' cellspacing='0'>";
       emailContent += "<thead><tr><th>Clasa</th><th>Elevi</th></tr></thead><tbody>";
-
       for (const className of classes) {
         const filteredStudents = studentsByClass[className].filter((student) => student);
         if (filteredStudents.length > 0) {
@@ -101,7 +104,6 @@ function ClassForm({ selectedSchool, schoolId }) {
           emailContent += `</ul></td></tr>`;
         }
       }
-
       emailContent += "</tbody></table>";
 
       const templateParams = {
@@ -136,50 +138,33 @@ function ClassForm({ selectedSchool, schoolId }) {
     }
   };
 
+  const handleCancel = () => {
+    setShowConfirmation(false); // Anulează înscrierea
+  };
+
   return (
     <div className={styles["form-container"]}>
       <h2>Înscriere elevi</h2>
 
       {alreadyRegistered && <div className={`${styles.message} ${styles.error}`}>Ați înscris deja elevi de la această școală.</div>}
 
-      <form onSubmit={handleSubmit} className={styles["form-group"]}>
+      <form onSubmit={handleInscrieClick} className={styles["form-group"]}>
         <div className={styles["class-groups"]}>
-          <div className={styles["class-group"]}>
-            <h3>Clasa a IV-a</h3>
-            {studentsByClass["a IV-a"].map((student, index) => (
-              <input key={index} type="text" placeholder={`Nume Elev ${index + 1}`} value={student} onChange={(e) => handleChange("a IV-a", index, e.target.value)} className={styles["input-field"]} />
-            ))}
-          </div>
-
-          <div className={styles["class-group"]}>
-            <h3>Clasa a V-a</h3>
-            {studentsByClass["a V-a"].map((student, index) => (
-              <input key={index} type="text" placeholder={`Nume Elev ${index + 1}`} value={student} onChange={(e) => handleChange("a V-a", index, e.target.value)} className={styles["input-field"]} />
-            ))}
-          </div>
-        </div>
-
-        <div className={styles["class-groups"]}>
-          <div className={styles["class-group"]}>
-            <h3>Clasa a VI-a</h3>
-            {studentsByClass["a VI-a"].map((student, index) => (
-              <input key={index} type="text" placeholder={`Nume Elev ${index + 1}`} value={student} onChange={(e) => handleChange("a VI-a", index, e.target.value)} className={styles["input-field"]} />
-            ))}
-          </div>
-
-          <div className={styles["class-group"]}>
-            <h3>Clasa a VII-a</h3>
-            {studentsByClass["a VII-a"].map((student, index) => (
-              <input
-                key={index}
-                type="text"
-                placeholder={`Nume Elev ${index + 1}`}
-                value={student}
-                onChange={(e) => handleChange("a VII-a", index, e.target.value)}
-                className={styles["input-field"]}
-              />
-            ))}
-          </div>
+          {Object.keys(studentsByClass).map((className) => (
+            <div className={styles["class-group"]} key={className}>
+              <h3>{className}</h3>
+              {studentsByClass[className].map((student, index) => (
+                <input
+                  key={index}
+                  type="text"
+                  placeholder={`Nume Elev ${index + 1}`}
+                  value={student}
+                  onChange={(e) => handleChange(className, index, e.target.value)}
+                  className={styles["input-field"]}
+                />
+              ))}
+            </div>
+          ))}
         </div>
 
         <div className={styles["email-container"]}>
@@ -229,6 +214,18 @@ function ClassForm({ selectedSchool, schoolId }) {
 
         {message.content && <div className={`${styles.message} ${message.type === "success" ? styles.success : styles.error}`}>{message.content}</div>}
       </form>
+
+      {showConfirmation && (
+        <div className={styles.confirmationModal}>
+          <p>Atenție! Nu vei mai putea adăuga alți elevi de la această unitate de învățământ. Ești sigur că vrei să înscrii acești elevi?</p>
+          <button onClick={handleConfirmInscriere} className={styles.confirmButton}>
+            DA
+          </button>
+          <button onClick={handleCancel} className={styles.cancelButton}>
+            Anulează
+          </button>
+        </div>
+      )}
     </div>
   );
 }
