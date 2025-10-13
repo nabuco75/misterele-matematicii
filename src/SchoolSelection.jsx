@@ -50,27 +50,37 @@ function SchoolSelection({ setSelectedSchool }) {
     if (selectedLocality) {
       const fetchSchools = async () => {
         const querySnapshot = await getDocs(query(collection(db, "schools"), where("county", "==", selectedCounty), where("locality", "==", selectedLocality)));
+
         const schoolsList = [];
         const statusList = {};
 
-        for (const doc of querySnapshot.docs) {
-          const school = { id: doc.id, name: doc.data().name };
+        for (const scDoc of querySnapshot.docs) {
+          const school = { id: scDoc.id, name: scDoc.data().name };
 
-          // Verificăm dacă școala are deja elevi înscriși
-          const q = query(collection(db, "registration"), where("schoolId", "==", doc.id));
-          const querySnapshotReg = await getDocs(q);
-          statusList[doc.id] = !querySnapshotReg.empty; // True dacă elevii sunt deja înscriși
+          // verificăm dacă școala are cel puțin un elev înscris
+          const regSnap = await getDocs(query(collection(db, "registration"), where("schoolId", "==", scDoc.id)));
 
+          let hasStudents = false;
+          for (const r of regSnap.docs) {
+            const d = r.data();
+            if (Array.isArray(d.students) && d.students.length > 0) {
+              hasStudents = true;
+              break;
+            }
+          }
+
+          statusList[scDoc.id] = hasStudents;
           schoolsList.push(school);
         }
 
         setSchools(schoolsList);
-        setSchoolStatus(statusList); // Setăm statusul pentru fiecare școală
+        setSchoolStatus(statusList);
         console.log("Schools fetched for locality", selectedLocality, ":", schoolsList);
       };
+
       fetchSchools();
     } else {
-      setSchools([]); // Reset schools if no locality selected
+      setSchools([]);
       console.log("No locality selected, resetting schools.");
     }
   }, [selectedLocality, selectedCounty]);

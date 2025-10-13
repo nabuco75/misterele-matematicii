@@ -26,6 +26,10 @@ function Landing() {
         <h1 className={styles.welcomeMessage}>Bine ați venit la concursul Misterele Matematicii!</h1>
         <p className={styles.instructions}>Alegeți județul, localitatea și școala pentru a înscrie elevii.</p>
 
+        <p className={styles.missingMessage}>
+          Dacă județul, localitatea sau școala dvs. nu apare în listă, vă rugăm să trimiteți aceste date la adresa <strong>contact@scoala5vaslui.ro</strong> pentru a fi adăugate în baza de date.
+        </p>
+
         <SchoolSelection
           setSelectedSchool={(schoolId) => {
             console.log("School ID selectat în SchoolSelection:", schoolId);

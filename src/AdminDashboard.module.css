@@ -310,3 +310,26 @@
     gap: 15px;
   }
 }
+/* Tabel pentru "Școli înscrise" */
+.schoolTable {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+.schoolTable th,
+.schoolTable td {
+  padding: 12px 14px;
+  border-top: 1px solid #eee;
+  text-align: left;
+  font-size: 0.98rem;
+}
+.schoolTable th {
+  background: #fafafa;
+  font-weight: 600;
+}
+.schoolTable tbody tr:nth-child(even) {
+  background: #fcfcfc;
+}
