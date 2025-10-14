@@ -7,82 +7,51 @@ function SchoolSelection({ setSelectedSchool }) {
   const [counties, setCounties] = useState([]);
   const [localities, setLocalities] = useState([]);
   const [schools, setSchools] = useState([]);
-  const [schoolStatus, setSchoolStatus] = useState({}); // Stare pentru a urmări statusul școlilor (dacă au deja elevi)
   const [selectedCounty, setSelectedCounty] = useState("");
   const [selectedLocality, setSelectedLocality] = useState("");
   const [selectedSchoolId, setSelectedSchoolId] = useState("");
 
-  // Fetch the list of unique counties from Firestore
+  // 1) județe
   useEffect(() => {
     const fetchCounties = async () => {
-      const querySnapshot = await getDocs(collection(db, "schools"));
-      const countiesList = new Set();
-      querySnapshot.forEach((doc) => {
-        countiesList.add(doc.data().county);
-      });
-      setCounties([...countiesList]); // Convert set to array
-      console.log("Counties fetched:", countiesList);
+      const snap = await getDocs(collection(db, "schools"));
+      const setc = new Set();
+      snap.forEach((d) => setc.add(d.data().county));
+      setCounties([...setc]);
     };
     fetchCounties();
   }, []);
 
-  // Fetch the localities based on the selected county
+  // 2) localități
   useEffect(() => {
-    if (selectedCounty) {
-      const fetchLocalities = async () => {
-        const querySnapshot = await getDocs(query(collection(db, "schools"), where("county", "==", selectedCounty)));
-        const localitiesList = new Set();
-        querySnapshot.forEach((doc) => {
-          localitiesList.add(doc.data().locality);
-        });
-        setLocalities([...localitiesList]); // Convert set to array
-        console.log("Localities fetched for county", selectedCounty, ":", localitiesList);
-      };
-      fetchLocalities();
-    } else {
-      setLocalities([]); // Reset localities if no county selected
-      console.log("No county selected, resetting localities.");
+    if (!selectedCounty) {
+      setLocalities([]);
+      return;
     }
+    const fetchLocalities = async () => {
+      const snap = await getDocs(query(collection(db, "schools"), where("county", "==", selectedCounty)));
+      const setl = new Set();
+      snap.forEach((d) => setl.add(d.data().locality));
+      setLocalities([...setl]);
+    };
+    fetchLocalities();
   }, [selectedCounty]);
 
-  // Fetch the schools based on the selected locality and check if they already have students registered
+  // 3) școli (fără verificări de „deja înscriși”)
   useEffect(() => {
-    if (selectedLocality) {
-      const fetchSchools = async () => {
-        const querySnapshot = await getDocs(query(collection(db, "schools"), where("county", "==", selectedCounty), where("locality", "==", selectedLocality)));
-
-        const schoolsList = [];
-        const statusList = {};
-
-        for (const scDoc of querySnapshot.docs) {
-          const school = { id: scDoc.id, name: scDoc.data().name };
-
-          // verificăm dacă școala are cel puțin un elev înscris
-          const regSnap = await getDocs(query(collection(db, "registration"), where("schoolId", "==", scDoc.id)));
-
-          let hasStudents = false;
-          for (const r of regSnap.docs) {
-            const d = r.data();
-            if (Array.isArray(d.students) && d.students.length > 0) {
-              hasStudents = true;
-              break;
-            }
-          }
-
-          statusList[scDoc.id] = hasStudents;
-          schoolsList.push(school);
-        }
-
-        setSchools(schoolsList);
-        setSchoolStatus(statusList);
-        console.log("Schools fetched for locality", selectedLocality, ":", schoolsList);
-      };
-
-      fetchSchools();
-    } else {
+    if (!selectedLocality) {
       setSchools([]);
-      console.log("No locality selected, resetting schools.");
+      return;
     }
+    const fetchSchools = async () => {
+      const snap = await getDocs(query(collection(db, "schools"), where("county", "==", selectedCounty), where("locality", "==", selectedLocality)));
+      const list = snap.docs.map((scDoc) => ({
+        id: scDoc.id,
+        name: scDoc.data().name,
+      }));
+      setSchools(list);
+    };
+    fetchSchools();
   }, [selectedLocality, selectedCounty]);
 
   return (
@@ -94,16 +63,15 @@ function SchoolSelection({ setSelectedSchool }) {
         onChange={(e) => {
           setSelectedCounty(e.target.value);
           setSelectedLocality("");
-          setSelectedSchoolId(""); // Reset selections
-          setSchools([]); // Clear schools when changing county
-          setLocalities([]); // Clear localities when changing county
-          console.log("County selected:", e.target.value);
+          setSelectedSchoolId("");
+          setSchools([]);
+          setLocalities([]);
         }}
         className={styles.selectField}
       >
         <option value="">Selectează județul</option>
-        {counties.map((county, index) => (
-          <option key={index} value={county}>
+        {counties.map((county) => (
+          <option key={county} value={county}>
             {county}
           </option>
         ))}
@@ -117,16 +85,15 @@ function SchoolSelection({ setSelectedSchool }) {
             value={selectedLocality}
             onChange={(e) => {
               setSelectedLocality(e.target.value);
-              setSelectedSchoolId(""); // Reset school when locality changes
-              setSchools([]); // Clear schools list
-              console.log("Locality selected:", e.target.value);
+              setSelectedSchoolId("");
+              setSchools([]);
             }}
             className={styles.selectField}
           >
             <option value="">Selectează localitatea</option>
-            {localities.map((locality, index) => (
-              <option key={index} value={locality}>
-                {locality}
+            {localities.map((loc) => (
+              <option key={loc} value={loc}>
+                {loc}
               </option>
             ))}
           </select>
@@ -140,17 +107,15 @@ function SchoolSelection({ setSelectedSchool }) {
             id="schoolSelect"
             value={selectedSchoolId}
             onChange={(e) => {
-              const selectedSchool = schools.find((school) => school.id === e.target.value);
               setSelectedSchoolId(e.target.value);
-              setSelectedSchool(selectedSchool ? selectedSchool.id : ""); // Trimite ID-ul școlii selectate, nu numele
-              console.log("School selected:", selectedSchool ? selectedSchool.id : "None selected");
+              setSelectedSchool(e.target.value); // trimitem ID-ul
             }}
             className={styles.selectField}
           >
             <option value="">Selectează școala</option>
             {schools.map((school) => (
-              <option key={school.id} value={school.id} disabled={schoolStatus[school.id]}>
-                {school.name} {schoolStatus[school.id] ? "(Elevii sunt deja înscriși)" : ""}
+              <option key={school.id} value={school.id}>
+                {school.name}
               </option>
             ))}
           </select>

@@ -164,3 +164,15 @@
 .missingMessage strong {
   color: var(--primary-color);
 }
+.infoCard {
+  margin: 12px auto 0;
+  padding: 12px 18px;
+  max-width: 720px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text-color-light);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(6px);
+  font-size: 1rem;
+  line-height: 1.5;
+}

@@ -1,95 +1,68 @@
-import React, { useState, useEffect, useRef } from "react";
-import {
-  getDoc,
-  collection,
-  addDoc,
-  getDocs,
-  deleteDoc,
-  updateDoc,
-  doc,
-  query,
-  where,
-  runTransaction, // ✅ pentru salvare atomică
-} from "firebase/firestore";
+import React, { useEffect, useRef, useState } from "react";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, runTransaction } from "firebase/firestore";
 import { db } from "./firebase";
 import * as XLSX from "xlsx";
 import NavBar from "./NavBar";
 import styles from "./AdminDashboard.module.css";
 
 function AdminDashboard() {
+  // —— Școli / selecție / form școală
+  const [schools, setSchools] = useState([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState("");
+
   const [showAddSchoolForm, setShowAddSchoolForm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [schoolName, setSchoolName] = useState("");
   const [judet, setJudet] = useState("");
   const [localitate, setLocalitate] = useState("");
-  const [schools, setSchools] = useState([]);
-  const [selectedSchoolId, setSelectedSchoolId] = useState("");
-  const [isEditing, setIsEditing] = useState(false);
+
+  // —— Statistici / listă școli înscrise
   const [statistics, setStatistics] = useState(null);
   const [showStatistics, setShowStatistics] = useState(false);
-  const [bulkUploadStatus, setBulkUploadStatus] = useState(null);
-  const [students, setStudents] = useState([]);
-  const [showStudentEditor, setShowStudentEditor] = useState(false);
 
-  // --- NOU: UI pt. "Școli înscrise" ---
   const [showRegisteredSchools, setShowRegisteredSchools] = useState(false);
   const [registeredSchools, setRegisteredSchools] = useState([]);
   const [loadingRegs, setLoadingRegs] = useState(false);
 
-  // --- NOU: autosave elevi ---
+  // —— Bulk upload
+  const [bulkUploadStatus, setBulkUploadStatus] = useState(null);
+
+  // —— Editor elevi
+  const [showStudentEditor, setShowStudentEditor] = useState(false);
+  const [students, setStudents] = useState([]); // [{ id: `${regId}-${idx}`, nume }]
   const [saveStatus, setSaveStatus] = useState({}); // { [studentId]: 'idle'|'saving'|'saved'|'error' }
   const saveTimersRef = useRef({}); // { [studentId]: timeoutId }
 
+  // ====== INIT ======
   useEffect(() => {
     fetchSchools();
+    return () => {
+      // cleanup debounce timeouts
+      Object.values(saveTimersRef.current).forEach(clearTimeout);
+      saveTimersRef.current = {};
+    };
   }, []);
 
+  // ====== FETCH ȘCOLI ======
   const fetchSchools = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "schools"));
-      const schoolList = querySnapshot.docs.map((s) => ({
-        id: s.id,
-        ...s.data(),
-      }));
+      const snap = await getDocs(collection(db, "schools"));
+      const list = snap.docs.map((s) => ({ id: s.id, ...s.data() }));
 
-      // ✅ sortare: județ → localitate → nume (cu diacritice)
-      schoolList.sort(
+      // sortare naturală RO: județ → localitate → nume
+      list.sort(
         (a, b) =>
           (a.county || "").localeCompare(b.county || "", "ro", { sensitivity: "base" }) ||
           (a.locality || "").localeCompare(b.locality || "", "ro", { sensitivity: "base" }) ||
           (a.name || "").localeCompare(b.name || "", "ro", { sensitivity: "base" })
       );
-
-      setSchools(schoolList);
+      setSchools(list);
     } catch (err) {
-      console.error("Eroare la aducerea listei de școli", err);
+      console.error("Eroare la aducerea listei de școli:", err);
     }
   };
 
-  const handleAddOrEditSchool = async (e) => {
-    e.preventDefault();
-    if (schoolName && judet && localitate) {
-      try {
-        if (isEditing && selectedSchoolId) {
-          await updateDoc(doc(db, "schools", selectedSchoolId), {
-            name: schoolName,
-            county: judet,
-            locality: localitate,
-          });
-        } else {
-          await addDoc(collection(db, "schools"), {
-            name: schoolName,
-            county: judet,
-            locality: localitate,
-          });
-        }
-        resetSchoolForm();
-        fetchSchools();
-      } catch (err) {
-        console.error("Eroare la adăugarea sau actualizarea școlii", err);
-      }
-    }
-  };
-
+  // ====== CRUD ȘCOALĂ ======
   const resetSchoolForm = () => {
     setSchoolName("");
     setJudet("");
@@ -99,102 +72,75 @@ function AdminDashboard() {
     setShowAddSchoolForm(false);
   };
 
+  const handleAddOrEditSchool = async (e) => {
+    e.preventDefault();
+    if (!schoolName || !judet || !localitate) return;
+
+    try {
+      if (isEditing && selectedSchoolId) {
+        await updateDoc(doc(db, "schools", selectedSchoolId), {
+          name: schoolName,
+          county: judet,
+          locality: localitate,
+        });
+      } else {
+        await addDoc(collection(db, "schools"), {
+          name: schoolName,
+          county: judet,
+          locality: localitate,
+        });
+      }
+      resetSchoolForm();
+      fetchSchools();
+    } catch (err) {
+      console.error("Eroare la adăugarea/actualizarea școlii:", err);
+    }
+  };
+
+  const handleEditSchool = () => {
+    const sc = schools.find((s) => s.id === selectedSchoolId);
+    if (!sc) return;
+    setSchoolName(sc.name || "");
+    setJudet(sc.county || "");
+    setLocalitate(sc.locality || "");
+    setIsEditing(true);
+    setShowAddSchoolForm(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedSchoolId || !schoolName) return;
+    try {
+      await updateDoc(doc(db, "schools", selectedSchoolId), { name: schoolName });
+      resetSchoolForm();
+      fetchSchools();
+    } catch (err) {
+      console.error("Eroare la salvarea modificării:", err);
+    }
+  };
+
+  const handleCancelEdit = () => resetSchoolForm();
+
   const handleDeleteSchool = async () => {
     if (!selectedSchoolId) return;
     try {
+      // ștergem toate înregistrările elevilor aferente școlii
       const qReg = query(collection(db, "registration"), where("schoolId", "==", selectedSchoolId));
       const qSnap = await getDocs(qReg);
       for (const regDoc of qSnap.docs) {
         await deleteDoc(regDoc.ref);
       }
+      // apoi școala
       await deleteDoc(doc(db, "schools", selectedSchoolId));
       setSelectedSchoolId("");
+      setShowStudentEditor(false);
+      setStudents([]);
       fetchSchools();
     } catch (err) {
-      console.error("Eroare la ștergerea școlii și a elevilor:", err);
+      console.error("Eroare la ștergerea școlii/elevilor:", err);
     }
   };
 
-  const handleEditSchool = () => {
-    const selectedSchool = schools.find((s) => s.id === selectedSchoolId);
-    if (selectedSchool) {
-      setSchoolName(selectedSchool.name);
-      setJudet(selectedSchool.county);
-      setLocalitate(selectedSchool.locality);
-      setIsEditing(true);
-      setShowAddSchoolForm(true);
-    }
-  };
-
-  const handleSaveEdit = async () => {
-    if (selectedSchoolId && schoolName) {
-      try {
-        await updateDoc(doc(db, "schools", selectedSchoolId), { name: schoolName });
-        resetSchoolForm();
-        fetchSchools();
-      } catch (err) {
-        console.error("Eroare la salvarea modificării", err);
-      }
-    }
-  };
-
-  const handleCancelEdit = () => {
-    resetSchoolForm();
-  };
-
-  const handleEditStudents = async () => {
-    if (!selectedSchoolId) return;
-
-    try {
-      const q = query(collection(db, "registration"), where("schoolId", "==", selectedSchoolId));
-      const querySnapshot = await getDocs(q);
-      const studentList = [];
-
-      querySnapshot.forEach((reg) => {
-        const data = reg.data();
-        if (Array.isArray(data.students)) {
-          data.students.forEach((student, index) => {
-            const nume = typeof student === "string" ? student : student?.nume || "";
-            studentList.push({
-              id: `${reg.id}-${index}`,
-              nume,
-            });
-          });
-        }
-      });
-
-      setStudents(studentList);
-      setShowStudentEditor(true);
-    } catch (err) {
-      console.error("Eroare la aducerea elevilor:", err);
-    }
-  };
-
-  const handleDeleteStudent = async (studentId) => {
-    const [registrationId, idxStr] = studentId.split("-");
-    const idx = parseInt(idxStr, 10);
-
-    try {
-      const regRef = doc(db, "registration", registrationId);
-      const snap = await getDoc(regRef);
-      if (!snap.exists()) return;
-
-      const data = snap.data();
-      const current = Array.isArray(data.students) ? data.students : [];
-      const updated = current.filter((_, i) => i !== idx);
-
-      if (updated.length === 0) {
-        await deleteDoc(regRef);
-      } else {
-        await updateDoc(regRef, { students: updated });
-      }
-
-      setStudents((prev) => prev.filter((s) => s.id !== studentId));
-    } catch (e) {
-      console.error("Eroare la ștergerea elevului:", e);
-    }
-  };
-
+  // ====== STATISTICI / ȘCOLI ÎNSCRISE ======
   const toggleStatistics = () => {
     if (!showStatistics) fetchStatistics();
     setShowStatistics((v) => !v);
@@ -202,39 +148,33 @@ function AdminDashboard() {
 
   const fetchStatistics = async () => {
     try {
-      const registrationSnapshot = await getDocs(collection(db, "registration"));
-      const classCounts = {
-        "a IV-a": 0,
-        "a V-a": 0,
-        "a VI-a": 0,
-        "a VII-a": 0,
-      };
+      const regsSnap = await getDocs(collection(db, "registration"));
+      const classCounts = { "a IV-a": 0, "a V-a": 0, "a VI-a": 0, "a VII-a": 0 };
       const schoolSet = new Set();
 
-      registrationSnapshot.docs.forEach((r) => {
-        const data = r.data();
-        schoolSet.add(data.schoolId);
-        if (classCounts[data.class] !== undefined) {
-          classCounts[data.class] += (data.students || []).length;
+      regsSnap.docs.forEach((r) => {
+        const d = r.data();
+        schoolSet.add(d.schoolId);
+        if (classCounts[d.class] !== undefined) {
+          classCounts[d.class] += Array.isArray(d.students) ? d.students.length : 0;
         }
       });
 
       setStatistics({
         totalSchools: schoolSet.size,
         ...classCounts,
-        totalStudents: Object.values(classCounts).reduce((acc, count) => acc + count, 0),
+        totalStudents: Object.values(classCounts).reduce((a, n) => a + n, 0),
       });
     } catch (err) {
-      console.error("Eroare la obținerea statisticilor", err);
+      console.error("Eroare la obținerea statisticilor:", err);
     }
   };
 
-  // ===== NOU: lista școlilor cu elevi înscriși (fără download) =====
   const fetchRegisteredSchools = async () => {
     try {
       setLoadingRegs(true);
+      const [schoolsSnap, regsSnap] = await Promise.all([getDocs(collection(db, "schools")), getDocs(collection(db, "registration"))]);
 
-      const schoolsSnap = await getDocs(collection(db, "schools"));
       const schoolMap = {};
       schoolsSnap.forEach((s) => {
         const d = s.data();
@@ -247,7 +187,6 @@ function AdminDashboard() {
         };
       });
 
-      const regsSnap = await getDocs(collection(db, "registration"));
       regsSnap.forEach((r) => {
         const d = r.data();
         const n = Array.isArray(d.students) ? d.students.length : 0;
@@ -268,10 +207,10 @@ function AdminDashboard() {
     }
   };
 
+  // ====== EXPORT EXCEL ======
   const exportToExcel = async () => {
     try {
-      const regsSnap = await getDocs(collection(db, "registration"));
-      const schoolsSnap = await getDocs(collection(db, "schools"));
+      const [regsSnap, schoolsSnap] = await Promise.all([getDocs(collection(db, "registration")), getDocs(collection(db, "schools"))]);
 
       const schoolById = {};
       schoolsSnap.forEach((s) => {
@@ -301,11 +240,11 @@ function AdminDashboard() {
       for (const regDoc of regsSnap.docs) {
         const data = regDoc.data();
         const sc = schoolById[data.schoolId] || { name: "", county: "", locality: "" };
-        const students = Array.isArray(data.students) ? data.students : [];
+        const studentsArr = Array.isArray(data.students) ? data.students : [];
 
-        countBySchool.set(data.schoolId, (countBySchool.get(data.schoolId) || 0) + students.length);
+        countBySchool.set(data.schoolId, (countBySchool.get(data.schoolId) || 0) + studentsArr.length);
 
-        for (const st of students) {
+        for (const st of studentsArr) {
           const nume = typeof st === "string" ? st : st?.nume || "";
           const tel = typeof st === "object" ? st?.telefon || data.telefon || "" : data.telefon || "";
           rows.push({
@@ -321,27 +260,29 @@ function AdminDashboard() {
         }
       }
 
-      const fitColumns = (arr) =>
+      const fitCols = (arr) =>
         Object.keys(arr[0] || {}).map((k) => ({
           wch: Math.max(k.length, ...arr.slice(1).map((r) => (r[k] ? String(r[k]).length : 0))) + 2,
         }));
 
       const wb = XLSX.utils.book_new();
 
+      // sheet 1: elevi
       const ws1 = XLSX.utils.json_to_sheet(rows);
-      ws1["!cols"] = fitColumns(rows);
+      ws1["!cols"] = fitCols(rows);
       ws1["!autofilter"] = { ref: XLSX.utils.encode_range(XLSX.utils.decode_range(ws1["!ref"])) };
       ws1["!freeze"] = { xSplit: 0, ySplit: 1 };
       XLSX.utils.book_append_sheet(wb, ws1, "Elevi Înscriși");
 
+      // sheet 2: sumar per școală
       const summary = [["Școala", "Localitate", "Județ", "Nr. elevi"]];
       for (const [schoolId, cnt] of countBySchool.entries()) {
         const sc = schoolById[schoolId] || { name: "", county: "", locality: "" };
         summary.push([sc.name, sc.locality, sc.county, cnt]);
       }
-      summary.splice(1, summary.length - 1, ...summary.slice(1).sort((a, b) => b[3] - a[3]));
-      const ws2 = XLSX.utils.aoa_to_sheet(summary);
-      ws2["!cols"] = fitColumns([{ a: "Școala", b: "Localitate", c: "Județ", d: "Nr. elevi" }, ...summary.slice(1).map((r) => ({ a: r[0], b: r[1], c: r[2], d: String(r[3]) }))]);
+      const hdr = [{ a: "Școala", b: "Localitate", c: "Județ", d: "Nr. elevi" }];
+      const ws2 = XLSX.utils.aoa_to_sheet([summary[0], ...summary.slice(1).sort((a, b) => b[3] - a[3])]);
+      ws2["!cols"] = fitCols([{ a: "Școala", b: "Localitate", c: "Județ", d: "Nr. elevi" }, ...summary.slice(1).map((r) => ({ a: r[0], b: r[1], c: r[2], d: String(r[3]) }))]);
       ws2["!autofilter"] = { ref: XLSX.utils.encode_range(XLSX.utils.decode_range(ws2["!ref"])) };
       XLSX.utils.book_append_sheet(wb, ws2, "Școli – total");
 
@@ -351,13 +292,16 @@ function AdminDashboard() {
     }
   };
 
+  // ====== BULK UPLOAD ȘCOLI ======
   const handleBulkUpload = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: "array" });
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+      const firstSheet = workbook.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet]);
+
       await Promise.all(
         rows.map((row) => {
           if (row.Nume && row.Județ && row.Localitate) {
@@ -373,13 +317,36 @@ function AdminDashboard() {
       setBulkUploadStatus("Școlile au fost încărcate cu succes!");
       fetchSchools();
     } catch (err) {
+      console.error("Eroare la încărcarea bulk:", err);
       setBulkUploadStatus("Eroare la încărcarea bulk a școlilor.");
-      console.error(err);
     }
   };
 
-  // ============ AUTOSAVE cu debounce + tranzacție ============
+  // ====== EDITOR ELEV — încărcare ======
+  const handleEditStudents = async () => {
+    if (!selectedSchoolId) return;
+    try {
+      const qRegs = query(collection(db, "registration"), where("schoolId", "==", selectedSchoolId));
+      const snap = await getDocs(qRegs);
 
+      const list = [];
+      snap.forEach((reg) => {
+        const d = reg.data();
+        const arr = Array.isArray(d.students) ? d.students : [];
+        arr.forEach((student, index) => {
+          const nume = typeof student === "string" ? student : student?.nume || "";
+          list.push({ id: `${reg.id}-${index}`, nume });
+        });
+      });
+
+      setStudents(list);
+      setShowStudentEditor(true);
+    } catch (err) {
+      console.error("Eroare la aducerea elevilor:", err);
+    }
+  };
+
+  // ====== EDITOR ELEV — autosave nume (tranzacție + debounce) ======
   const doSaveStudentName = async (studentId, newName) => {
     const [registrationId, idxStr] = studentId.split("-");
     const idx = parseInt(idxStr, 10);
@@ -388,21 +355,18 @@ function AdminDashboard() {
     try {
       setSaveStatus((m) => ({ ...m, [studentId]: "saving" }));
 
-      await runTransaction(db, async (transaction) => {
-        const snap = await transaction.get(regRef);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(regRef);
         if (!snap.exists()) throw new Error("registration missing");
 
         const data = snap.data();
         const arr = Array.isArray(data.students) ? [...data.students] : [];
-
-        if (Number.isNaN(idx) || idx < 0 || idx >= arr.length) {
-          throw new Error("index out of range");
-        }
+        if (Number.isNaN(idx) || idx < 0 || idx >= arr.length) throw new Error("index out of range");
 
         const prev = arr[idx];
         arr[idx] = typeof prev === "object" ? { ...prev, nume: newName } : newName;
 
-        transaction.update(regRef, { students: arr });
+        tx.update(regRef, { students: arr });
       });
 
       setSaveStatus((m) => ({ ...m, [studentId]: "saved" }));
@@ -416,11 +380,41 @@ function AdminDashboard() {
   };
 
   const scheduleAutosave = (studentId, newName) => {
-    const prevT = saveTimersRef.current[studentId];
-    if (prevT) clearTimeout(prevT);
+    const prev = saveTimersRef.current[studentId];
+    if (prev) clearTimeout(prev);
     saveTimersRef.current[studentId] = setTimeout(() => {
       doSaveStudentName(studentId, newName);
     }, 700);
+  };
+
+  // ====== EDITOR ELEV — ștergere elev (tranzacție) ======
+  const handleDeleteStudent = async (studentId) => {
+    const [registrationId, idxStr] = studentId.split("-");
+    const idx = parseInt(idxStr, 10);
+    const regRef = doc(db, "registration", registrationId);
+
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(regRef);
+        if (!snap.exists()) return;
+
+        const data = snap.data();
+        const arr = Array.isArray(data.students) ? [...data.students] : [];
+        if (Number.isNaN(idx) || idx < 0 || idx >= arr.length) return;
+
+        const updated = arr.filter((_, i) => i !== idx);
+        if (updated.length === 0) {
+          tx.delete(regRef);
+        } else {
+          tx.update(regRef, { students: updated });
+        }
+      });
+
+      // UI după succes
+      setStudents((prev) => prev.filter((s) => s.id !== studentId));
+    } catch (e) {
+      console.error("Eroare la ștergerea elevului:", e);
+    }
   };
 
   return (
@@ -429,8 +423,9 @@ function AdminDashboard() {
       <div className={styles.container}>
         <h1 className={styles.title}>Bine ai venit în panoul de administrare!</h1>
 
+        {/* Butoane acțiuni */}
         <div className={styles.buttonContainer}>
-          <button onClick={() => setShowAddSchoolForm(!showAddSchoolForm)} className={styles.addButton}>
+          <button onClick={() => setShowAddSchoolForm((v) => !v)} className={styles.addButton}>
             {showAddSchoolForm ? "Ascunde formularul" : "Adaugă o școală"}
           </button>
 
@@ -438,7 +433,6 @@ function AdminDashboard() {
             {showStatistics ? "Ascunde situație înscrieri" : "Situație înscrieri"}
           </button>
 
-          {/* NOU: lista instant a școlilor înscrise */}
           <button
             onClick={async () => {
               await fetchRegisteredSchools();
@@ -454,12 +448,13 @@ function AdminDashboard() {
           </button>
 
           <input type="file" accept=".xlsx, .xls" onChange={handleBulkUpload} className={styles.fileInput} />
-          <button onClick={() => document.querySelector(`.${styles.fileInput}`).click()} className={styles.bulkUploadButton}>
+          <button onClick={() => document.querySelector(`.${styles.fileInput}`)?.click()} className={styles.bulkUploadButton}>
             Încarcă școli din Excel
           </button>
           {bulkUploadStatus && <p className={styles.successMessage}>{bulkUploadStatus}</p>}
         </div>
 
+        {/* Formular adăugare / editare școală */}
         {showAddSchoolForm && (
           <form onSubmit={handleAddOrEditSchool} className={styles.formContainer}>
             <input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} placeholder="Nume școală" className={styles.inputField} />
@@ -485,7 +480,7 @@ function AdminDashboard() {
           </form>
         )}
 
-        {/* Statistici existente */}
+        {/* Statistici */}
         {showStatistics && statistics && (
           <div className={styles.statistics}>
             <h2>Statistici înscrieri</h2>
@@ -498,7 +493,7 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* NOU: panou simplu cu școlile înscrise */}
+        {/* Școli înscrise (sumar) */}
         {showRegisteredSchools && (
           <div
             style={{
@@ -541,9 +536,19 @@ function AdminDashboard() {
           </div>
         )}
 
+        {/* Selector școală + acțiuni */}
         <h2 className={styles.schoolListTitle}>Lista școlilor:</h2>
         <div className={styles.dropdownContainer}>
-          <select value={selectedSchoolId} onChange={(e) => setSelectedSchoolId(e.target.value)} className={styles.dropdown}>
+          <select
+            value={selectedSchoolId}
+            onChange={(e) => {
+              setSelectedSchoolId(e.target.value);
+              // reset editor elevi la schimbare școală
+              setShowStudentEditor(false);
+              setStudents([]);
+            }}
+            className={styles.dropdown}
+          >
             <option value="" disabled>
               Selectează o școală
             </option>
@@ -553,6 +558,7 @@ function AdminDashboard() {
               </option>
             ))}
           </select>
+
           <div className={styles.buttonGroup}>
             <button onClick={handleDeleteSchool} disabled={!selectedSchoolId} className={styles.deleteButton}>
               Șterge școala selectată
@@ -566,42 +572,46 @@ function AdminDashboard() {
           </div>
         </div>
 
+        {/* Editor elevi */}
         {showStudentEditor && (
           <div className={styles.studentList}>
             <h2>Elevi înscriși:</h2>
             {students.length > 0 ? (
-              students.map((student) => (
-                <div key={student.id} className={styles.studentItem}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-                    {/* indicator status mic, elegant */}
-                    <span
-                      title={saveStatus[student.id] === "saving" ? "Se salvează…" : saveStatus[student.id] === "saved" ? "Salvat" : saveStatus[student.id] === "error" ? "Eroare la salvare" : "OK"}
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        background: saveStatus[student.id] === "saving" ? "#f39c12" : saveStatus[student.id] === "saved" ? "#2ecc71" : saveStatus[student.id] === "error" ? "#e74c3c" : "#bdc3c7",
-                        boxShadow: "0 0 6px rgba(0,0,0,.2)",
-                        flex: "0 0 auto",
-                      }}
-                    />
-                    <input
-                      type="text"
-                      value={student.nume || ""}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setStudents((prev) => prev.map((s) => (s.id === student.id ? { ...s, nume: v } : s)));
-                        scheduleAutosave(student.id, v);
-                      }}
-                      className={styles.inputField}
-                      style={{ flex: 1 }}
-                    />
+              students.map((student) => {
+                const st = saveStatus[student.id];
+                return (
+                  <div key={student.id} className={styles.studentItem}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+                      {/* indicator de status */}
+                      <span
+                        title={st === "saving" ? "Se salvează…" : st === "saved" ? "Salvat" : st === "error" ? "Eroare la salvare" : "OK"}
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: "50%",
+                          background: st === "saving" ? "#f39c12" : st === "saved" ? "#2ecc71" : st === "error" ? "#e74c3c" : "#bdc3c7",
+                          boxShadow: "0 0 6px rgba(0,0,0,.2)",
+                          flex: "0 0 auto",
+                        }}
+                      />
+                      <input
+                        type="text"
+                        value={student.nume || ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setStudents((prev) => prev.map((s) => (s.id === student.id ? { ...s, nume: v } : s)));
+                          scheduleAutosave(student.id, v);
+                        }}
+                        className={styles.inputField}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                    <button onClick={() => handleDeleteStudent(student.id)} className={styles.deleteButton} disabled={st === "saving"}>
+                      Șterge
+                    </button>
                   </div>
-                  <button onClick={() => handleDeleteStudent(student.id)} className={styles.deleteButton}>
-                    Șterge
-                  </button>
-                </div>
-              ))
+                );
+              })
             ) : (
               <p className={styles.noStudentsMessage}>Nu există elevi înscriși.</p>
             )}
