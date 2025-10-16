@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from "react";
 import emailjs from "emailjs-com";
 import { db } from "./firebase";
-import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  onSnapshot, // ✅ live updates
+} from "firebase/firestore";
 import styles from "./ClassForm.module.css";
 
 function ClassForm({ selectedSchool, schoolId }) {
@@ -18,7 +25,7 @@ function ClassForm({ selectedSchool, schoolId }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", content: "" });
 
-  // nou: contorizare locuri ocupate / ciclu (informativ)
+  // ✅ contorizare locuri ocupate / ciclu (live)
   const [countByClass, setCountByClass] = useState({
     "a IV-a": 0,
     "a V-a": 0,
@@ -37,10 +44,10 @@ function ClassForm({ selectedSchool, schoolId }) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const phoneRegex = /^\d{10}$/;
 
-  // helper: numără câți elevi sunt deja înscriși pentru (schoolId, className)
+  // helper: numără câți elevi sunt deja înscriși pentru (schoolId, className) — folosit la re-check pe submit
   const fetchCountForClass = async (className) => {
-    const q = query(collection(db, "registration"), where("schoolId", "==", schoolId), where("class", "==", className));
-    const snap = await getDocs(q);
+    const qReg = query(collection(db, "registration"), where("schoolId", "==", schoolId), where("class", "==", className));
+    const snap = await getDocs(qReg);
 
     let total = 0;
     snap.forEach((doc) => {
@@ -48,25 +55,25 @@ function ClassForm({ selectedSchool, schoolId }) {
       const arr = Array.isArray(data?.students) ? data.students : [];
       total += arr.length;
     });
-    return total; // numărul total de elevi deja înscriși la acel ciclu
+    return total;
   };
 
-  // informativ: încarcă numărul curent pe fiecare ciclu când se schimbă școala
+  // ✅ LIVE: ascultă Firestore pentru fiecare ciclu și actualizează countByClass în timp real
   useEffect(() => {
-    let isMounted = true;
-    const loadCounts = async () => {
-      if (!schoolId) return;
-      const classes = Object.keys(studentsByClass);
-      const results = {};
-      for (const c of classes) {
-        results[c] = await fetchCountForClass(c);
-      }
-      if (isMounted) setCountByClass(results);
-    };
-    loadCounts();
-    return () => {
-      isMounted = false;
-    };
+    if (!schoolId) return;
+    const classes = Object.keys(studentsByClass);
+    const unsubs = classes.map((c) => {
+      const qReg = query(collection(db, "registration"), where("schoolId", "==", schoolId), where("class", "==", c));
+      return onSnapshot(qReg, (snap) => {
+        let total = 0;
+        snap.forEach((doc) => {
+          const arr = Array.isArray(doc.data()?.students) ? doc.data().students : [];
+          total += arr.length;
+        });
+        setCountByClass((prev) => ({ ...prev, [c]: total }));
+      });
+    });
+    return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schoolId]);
 
@@ -93,28 +100,29 @@ function ClassForm({ selectedSchool, schoolId }) {
     }
   };
 
+  // câți elevi ai completat local pe un ciclu
+  const localProposedCount = (className) => studentsByClass[className].map((s) => s?.trim()).filter(Boolean).length;
+
   // verifică limita 5/ciclu înainte de a deschide confirmarea
   const handleInscrieClick = async (e) => {
     e.preventDefault();
-
     setMessage({ type: "", content: "" });
 
     if (!emailRegex.test(email) || !phoneRegex.test(telefon) || profesorIndrumator.trim() === "") {
       setMessage({ type: "error", content: "Vă rugăm să completați corect toate câmpurile!" });
       return;
     }
-
     if (!schoolId) {
       setMessage({ type: "error", content: "Selectați mai întâi școala." });
       return;
     }
 
-    // Re-verificare proaspătă din Firestore ca să fie actualizat în momentul submit-ului
+    // Re-verificare proaspătă din Firestore în momentul submit-ului
     const classes = Object.keys(studentsByClass);
 
     for (const className of classes) {
-      const proposed = studentsByClass[className].filter((s) => s && s.trim() !== "");
-      if (proposed.length === 0) continue; // nimic de înscris pe acest ciclu
+      const proposed = studentsByClass[className].map((s) => s?.trim()).filter(Boolean);
+      if (proposed.length === 0) continue;
 
       const current = await fetchCountForClass(className);
       if (current >= 5) {
@@ -148,7 +156,6 @@ function ClassForm({ selectedSchool, schoolId }) {
       // INSCRIERE pe fiecare ciclu (doar unde ai elevi completați)
       for (const className of classes) {
         const filteredStudents = studentsByClass[className].map((s) => s?.trim()).filter(Boolean);
-
         if (filteredStudents.length === 0) continue;
 
         await addDoc(collection(db, "registration"), {
@@ -158,6 +165,7 @@ function ClassForm({ selectedSchool, schoolId }) {
           students: filteredStudents,
           profesorIndrumatorEmail: profesorIndrumator,
           telefon: telefon,
+          createdAt: Date.now(),
         });
       }
 
@@ -199,13 +207,7 @@ function ClassForm({ selectedSchool, schoolId }) {
         setProfesorIndrumator("");
         setTelefon("");
         setErrors({ email: "", telefon: "", profesorIndrumator: "" });
-
-        // refresh informativ countByClass
-        const refreshed = {};
-        for (const c of Object.keys(countByClass)) {
-          refreshed[c] = await fetchCountForClass(c);
-        }
-        setCountByClass(refreshed);
+        // countByClass se actualizează singur din onSnapshot ✅
       } else {
         setMessage({
           type: "error",
@@ -231,12 +233,13 @@ function ClassForm({ selectedSchool, schoolId }) {
     <div className={styles["form-container"]}>
       <h2>Înscriere elevi</h2>
 
-      {/* Informativ: locuri ocupate/total pe ciclu */}
+      {/* Informativ: locuri ocupate/total + în curs + rămase (live) */}
       <div className={styles["quota-hint"]}>
         <strong>Stare locuri (max 5/ciclu):</strong>{" "}
         {["a IV-a", "a V-a", "a VI-a", "a VII-a"].map((c, i) => (
           <span key={c}>
-            {c}: {countByClass[c]}/5{i < 3 ? " • " : ""}
+            {c}: {countByClass[c]}/5 | în curs: {localProposedCount(c)} | rămase: {Math.max(0, 5 - countByClass[c] - localProposedCount(c))}
+            {i < 3 ? " • " : ""}
           </span>
         ))}
       </div>
@@ -256,7 +259,10 @@ function ClassForm({ selectedSchool, schoolId }) {
                   className={styles["input-field"]}
                 />
               ))}
-              <div className={styles["quota-inline"]}>Ocupate: {countByClass[className]}/5</div>
+              <div className={styles["quota-inline"]}>
+                Ocupate: {countByClass[className]}/5 &nbsp;|&nbsp; în curs: {localProposedCount(className)} &nbsp;|&nbsp; rămase:{" "}
+                {Math.max(0, 5 - countByClass[className] - localProposedCount(className))}
+              </div>
             </div>
           ))}
         </div>
