@@ -108,15 +108,19 @@ function AdminDashboard() {
   };
 
   const handleSaveEdit = async () => {
-    if (!selectedSchoolId || !schoolName) return;
-    try {
-      await updateDoc(doc(db, "schools", selectedSchoolId), { name: schoolName });
-      resetSchoolForm();
-      fetchSchools();
-    } catch (err) {
-      console.error("Eroare la salvarea modificării:", err);
-    }
-  };
+  if (!selectedSchoolId || !schoolName || !judet || !localitate) return;
+  try {
+    await updateDoc(doc(db, "schools", selectedSchoolId), { 
+      name: schoolName,      
+      county: judet,        
+      locality: localitate   
+    });
+    resetSchoolForm();
+    fetchSchools();
+  } catch (err) {
+    console.error("Eroare la salvarea modificării:", err);
+  }
+};
 
   const handleCancelEdit = () => resetSchoolForm();
 

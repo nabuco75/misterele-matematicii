@@ -11,18 +11,21 @@ function SchoolSelection({ setSelectedSchool }) {
   const [selectedLocality, setSelectedLocality] = useState("");
   const [selectedSchoolId, setSelectedSchoolId] = useState("");
 
-  // 1) județe
+  // 1) județe - sortate alfabetic
   useEffect(() => {
     const fetchCounties = async () => {
       const snap = await getDocs(collection(db, "schools"));
       const setc = new Set();
       snap.forEach((d) => setc.add(d.data().county));
-      setCounties([...setc]);
+      const sorted = [...setc].sort((a, b) => 
+        a.localeCompare(b, "ro", { sensitivity: "base" })
+      );
+      setCounties(sorted);
     };
     fetchCounties();
   }, []);
 
-  // 2) localități
+  // 2) localități - sortate alfabetic
   useEffect(() => {
     if (!selectedCounty) {
       setLocalities([]);
@@ -32,12 +35,15 @@ function SchoolSelection({ setSelectedSchool }) {
       const snap = await getDocs(query(collection(db, "schools"), where("county", "==", selectedCounty)));
       const setl = new Set();
       snap.forEach((d) => setl.add(d.data().locality));
-      setLocalities([...setl]);
+      const sorted = [...setl].sort((a, b) => 
+        a.localeCompare(b, "ro", { sensitivity: "base" })
+      );
+      setLocalities(sorted);
     };
     fetchLocalities();
   }, [selectedCounty]);
 
-  // 3) școli (fără verificări de „deja înscriși”)
+  // 3) școli - sortate alfabetic
   useEffect(() => {
     if (!selectedLocality) {
       setSchools([]);
@@ -49,6 +55,10 @@ function SchoolSelection({ setSelectedSchool }) {
         id: scDoc.id,
         name: scDoc.data().name,
       }));
+      // sortare alfabetică după nume
+      list.sort((a, b) => 
+        a.name.localeCompare(b.name, "ro", { sensitivity: "base" })
+      );
       setSchools(list);
     };
     fetchSchools();
