@@ -1,63 +1,77 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "./AuthContext"; // Preluăm contextul de autentificare
+import { useAuth } from "./AuthContext";
 import styles from "./NavBar.module.css";
 
 function NavBar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentUser, logout } = useAuth(); // Preluăm utilizatorul curent și funcția de logout
+  const { currentUser, logout } = useAuth();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleLoginClick = () => {
     navigate("/login");
+    setIsMenuOpen(false);
   };
 
   const handleHomeClick = () => {
     if (location.pathname === "/") {
-      navigate(0); // Reîmprospătează pagina
+      navigate(0);
     } else {
-      navigate("/"); // Navigăm la pagina de acasă
+      navigate("/");
     }
+    setIsMenuOpen(false);
   };
 
   const handleAdminDashboardClick = () => {
-    navigate("/admin"); // Navigăm la Admin Dashboard
+    navigate("/admin");
+    setIsMenuOpen(false);
   };
 
   const handleLogoutClick = async () => {
     try {
-      await logout(); // Executăm funcția de logout
-      navigate("/login"); // Redirecționăm la pagina de login
+      await logout();
+      navigate("/login");
+      setIsMenuOpen(false);
     } catch (error) {
       console.error("Eroare la deconectare:", error);
     }
   };
 
-  console.log("Stare de autentificare în NavBar:", currentUser);
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
 
   return (
     <div className={styles.navbar}>
-      <div className={styles.navButtonsContainer}>
-        {/* Butonul Acasă este vizibil întotdeauna */}
+      {/* Hamburger Icon - vizibil doar pe mobil */}
+      <button className={styles.hamburger} onClick={toggleMenu} aria-label="Toggle menu">
+        <span className={styles.hamburgerLine}></span>
+        <span className={styles.hamburgerLine}></span>
+        <span className={styles.hamburgerLine}></span>
+      </button>
+
+      {/* Overlay pentru închidere menu */}
+      {isMenuOpen && <div className={styles.overlay} onClick={toggleMenu}></div>}
+
+      {/* Container butoane - desktop inline, mobil dropdown */}
+      <div className={`${styles.navButtonsContainer} ${isMenuOpen ? styles.open : ""}`}>
         <button onClick={handleHomeClick} className={styles.navButton}>
           Acasă
         </button>
 
-        {/* Afișează Admin Dashboard dacă utilizatorul este autentificat */}
         {currentUser && location.pathname !== "/admin" && (
           <button onClick={handleAdminDashboardClick} className={styles.navButton}>
             Admin Dashboard
           </button>
         )}
 
-        {/* Afișează Admin Login doar dacă utilizatorul NU este autentificat */}
         {!currentUser && (
           <button onClick={handleLoginClick} className={styles.navButton}>
             Admin Login
           </button>
         )}
 
-        {/* Afișează Logout doar dacă utilizatorul ESTE autentificat */}
         {currentUser && (
           <button onClick={handleLogoutClick} className={styles.navButton}>
             Logout

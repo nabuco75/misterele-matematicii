@@ -3,27 +3,48 @@
   display: flex;
   justify-content: space-around;
   align-items: center;
-  background: linear-gradient(90deg, #1e3c72, #2a5298); /* Gradient marin profund */
+  background: linear-gradient(90deg, #1e3c72, #2a5298);
   padding: 15px 30px;
-  box-shadow: 0px 6px 10px rgba(0, 0, 0, 0.15); /* Umbră ușor mai intensă pentru adâncime */
+  box-shadow: 0px 6px 10px rgba(0, 0, 0, 0.15);
   position: sticky;
   top: 0;
   z-index: 1000;
-  height: 70px; /* Setăm o înălțime fixă pentru navbar */
+  height: 70px;
   transition: background 0.5s ease;
 }
 
 .navbar:hover {
-  background: linear-gradient(90deg, #2a5298, #1e3c72); /* Inversăm nuanțele la hover */
+  background: linear-gradient(90deg, #2a5298, #1e3c72);
 }
 
+/* Hamburger icon - ascuns pe desktop */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  z-index: 1001;
+}
+
+.hamburgerLine {
+  width: 28px;
+  height: 3px;
+  background: #f39c12;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+/* Container butoane */
 .navButtonsContainer {
   display: flex;
-  gap: 20px; /* Spațiu generos între butoane */
+  gap: 20px;
 }
 
 .navButton {
-  background-color: #f39c12; /* Auriu vibrant */
+  background-color: #f39c12;
   color: white;
   border: none;
   padding: 12px 25px;
@@ -32,47 +53,97 @@
   font-weight: bold;
   cursor: pointer;
   transition: background-color 0.4s ease, transform 0.3s ease, box-shadow 0.3s ease;
-  box-shadow: 0px 4px 10px rgba(243, 156, 18, 0.4); /* Efect de lumină */
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2); /* Ușoară umbră pentru text */
+  box-shadow: 0px 4px 10px rgba(243, 156, 18, 0.4);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
 }
 
 .navButton:hover {
-  background-color: #d68910; /* Schimbare la un auriu mai închis la hover */
-  transform: translateY(-3px); /* Efect subtil de ridicare */
-  box-shadow: 0px 6px 12px rgba(243, 156, 18, 0.6); /* Umbră mai mare la hover */
+  background-color: #d68910;
+  transform: translateY(-3px);
+  box-shadow: 0px 6px 12px rgba(243, 156, 18, 0.6);
 }
 
 .navButton:active {
   transform: translateY(0);
-  box-shadow: 0px 2px 5px rgba(243, 156, 18, 0.4); /* Umbră mică la click */
+  box-shadow: 0px 2px 5px rgba(243, 156, 18, 0.4);
 }
 
 .navButton:focus {
   outline: none;
-  box-shadow: 0 0 0 4px rgba(241, 196, 15, 0.4); /* Inel de focus accesibil în auriu deschis */
+  box-shadow: 0 0 0 4px rgba(241, 196, 15, 0.4);
 }
 
-.navbar h3 {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #ecf0f1; /* Alb-gri elegant */
-  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3); /* Umbră discretă */
-  margin: 0;
+/* Overlay pentru închidere menu pe mobil */
+.overlay {
+  display: none;
 }
 
+/* ===== RESPONSIVE - MOBIL ===== */
 @media (max-width: 768px) {
   .navbar {
+    justify-content: flex-start;
+    padding: 10px 20px;
+    height: 60px;
+  }
+
+  /* Arată hamburger pe mobil */
+  .hamburger {
+    display: flex;
+  }
+
+  /* Container butoane - dropdown pe mobil */
+  .navButtonsContainer {
+    position: fixed;
+    top: 60px;
+    right: -100%;
+    width: 250px;
+    height: calc(100vh - 60px);
+    background: linear-gradient(180deg, #1e3c72, #2a5298);
     flex-direction: column;
     gap: 15px;
-    padding: 10px;
+    padding: 20px;
+    box-shadow: -4px 0 15px rgba(0, 0, 0, 0.3);
+    transition: right 0.4s ease;
+    z-index: 999;
+  }
+
+  /* Menu deschis */
+  .navButtonsContainer.open {
+    right: 0;
+  }
+
+  /* Butoane în menu mobil */
+  .navButton {
+    width: 100%;
+    text-align: center;
+    padding: 14px 20px;
+    font-size: 1rem;
+  }
+
+  /* Overlay pentru închidere */
+  .overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 998;
+  }
+
+  /* Animație hamburger când e deschis */
+  .hamburger:hover .hamburgerLine {
+    background: #d68910;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .navButtonsContainer {
+    width: 200px;
   }
 
   .navButton {
-    font-size: 1rem;
-    padding: 10px 20px;
-  }
-
-  .navbar h3 {
-    font-size: 1.6rem;
+    font-size: 0.95rem;
+    padding: 12px 18px;
   }
 }

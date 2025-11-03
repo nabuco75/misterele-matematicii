@@ -5,13 +5,12 @@ import { collection, addDoc, getDocs, query, where, onSnapshot } from "firebase/
 import styles from "./ClassForm.module.css";
 
 const CLASS_COLORS = {
-  "a IV-a": { from: "#7c4dff", to: "#3f8efc" },   // albastru-violet
-  "a V-a":  { from: "#34d399", to: "#059669" },   // verde
-  "a VI-a": { from: "#fbbf24", to: "#f59e0b" },   // portocaliu
-  "a VII-a":{ from: "#a78bfa", to: "#7c3aed" },   // mov
+  "a IV-a": { from: "#7c4dff", to: "#3f8efc" },
+  "a V-a":  { from: "#34d399", to: "#059669" },
+  "a VI-a": { from: "#fbbf24", to: "#f59e0b" },
+  "a VII-a":{ from: "#a78bfa", to: "#7c3aed" },
 };
 
-// culoarea barei în funcție de procent
 const barColor = (pct) => pct < 60 ? "#22c55e" : pct < 100 ? "#f59e0b" : "#ef4444";
 
 function ClassForm({ selectedSchool, schoolId }) {
@@ -191,42 +190,35 @@ function ClassForm({ selectedSchool, schoolId }) {
     <div className={styles["form-container"]}>
       <h2>Înscriere elevi</h2>
 
-      {/* BOARD STATISTICI – culori distincte per clasă */}
-      <div className={styles.statsBoard}>
-        {Object.keys(studentsByClass).map((c) => {
-          const used = countByClass[c];
-          const pending = localProposedCount(c);
-          const left = Math.max(0, 5 - used - pending);
-          const g = CLASS_COLORS[c];
-          return (
-            <div
-              key={c}
-              className={styles.statChip}
-              style={{ "--chip-from": g.from, "--chip-to": g.to }}
-            >
-              <div className={styles.statTitle}>{c}</div>
-              <div className={styles.statRow}>
-                <span className={styles.statNum}>{used}</span>
-                <span className={styles.statSlash}>/5</span>
-              </div>
-              <div className={styles.statMeta}>
-                în curs: <strong>{pending}</strong> • rămase: <strong>{left}</strong>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
       <form onSubmit={handleInscrieClick} className={styles["form-group"]}>
+        {/* ✅ GRUPARE: Fiecare statistică + formular împreună */}
         <div className={styles["class-groups"]}>
           {Object.keys(studentsByClass).map((className) => {
             const used = countByClass[className];
             const pending = localProposedCount(className);
+            const left = Math.max(0, 5 - used - pending);
             const total = Math.min(5, used + pending);
             const pct = Math.round((total / 5) * 100);
+            const g = CLASS_COLORS[className];
+
             return (
               <div className={styles["class-group"]} key={className}>
-                {/* header card: badge + progress bar dinamic */}
+                {/* Statistică colorată deasupra formularului */}
+                <div
+                  className={styles.statChip}
+                  style={{ "--chip-from": g.from, "--chip-to": g.to }}
+                >
+                  <div className={styles.statTitle}>{className}</div>
+                  <div className={styles.statRow}>
+                    <span className={styles.statNum}>{used}</span>
+                    <span className={styles.statSlash}>/5</span>
+                  </div>
+                  <div className={styles.statMeta}>
+                    în curs: <strong>{pending}</strong> • rămase: <strong>{left}</strong>
+                  </div>
+                </div>
+
+                {/* Header card: progress bar dinamic */}
                 <div className={styles.cardHeader}>
                   <div className={styles.classBadge}>{className}</div>
                   <div className={styles.progressWrap} aria-label={`Ocupate + în curs: ${total}/5`}>
@@ -238,6 +230,7 @@ function ClassForm({ selectedSchool, schoolId }) {
                   <div className={styles.progressText}>{total}/5</div>
                 </div>
 
+                {/* Inputuri elevi */}
                 {studentsByClass[className].map((student, index) => (
                   <input
                     key={index}
@@ -257,6 +250,7 @@ function ClassForm({ selectedSchool, schoolId }) {
           })}
         </div>
 
+        {/* Contact info */}
         <div className={styles["email-container"]}>
           <div className={styles["guide-container"]}>
             <div className={styles["input-group"]}>
