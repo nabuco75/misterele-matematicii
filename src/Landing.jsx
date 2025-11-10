@@ -36,7 +36,7 @@ function Landing() {
         const start = toDate(data.startAt) ?? new Date(0);
         const end = toDate(data.endAt) ?? new Date(8640000000000000);
 
-        const isOpen = !!data.isActive && now >= start && now <= end;
+       const isOpen = data.isActive === true && now >= start && now <= end;
 
         setGate({
           loading: false,
