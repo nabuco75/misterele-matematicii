@@ -2,111 +2,107 @@ import React, { useState, useEffect } from "react";
 import SchoolSelection from "./SchoolSelection";
 import ClassForm from "./ClassForm";
 import styles from "./Landing.module.css";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "./firebase";
+import { useAppStatus } from "./hooks/useAppStatus";
 
 function Landing() {
-  const [selectedSchool, setSelectedSchool] = useState("");
-  const [showClassForm, setShowClassForm] = useState(false);
+  const [selectedSchool, setSelectedSchool] = useState("");
+  const [showClassForm, setShowClassForm] = useState(false);
 
-  // GATE: control on/off din Firestore
-  const [gate, setGate] = useState({ loading: true, isOpen: true, message: "" });
+  // Hook pentru status (citește din Firebase)
+  const { isActive, message, loading } = useAppStatus();
 
-  // resetări la montare
-  useEffect(() => {
-    setSelectedSchool("");
-    setShowClassForm(false);
-  }, []);
+  // Resetări la montare
+  useEffect(() => {
+    setSelectedSchool("");
+    setShowClassForm(false);
+  }, []);
 
-  // subscribe la config/appStatus
-  useEffect(() => {
-    const ref = doc(db, "config", "appStatus");
-    const unsub = onSnapshot(
-      ref,
-      (snap) => {
-        if (!snap.exists()) {
-          // Tratează lipsa documentului ca o stare implicit deschisă
-          setGate({ loading: false, isOpen: true, message: "" });
-          return;
-        }
-        const data = snap.data() || {};
-        const now = new Date();
+  const handleInscrieClick = () => {
+    setShowClassForm(true);
+  };
 
-        const toDate = (ts) => (ts && typeof ts.toDate === "function" ? ts.toDate() : undefined);
+  // ========== LOADING STATE ==========
+  if (loading) {
+    return (
+      <div className={styles.loadingContainer}>
+        <div className={styles.spinner}></div>
+        <p>Se încarcă...</p>
+      </div>
+    );
+  }
 
-        const start = toDate(data.startAt) ?? new Date(0);
-        const end = toDate(data.endAt) ?? new Date(8640000000000000);
+  // ========== PAGINA PRINCIPALĂ ==========
+  return (
+    <div className={styles.landingContainer}>
+      {/* Titlu principal */}
+      <h1 className={styles.welcomeMessage}>
+        Bine ați venit la concursul Misterele Matematicii!
+      </h1>
 
-        // Corecția 1: Verificare strictă a booleanului
-        const isActive = data.isActive === true; 
-        const isOpen = isActive && now >= start && now <= end;
+      <p className={styles.instructions}>
+        Alegeți județul, localitatea și școala pentru a înscrie elevii.
+      </p>
 
-        // LINIILE DE CONSOLE.LOG PENTRU DEPANARE
-        console.log("--- DEBUG APP STATUS ---");
-        console.log("1. Firestore isActive (data.isActive):", data.isActive);
-        console.log("2. Tipul data.isActive:", typeof data.isActive);
-        console.log("3. Variabila isActive (data.isActive === true):", isActive);
-        console.log("4. Variabila isOpen (Final):", isOpen);
-        console.log("--------------------------");
+      {/* ========== CARD ÎNCHIDERE (când isActive = false) ========== */}
+      {!isActive && (
+        <>
+          <div className={styles.infoCard}>
+            <div className={styles.lockIcon}>🔒</div>
+            {message}
+            <p className={styles.contactInfo}>
+              Pentru întrebări, contactați{" "}
+              <a href="mailto:contact@scoala5vaslui.ro">contact@scoala5vaslui.ro</a>
+            </p>
+          </div>
 
-        setGate({
-          loading: false,
-          isOpen,
-          message: data.message || "Înscrierile sunt momentan închise. Vă rugăm reveniți ulterior.",
-        });
-      },
-      (err) => {
-        console.error("Eroare la citirea config/appStatus:", err);
-        // Corecția 2: Păstrează ultima stare cunoscută la eroare
-        setGate((prevGate) => ({ ...prevGate, loading: false }));
-      }
-    );
-    return () => unsub();
-  }, []);
+          {/* ✨ BUTON ELEGANT DE TESTARE - doar pe localhost */}
+          {(window.location.hostname === 'localhost' || 
+            window.location.hostname === '127.0.0.1') && (
+            <button 
+              onClick={() => window.location.search = '?force=true'}
+              className={styles.devModeButton}
+              title="Activează modul de testare pentru dezvoltatori"
+            >
+              <span className={styles.devIcon}>🧪</span>
+              <span className={styles.devText}>Mod Testare</span>
+            </button>
+          )}
+        </>
+      )}
 
-  const handleInscrieClick = () => {
-    setShowClassForm(true);
-  };
+      {/* Mesaj completare date lipsă */}
+      <p className={styles.missingMessage}>
+        Dacă județul, localitatea sau școala dvs. nu apare în listă, vă rugăm să
+        trimiteți aceste date la adresa{" "}
+        <strong>contact@scoala5vaslui.ro</strong> pentru a fi adăugate în baza de
+        date.
+      </p>
 
-  return (
-    <div className={styles.landingContainer}>
-      <h1 className={styles.welcomeMessage}>Bine ați venit la concursul Misterele Matematicii!</h1>
+      {/* ========== FORMULAR ACTIV (când isActive = true) ========== */}
+      {isActive && (
+        <>
+          <SchoolSelection
+            setSelectedSchool={(schoolId) => {
+              setSelectedSchool(schoolId);
+            }}
+          />
 
-      <p className={styles.instructions}>Alegeți județul, localitatea și școala pentru a înscrie elevii.</p>
+          {selectedSchool && !showClassForm && (
+            <button className={styles.inscrieButton} onClick={handleInscrieClick}>
+              Înscrie elevi
+            </button>
+          )}
 
-      {/* Card status – apare când aplicația e închisă */}
-      {!gate.loading && !gate.isOpen && <div className={styles.infoCard}>{gate.message}</div>}
-
-      {/* Mesaj completare date lipsă */}
-      <p className={styles.missingMessage}>
-        Dacă județul, localitatea sau școala dvs. nu apare în listă, vă rugăm să trimiteți aceste date la adresa <strong>contact@scoala5vaslui.ro</strong> pentru a fi adăugate în baza de date.
-      </p>
-
-      {/* Selecție + formular - doar dacă e deschisă perioada */}
-      {gate.isOpen && (
-        <>
-          <SchoolSelection
-            setSelectedSchool={(schoolId) => {
-              setSelectedSchool(schoolId);
-            }}
-          />
-
-          {selectedSchool && !showClassForm && (
-            <button className={styles.inscrieButton} onClick={handleInscrieClick}>
-              Înscrie elevi
-            </button>
-          )}
-
-          {/* Wrapper cu paddingTop pentru a evita suprapunerea cu NavBar */}
-          {showClassForm && (
-            <div style={{ paddingTop: "100px" }}>
-              <ClassForm selectedSchool={selectedSchool} schoolId={selectedSchool} />
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
+          {/* ClassForm cu modal de autentificare integrat */}
+          {showClassForm && (
+            <div style={{ paddingTop: "100px" }}>
+              <ClassForm selectedSchool={selectedSchool} schoolId={selectedSchool} />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 export default Landing;

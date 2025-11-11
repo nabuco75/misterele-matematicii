@@ -14,6 +14,16 @@ const CLASS_COLORS = {
 const barColor = (pct) => pct < 60 ? "#22c55e" : pct < 100 ? "#f59e0b" : "#ef4444";
 
 function ClassForm({ selectedSchool, schoolId }) {
+  // === AUTENTIFICARE ===
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [accessCode, setAccessCode] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [attempts, setAttempts] = useState(0);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const MAX_ATTEMPTS = 3;
+  const CORRECT_CODE = "MMVSSC5";
+
+  // === STATE-URI EXISTENTE ===
   const [studentsByClass, setStudentsByClass] = useState({
     "a IV-a": Array(5).fill(""),
     "a V-a": Array(5).fill(""),
@@ -37,6 +47,32 @@ function ClassForm({ selectedSchool, schoolId }) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const phoneRegex = /^\d{10}$/;
 
+  // === HANDLER AUTENTIFICARE ===
+  const handleAuthSubmit = (e) => {
+    e.preventDefault();
+    
+    if (isBlocked) return;
+    
+    if (accessCode.trim() === CORRECT_CODE) {
+      setIsAuthenticated(true);
+      setAuthError("");
+      setAccessCode("");
+    } else {
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      
+      if (newAttempts >= MAX_ATTEMPTS) {
+        setIsBlocked(true);
+        setAuthError("🚫 Prea multe încercări greșite! Pagina se va reîncărca în 5 secunde...");
+        setTimeout(() => window.location.reload(), 5000);
+      } else {
+        setAuthError(`❌ Cod incorect! Încercări rămase: ${MAX_ATTEMPTS - newAttempts}`);
+        setAccessCode("");
+      }
+    }
+  };
+
+  // === FUNCȚII EXISTENTE ===
   const fetchCountForClass = async (className) => {
     const qReg = query(collection(db, "registration"),
       where("schoolId", "==", schoolId),
@@ -186,12 +222,84 @@ function ClassForm({ selectedSchool, schoolId }) {
 
   const handleCancel = () => setShowConfirmation(false);
 
+  // === RENDER MODAL AUTENTIFICARE ===
+  if (!isAuthenticated) {
+    return (
+      <>
+        <div className={styles.authOverlay}>
+          <div className={styles.authModal}>
+            {/* Header cu iconiță */}
+            <div className={styles.authHeader}>
+              <div className={styles.authIcon}>🔐</div>
+              <h2 className={styles.authTitle}>Acces Restricționat</h2>
+              <p className={styles.authSubtitle}>
+                Doar profesorii îndrumători pot înscrie elevi la concurs
+              </p>
+            </div>
+
+            {/* Formular */}
+            <form onSubmit={handleAuthSubmit} className={styles.authForm}>
+              <div className={styles.authInputGroup}>
+                <label htmlFor="accessCode" className={styles.authLabel}>
+                  Cod de acces profesor
+                </label>
+                <input
+                  id="accessCode"
+                  type="text"
+                  value={accessCode}
+                  onChange={(e) => setAccessCode(e.target.value)}
+                  placeholder="Introduceți codul de acces"
+                  className={`${styles.authInput} ${authError ? styles.authInputError : ""}`}
+                  disabled={isBlocked}
+                  autoFocus
+                />
+                
+                {authError && (
+                  <div className={styles.authError}>
+                    {authError}
+                  </div>
+                )}
+              </div>
+
+              <button 
+                type="submit" 
+                className={styles.authButton}
+                disabled={isBlocked || !accessCode.trim()}
+              >
+                {isBlocked ? "Blocat..." : "Validează Codul"}
+              </button>
+
+              {/* Footer info */}
+              <div className={styles.authFooter}>
+                <p>
+                  <strong>Nu aveți cod?</strong> Contactați coordonatorul la<br />
+                  <a href="mailto:contact@scoala5vaslui.ro">contact@scoala5vaslui.ro</a>
+                </p>
+              </div>
+
+              {/* Indicator încercări */}
+              <div className={styles.authAttempts}>
+                {[...Array(MAX_ATTEMPTS)].map((_, i) => (
+                  <span 
+                    key={i} 
+                    className={`${styles.attemptDot} ${i < attempts ? styles.attemptUsed : ""}`}
+                  />
+                ))}
+              </div>
+            </form>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // === RENDER FORMULAR PRINCIPAL (după autentificare) ===
   return (
     <div className={styles["form-container"]}>
       <h2>Înscriere elevi</h2>
 
       <form onSubmit={handleInscrieClick} className={styles["form-group"]}>
-        {/* ✅ GRUPARE: Fiecare statistică + formular împreună */}
+        {/* Grupare: Fiecare statistică + formular împreună */}
         <div className={styles["class-groups"]}>
           {Object.keys(studentsByClass).map((className) => {
             const used = countByClass[className];
