@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, runTransaction } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, runTransaction } from "firebase/firestore";
 import { db } from "./firebase";
 import * as XLSX from "xlsx";
-import NavBar from "./NavBar";
+import ConfirmModal from "./ConfirmModal.jsx";
 import styles from "./AdminDashboard.module.css";
 
 function AdminDashboard() {
@@ -15,6 +15,9 @@ function AdminDashboard() {
   const [schoolName, setSchoolName] = useState("");
   const [judet, setJudet] = useState("");
   const [localitate, setLocalitate] = useState("");
+
+  // —— Mesaje de confirmare pentru operațiuni școală
+  const [schoolOperationMessage, setSchoolOperationMessage] = useState(null);
 
   // —— Statistici / listă școli înscrise
   const [statistics, setStatistics] = useState(null);
@@ -32,6 +35,14 @@ function AdminDashboard() {
   const [students, setStudents] = useState([]);
   const [saveStatus, setSaveStatus] = useState({});
   const saveTimersRef = useRef({});
+
+  // —— Modal confirmare
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   // ====== INIT ======
   useEffect(() => {
@@ -60,6 +71,14 @@ function AdminDashboard() {
     }
   };
 
+  // ====== HELPER: Afișare mesaj succes ======
+  const showSuccessMessage = (message) => {
+    setSchoolOperationMessage(message);
+    setTimeout(() => {
+      setSchoolOperationMessage(null);
+    }, 3000);
+  };
+
   // ====== CRUD ȘCOALĂ ======
   const resetSchoolForm = () => {
     setSchoolName("");
@@ -81,17 +100,20 @@ function AdminDashboard() {
           county: judet,
           locality: localitate,
         });
+        showSuccessMessage("Școala a fost actualizată cu succes!");
       } else {
         await addDoc(collection(db, "schools"), {
           name: schoolName,
           county: judet,
           locality: localitate,
         });
+        showSuccessMessage("Școala a fost adăugată cu succes!");
       }
       resetSchoolForm();
       fetchSchools();
     } catch (err) {
       console.error("Eroare la adăugarea/actualizarea școlii:", err);
+      showSuccessMessage("Eroare la salvarea școlii!");
     }
   };
 
@@ -108,36 +130,49 @@ function AdminDashboard() {
   const handleSaveEdit = async () => {
     if (!selectedSchoolId || !schoolName || !judet || !localitate) return;
     try {
-      await updateDoc(doc(db, "schools", selectedSchoolId), { 
+      await updateDoc(doc(db, "schools", selectedSchoolId), {
         name: schoolName,
         county: judet,
-        locality: localitate
+        locality: localitate,
       });
+      showSuccessMessage("Școala a fost actualizată cu succes!");
       resetSchoolForm();
       fetchSchools();
     } catch (err) {
       console.error("Eroare la salvarea modificării:", err);
+      showSuccessMessage("Eroare la salvarea modificării!");
     }
   };
 
   const handleCancelEdit = () => resetSchoolForm();
 
-  const handleDeleteSchool = async () => {
+  const handleDeleteSchool = () => {
     if (!selectedSchoolId) return;
-    try {
-      const qReg = query(collection(db, "registration"), where("schoolId", "==", selectedSchoolId));
-      const qSnap = await getDocs(qReg);
-      for (const regDoc of qSnap.docs) {
-        await deleteDoc(regDoc.ref);
-      }
-      await deleteDoc(doc(db, "schools", selectedSchoolId));
-      setSelectedSchoolId("");
-      setShowStudentEditor(false);
-      setStudents([]);
-      fetchSchools();
-    } catch (err) {
-      console.error("Eroare la ștergerea școlii/elevilor:", err);
-    }
+
+    setConfirmModal({
+      isOpen: true,
+      title: "Confirmare ștergere școală",
+      message: "Sigur doriți să ștergeți această școală și toți elevii înscriși? Această acțiune este ireversibilă.",
+      onConfirm: async () => {
+        try {
+          const qReg = query(collection(db, "registration"), where("schoolId", "==", selectedSchoolId));
+          const qSnap = await getDocs(qReg);
+          for (const regDoc of qSnap.docs) {
+            await deleteDoc(regDoc.ref);
+          }
+          await deleteDoc(doc(db, "schools", selectedSchoolId));
+          setSelectedSchoolId("");
+          setShowStudentEditor(false);
+          setStudents([]);
+          showSuccessMessage("Școala a fost ștearsă cu succes!");
+          fetchSchools();
+        } catch (err) {
+          console.error("Eroare la ștergerea școlii/elevilor:", err);
+          showSuccessMessage("Eroare la ștergerea școlii!");
+        }
+        setConfirmModal({ ...confirmModal, isOpen: false });
+      },
+    });
   };
 
   // ====== STATISTICI / ȘCOLI ÎNSCRISE ======
@@ -207,12 +242,79 @@ function AdminDashboard() {
     }
   };
 
+  // ====== EXPORT SIMPLIFICAT ======
+  const exportSimplifiedList = async () => {
+    try {
+      const [regsSnap, schoolsSnap] = await Promise.all([
+        getDocs(collection(db, "registration")),
+        getDocs(collection(db, "schools"))
+      ]);
+
+      const schoolById = {};
+      schoolsSnap.forEach((s) => {
+        schoolById[s.id] = {
+          name: s.data().name || "",
+        };
+      });
+
+      const rows = [
+        {
+          nrCurent: "Nr. Curent",
+          numePrenume: "Numele și Prenumele elevului",
+          clasa: "Clasa",
+          scoala: "Numele Școlii Participante",
+          profesorIndrumator: "Profesor îndrumător",
+        },
+      ];
+
+      let rowNumber = 1;
+
+      for (const regDoc of regsSnap.docs) {
+        const data = regDoc.data();
+        const sc = schoolById[data.schoolId] || { name: "" };
+        const studentsArr = Array.isArray(data.students) ? data.students : [];
+
+        for (const st of studentsArr) {
+          const nume = typeof st === "string" ? st : st?.nume || "";
+          rows.push({
+            nrCurent: rowNumber++,
+            numePrenume: nume,
+            clasa: data.class || "",
+            scoala: sc.name,
+            profesorIndrumator: data.profesorIndrumatorEmail || "",
+          });
+        }
+      }
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+
+      // Setare lățimi coloane
+      ws["!cols"] = [
+        { wch: 10 },  // Nr. Curent
+        { wch: 35 },  // Numele și Prenumele
+        { wch: 12 },  // Clasa
+        { wch: 45 },  // Școala
+        { wch: 30 },  // Profesor îndrumător
+      ];
+
+      // Autofilter și freeze
+      ws["!autofilter"] = { ref: XLSX.utils.encode_range(XLSX.utils.decode_range(ws["!ref"])) };
+      ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+
+      XLSX.utils.book_append_sheet(wb, ws, "Lista Participanți");
+      XLSX.writeFile(wb, "lista_participanti_simplificata.xlsx");
+    } catch (err) {
+      console.error("Eroare la exportul listei simplificate:", err);
+    }
+  };
+
   // ====== EXPORT ÎNDRUMĂTORI ======
   const exportInstrumatoriToExcel = async () => {
     try {
       const [regsSnap, schoolsSnap] = await Promise.all([
         getDocs(collection(db, "registration")),
-        getDocs(collection(db, "schools"))
+        getDocs(collection(db, "schools")),
       ]);
 
       const schoolById = {};
@@ -231,7 +333,7 @@ function AdminDashboard() {
         const email = data.profesorIndrumatorEmail || "";
         const telefon = data.telefon || "";
         const sc = schoolById[data.schoolId] || { name: "", county: "", locality: "" };
-        
+
         if (email) {
           if (!instrumatoriMap.has(email)) {
             instrumatoriMap.set(email, {
@@ -245,9 +347,7 @@ function AdminDashboard() {
         }
       });
 
-      const rows = Array.from(instrumatoriMap.values()).sort((a, b) =>
-        a.scoala.localeCompare(b.scoala, "ro", { sensitivity: "base" })
-      );
+      const rows = Array.from(instrumatoriMap.values()).sort((a, b) => a.scoala.localeCompare(b.scoala, "ro", { sensitivity: "base" }));
 
       const excelData = [
         {
@@ -271,14 +371,7 @@ function AdminDashboard() {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(excelData);
 
-      const maxWidths = [
-        { wch: 8 },
-        { wch: 40 },
-        { wch: 20 },
-        { wch: 15 },
-        { wch: 30 },
-        { wch: 15 },
-      ];
+      const maxWidths = [{ wch: 8 }, { wch: 40 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 15 }];
       ws["!cols"] = maxWidths;
       ws["!autofilter"] = { ref: XLSX.utils.encode_range(XLSX.utils.decode_range(ws["!ref"])) };
       ws["!freeze"] = { xSplit: 0, ySplit: 1 };
@@ -290,7 +383,7 @@ function AdminDashboard() {
     }
   };
 
-  // ====== EXPORT EXCEL ======
+  // ====== EXPORT EXCEL COMPLET ======
   const exportToExcel = async () => {
     try {
       const [regsSnap, schoolsSnap] = await Promise.all([getDocs(collection(db, "registration")), getDocs(collection(db, "schools"))]);
@@ -361,9 +454,11 @@ function AdminDashboard() {
         const sc = schoolById[schoolId] || { name: "", county: "", locality: "" };
         summary.push([sc.name, sc.locality, sc.county, cnt]);
       }
-      const hdr = [{ a: "Școala", b: "Localitate", c: "Județ", d: "Nr. elevi" }];
       const ws2 = XLSX.utils.aoa_to_sheet([summary[0], ...summary.slice(1).sort((a, b) => b[3] - a[3])]);
-      ws2["!cols"] = fitCols([{ a: "Școala", b: "Localitate", c: "Județ", d: "Nr. elevi" }, ...summary.slice(1).map((r) => ({ a: r[0], b: r[1], c: r[2], d: String(r[3]) }))]);
+      ws2["!cols"] = fitCols([
+        { a: "Școala", b: "Localitate", c: "Județ", d: "Nr. elevi" },
+        ...summary.slice(1).map((r) => ({ a: r[0], b: r[1], c: r[2], d: String(r[3]) })),
+      ]);
       ws2["!autofilter"] = { ref: XLSX.utils.encode_range(XLSX.utils.decode_range(ws2["!ref"])) };
       XLSX.utils.book_append_sheet(wb, ws2, "Școli – total");
 
@@ -397,9 +492,11 @@ function AdminDashboard() {
       );
       setBulkUploadStatus("Școlile au fost încărcate cu succes!");
       fetchSchools();
+      setTimeout(() => setBulkUploadStatus(null), 3000);
     } catch (err) {
       console.error("Eroare la încărcarea bulk:", err);
       setBulkUploadStatus("Eroare la încărcarea bulk a școlilor.");
+      setTimeout(() => setBulkUploadStatus(null), 3000);
     }
   };
 
@@ -469,39 +566,58 @@ function AdminDashboard() {
   };
 
   // ====== EDITOR ELEV — ștergere elev ======
-  const handleDeleteStudent = async (studentId) => {
-    const [registrationId, idxStr] = studentId.split("-");
-    const idx = parseInt(idxStr, 10);
-    const regRef = doc(db, "registration", registrationId);
+  const handleDeleteStudent = (studentId) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Confirmare ștergere elev",
+      message: "Sigur doriți să ștergeți acest elev din sistem?",
+      onConfirm: async () => {
+        const [registrationId, idxStr] = studentId.split("-");
+        const idx = parseInt(idxStr, 10);
+        const regRef = doc(db, "registration", registrationId);
 
-    try {
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(regRef);
-        if (!snap.exists()) return;
+        try {
+          await runTransaction(db, async (tx) => {
+            const snap = await tx.get(regRef);
+            if (!snap.exists()) return;
 
-        const data = snap.data();
-        const arr = Array.isArray(data.students) ? [...data.students] : [];
-        if (Number.isNaN(idx) || idx < 0 || idx >= arr.length) return;
+            const data = snap.data();
+            const arr = Array.isArray(data.students) ? [...data.students] : [];
+            if (Number.isNaN(idx) || idx < 0 || idx >= arr.length) return;
 
-        const updated = arr.filter((_, i) => i !== idx);
-        if (updated.length === 0) {
-          tx.delete(regRef);
-        } else {
-          tx.update(regRef, { students: updated });
+            const updated = arr.filter((_, i) => i !== idx);
+            if (updated.length === 0) {
+              tx.delete(regRef);
+            } else {
+              tx.update(regRef, { students: updated });
+            }
+          });
+
+          setStudents((prev) => prev.filter((s) => s.id !== studentId));
+        } catch (e) {
+          console.error("Eroare la ștergerea elevului:", e);
         }
-      });
-
-      setStudents((prev) => prev.filter((s) => s.id !== studentId));
-    } catch (e) {
-      console.error("Eroare la ștergerea elevului:", e);
-    }
+        setConfirmModal({ ...confirmModal, isOpen: false });
+      },
+    });
   };
 
   return (
     <div>
-      <NavBar />
+      {/* ✅ Modal de confirmare */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+      />
+
       <div className={styles.container}>
         <h1 className={styles.title}>Bine ai venit în panoul de administrare!</h1>
+
+        {/* ✅ Mesaj de confirmare pentru operațiuni școală */}
+        {schoolOperationMessage && <p className={styles.successMessage}>{schoolOperationMessage}</p>}
 
         {/* Butoane acțiuni - Grid responsive */}
         <div className={styles.buttonContainer}>
@@ -525,6 +641,11 @@ function AdminDashboard() {
 
           <button onClick={exportToExcel} className={styles.exportButton}>
             Descarcă elevii înscriși
+          </button>
+
+          {/* ✅ NOU - Buton export simplificat */}
+          <button onClick={exportSimplifiedList} className={styles.exportButton}>
+            Descarcă lista simplificată
           </button>
 
           <button onClick={exportInstrumatoriToExcel} className={styles.exportButton}>
