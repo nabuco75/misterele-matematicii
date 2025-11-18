@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, runTransaction } from "firebase/firestore";
 import { db } from "./firebase";
 import * as XLSX from "xlsx";
@@ -30,11 +30,13 @@ function AdminDashboard() {
   // —— Bulk upload
   const [bulkUploadStatus, setBulkUploadStatus] = useState(null);
 
-  // —— Editor elevi
+  // —— Editor elevi - modificat pentru salvare manuală
   const [showStudentEditor, setShowStudentEditor] = useState(false);
   const [students, setStudents] = useState([]);
-  const [saveStatus, setSaveStatus] = useState({});
-  const saveTimersRef = useRef({});
+  const [originalStudents, setOriginalStudents] = useState([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [studentEditorMessage, setStudentEditorMessage] = useState(null);
 
   // —— Modal confirmare
   const [confirmModal, setConfirmModal] = useState({
@@ -47,10 +49,6 @@ function AdminDashboard() {
   // ====== INIT ======
   useEffect(() => {
     fetchSchools();
-    return () => {
-      Object.values(saveTimersRef.current).forEach(clearTimeout);
-      saveTimersRef.current = {};
-    };
   }, []);
 
   // ====== FETCH ȘCOLI ======
@@ -76,6 +74,14 @@ function AdminDashboard() {
     setSchoolOperationMessage(message);
     setTimeout(() => {
       setSchoolOperationMessage(null);
+    }, 3000);
+  };
+
+  // ====== HELPER: Afișare mesaj în editor elevi ======
+  const showStudentEditorMessage = (message, type = "success") => {
+    setStudentEditorMessage({ text: message, type });
+    setTimeout(() => {
+      setStudentEditorMessage(null);
     }, 3000);
   };
 
@@ -518,51 +524,101 @@ function AdminDashboard() {
       });
 
       setStudents(list);
+      setOriginalStudents(JSON.parse(JSON.stringify(list))); // Deep copy
+      setHasUnsavedChanges(false);
       setShowStudentEditor(true);
     } catch (err) {
       console.error("Eroare la aducerea elevilor:", err);
     }
   };
 
-  // ====== EDITOR ELEV — autosave nume ======
-  const doSaveStudentName = async (studentId, newName) => {
-    const [registrationId, idxStr] = studentId.split("-");
-    const idx = parseInt(idxStr, 10);
-    const regRef = doc(db, "registration", registrationId);
-
-    try {
-      setSaveStatus((m) => ({ ...m, [studentId]: "saving" }));
-
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(regRef);
-        if (!snap.exists()) throw new Error("registration missing");
-
-        const data = snap.data();
-        const arr = Array.isArray(data.students) ? [...data.students] : [];
-        if (Number.isNaN(idx) || idx < 0 || idx >= arr.length) throw new Error("index out of range");
-
-        const prev = arr[idx];
-        arr[idx] = typeof prev === "object" ? { ...prev, nume: newName } : newName;
-
-        tx.update(regRef, { students: arr });
-      });
-
-      setSaveStatus((m) => ({ ...m, [studentId]: "saved" }));
-      setTimeout(() => {
-        setSaveStatus((m) => (m[studentId] === "saved" ? { ...m, [studentId]: "idle" } : m));
-      }, 1500);
-    } catch (e) {
-      console.error("Eroare la salvare:", e);
-      setSaveStatus((m) => ({ ...m, [studentId]: "error" }));
-    }
+  // ====== EDITOR ELEV — modificare nume ======
+  const handleStudentNameChange = (studentId, newName) => {
+    setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, nume: newName } : s)));
+    setHasUnsavedChanges(true);
   };
 
-  const scheduleAutosave = (studentId, newName) => {
-    const prev = saveTimersRef.current[studentId];
-    if (prev) clearTimeout(prev);
-    saveTimersRef.current[studentId] = setTimeout(() => {
-      doSaveStudentName(studentId, newName);
-    }, 700);
+  // ====== EDITOR ELEV — salvare modificări ======
+  const handleSaveStudentChanges = () => {
+    if (!hasUnsavedChanges) return;
+
+    setConfirmModal({
+      isOpen: true,
+      title: "Confirmare salvare modificări",
+      message: "Sigur doriți să salvați toate modificările efectuate asupra elevilor?",
+      onConfirm: async () => {
+        try {
+          setIsSaving(true);
+
+          // Grupăm studenții după registrationId
+          const changesByReg = {};
+          students.forEach((student) => {
+            const [regId, idxStr] = student.id.split("-");
+            if (!changesByReg[regId]) {
+              changesByReg[regId] = [];
+            }
+            changesByReg[regId].push({
+              index: parseInt(idxStr, 10),
+              nume: student.nume,
+            });
+          });
+
+          // Salvăm fiecare registration
+          for (const [regId, changes] of Object.entries(changesByReg)) {
+            const regRef = doc(db, "registration", regId);
+            
+            await runTransaction(db, async (tx) => {
+              const snap = await tx.get(regRef);
+              if (!snap.exists()) return;
+
+              const data = snap.data();
+              const arr = Array.isArray(data.students) ? [...data.students] : [];
+
+              // Aplicăm modificările
+              changes.forEach(({ index, nume }) => {
+                if (index >= 0 && index < arr.length) {
+                  const prev = arr[index];
+                  arr[index] = typeof prev === "object" ? { ...prev, nume } : nume;
+                }
+              });
+
+              tx.update(regRef, { students: arr });
+            });
+          }
+
+          setOriginalStudents(JSON.parse(JSON.stringify(students)));
+          setHasUnsavedChanges(false);
+          showStudentEditorMessage("✅ Modificările au fost salvate cu succes!", "success");
+        } catch (err) {
+          console.error("Eroare la salvarea modificărilor:", err);
+          showStudentEditorMessage("❌ Eroare la salvarea modificărilor!", "error");
+        } finally {
+          setIsSaving(false);
+          setConfirmModal({ ...confirmModal, isOpen: false });
+        }
+      },
+    });
+  };
+
+  // ====== EDITOR ELEV — anulare modificări ======
+  const handleCancelStudentChanges = () => {
+    if (!hasUnsavedChanges) {
+      setShowStudentEditor(false);
+      setStudents([]);
+      return;
+    }
+
+    setConfirmModal({
+      isOpen: true,
+      title: "Anulare modificări",
+      message: "Aveți modificări nesalvate. Sigur doriți să renunțați la ele?",
+      onConfirm: () => {
+        setStudents(JSON.parse(JSON.stringify(originalStudents)));
+        setHasUnsavedChanges(false);
+        setShowStudentEditor(false);
+        setConfirmModal({ ...confirmModal, isOpen: false });
+      },
+    });
   };
 
   // ====== EDITOR ELEV — ștergere elev ======
@@ -594,8 +650,11 @@ function AdminDashboard() {
           });
 
           setStudents((prev) => prev.filter((s) => s.id !== studentId));
+          setOriginalStudents((prev) => prev.filter((s) => s.id !== studentId));
+          showStudentEditorMessage("✅ Elevul a fost șters cu succes!", "success");
         } catch (e) {
           console.error("Eroare la ștergerea elevului:", e);
+          showStudentEditorMessage("❌ Eroare la ștergerea elevului!", "error");
         }
         setConfirmModal({ ...confirmModal, isOpen: false });
       },
@@ -643,7 +702,6 @@ function AdminDashboard() {
             Descarcă elevii înscriși
           </button>
 
-          {/* ✅ NOU - Buton export simplificat */}
           <button onClick={exportSimplifiedList} className={styles.exportButton}>
             Descarcă lista simplificată
           </button>
@@ -769,45 +827,49 @@ function AdminDashboard() {
           </div>
         </div>
 
-        {/* Editor elevi */}
+        {/* ✅ Editor elevi - CU BUTON DE SALVARE */}
         {showStudentEditor && (
-          <div className={styles.studentList}>
-            <h2>Elevi înscriși:</h2>
+          <div className={styles.studentEditorContainer}>
+            <div className={styles.studentEditorHeader}>
+              <h2>Elevi înscriși:</h2>
+              <div className={styles.studentEditorActions}>
+                <button
+                  onClick={handleSaveStudentChanges}
+                  disabled={!hasUnsavedChanges || isSaving}
+                  className={`${styles.saveChangesButton} ${hasUnsavedChanges ? styles.hasChanges : ""}`}
+                >
+                  {isSaving ? "Se salvează..." : hasUnsavedChanges ? "💾 Salvează modificările" : "✓ Salvat"}
+                </button>
+                <button onClick={handleCancelStudentChanges} disabled={isSaving} className={styles.cancelButton}>
+                  {hasUnsavedChanges ? "Anulează" : "Închide"}
+                </button>
+              </div>
+            </div>
+
+            {/* ✅ Mesaj de confirmare pentru acțiuni editor elevi */}
+            {studentEditorMessage && (
+              <p className={studentEditorMessage.type === "success" ? styles.successMessage : styles.errorMessage}>
+                {studentEditorMessage.text}
+              </p>
+            )}
+
             {students.length > 0 ? (
-              students.map((student) => {
-                const st = saveStatus[student.id];
-                return (
+              <div className={styles.studentList}>
+                {students.map((student) => (
                   <div key={student.id} className={styles.studentItem}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-                      <span
-                        title={st === "saving" ? "Se salvează…" : st === "saved" ? "Salvat" : st === "error" ? "Eroare" : "OK"}
-                        style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: "50%",
-                          background: st === "saving" ? "#f39c12" : st === "saved" ? "#2ecc71" : st === "error" ? "#e74c3c" : "#bdc3c7",
-                          boxShadow: "0 0 6px rgba(0,0,0,.2)",
-                          flex: "0 0 auto",
-                        }}
-                      />
-                      <input
-                        type="text"
-                        value={student.nume || ""}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setStudents((prev) => prev.map((s) => (s.id === student.id ? { ...s, nume: v } : s)));
-                          scheduleAutosave(student.id, v);
-                        }}
-                        className={styles.inputField}
-                        style={{ flex: 1 }}
-                      />
-                    </div>
-                    <button onClick={() => handleDeleteStudent(student.id)} className={styles.deleteButton} disabled={st === "saving"}>
+                    <input
+                      type="text"
+                      value={student.nume || ""}
+                      onChange={(e) => handleStudentNameChange(student.id, e.target.value)}
+                      className={styles.inputField}
+                      disabled={isSaving}
+                    />
+                    <button onClick={() => handleDeleteStudent(student.id)} className={styles.deleteButton} disabled={isSaving}>
                       Șterge
                     </button>
                   </div>
-                );
-              })
+                ))}
+              </div>
             ) : (
               <p className={styles.noStudentsMessage}>Nu există elevi înscriși.</p>
             )}
