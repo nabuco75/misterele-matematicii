@@ -11,6 +11,17 @@ const CLASS_COLORS = {
   "a VII-a":{ from: "#a78bfa", to: "#7c3aed" },
 };
 
+// === IDENTIFICARE ȘCOLI VIP (FĂRĂ LIMITĂ) ===
+const isVipSchool = (schoolId) => {
+  if (!schoolId) return false;
+  // Normalizare agresivă: elimină tot ce nu e alfanumeric
+  const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const target = normalize(schoolId);
+  
+  return (target.includes("stefancelmare") && target.includes("vaslui")) ||
+         (target.includes("georgetutoveanu") && target.includes("barlad")) ||
+         (target.includes("constantinparfene") && target.includes("vaslui"));
+         };
 const barColor = (pct) => pct < 60 ? "#22c55e" : pct < 100 ? "#f59e0b" : "#ef4444";
 
 function ClassForm({ selectedSchool, schoolId }) {
@@ -23,7 +34,9 @@ function ClassForm({ selectedSchool, schoolId }) {
   const MAX_ATTEMPTS = 3;
   const CORRECT_CODE = "MMVSSC5";
 
-  // === STATE-URI EXISTENTE ===
+  const isVip = isVipSchool(schoolId);
+
+  // === STATE ===
   const [studentsByClass, setStudentsByClass] = useState({
     "a IV-a": Array(5).fill(""),
     "a V-a": Array(5).fill(""),
@@ -72,21 +85,7 @@ function ClassForm({ selectedSchool, schoolId }) {
     }
   };
 
-  // === FUNCȚII EXISTENTE ===
-  const fetchCountForClass = async (className) => {
-    const qReg = query(collection(db, "registration"),
-      where("schoolId", "==", schoolId),
-      where("class", "==", className)
-    );
-    const snap = await getDocs(qReg);
-    let total = 0;
-    snap.forEach((doc) => {
-      const arr = Array.isArray(doc.data()?.students) ? doc.data().students : [];
-      total += arr.length;
-    });
-    return total;
-  };
-
+  // === FETCH COUNT REAL-TIME ===
   useEffect(() => {
     if (!schoolId) return;
     const classes = Object.keys(studentsByClass);
@@ -126,6 +125,7 @@ function ClassForm({ selectedSchool, schoolId }) {
   const localProposedCount = (className) =>
     studentsByClass[className].map((s) => s?.trim()).filter(Boolean).length;
 
+  // === LOGICĂ VALIDARE ===
   const handleInscrieClick = async (e) => {
     e.preventDefault();
     setMessage({ type: "", content: "" });
@@ -139,27 +139,33 @@ function ClassForm({ selectedSchool, schoolId }) {
       return;
     }
 
-    const classes = Object.keys(studentsByClass);
-    for (const className of classes) {
-      const proposed = studentsByClass[className].map((s) => s?.trim()).filter(Boolean);
-      if (!proposed.length) continue;
+    // DACĂ NU E ȘCOALĂ VIP, verificăm limita
+    if (!isVip) {
+      const classes = Object.keys(studentsByClass);
+      for (const className of classes) {
+        const proposed = studentsByClass[className].filter(s => s?.trim()).length;
+        if (!proposed) continue;
+        
+        const currentInDb = countByClass[className];
 
-      const current = await fetchCountForClass(className);
-      if (current >= 5) {
-        setMessage({
-          type: "error",
-          content: `Școala dvs. a atins deja limita de 5 elevi pentru ${className}. În caz de neclarități, contact@scoala5vaslui.ro`,
-        });
-        return;
-      }
-      if (current + proposed.length > 5) {
-        setMessage({
-          type: "error",
-          content: `Pentru ${className} mai sunt disponibile doar ${5 - current} loc(uri). Ajustați lista.`,
-        });
-        return;
+        if (currentInDb >= 5) {
+          setMessage({
+            type: "error",
+            content: `Școala dvs. a atins deja limita de 5 elevi pentru ${className}. În caz de neclarități, contact@scoala5vaslui.ro`,
+          });
+          return;
+        }
+
+        if (currentInDb + proposed > 5) {
+          setMessage({
+            type: "error",
+            content: `Pentru ${className} mai sunt disponibile doar ${5 - currentInDb} loc(uri). Ajustați lista.`,
+          });
+          return;
+        }
       }
     }
+    // DACĂ E VIP: Nu verificăm nimic, merge direct
 
     setShowConfirmation(true);
   };
@@ -205,8 +211,17 @@ function ClassForm({ selectedSchool, schoolId }) {
       );
 
       if (response.status === 200) {
-        setMessage({ type: "success", content: "Elevii au fost înscriși și emailul a fost trimis cu succes!" });
-        setStudentsByClass({ "a IV-a": Array(5).fill(""), "a V-a": Array(5).fill(""), "a VI-a": Array(5).fill(""), "a VII-a": Array(5).fill("") });
+        const successMsg = isVip 
+          ? "✅ Elevii au fost înscriși cu succes! Puteți adăuga alți elevi completând din nou formularul."
+          : "Elevii au fost înscriși și emailul a fost trimis cu succes!";
+        
+        setMessage({ type: "success", content: successMsg });
+        setStudentsByClass({ 
+          "a IV-a": Array(5).fill(""), 
+          "a V-a": Array(5).fill(""), 
+          "a VI-a": Array(5).fill(""), 
+          "a VII-a": Array(5).fill("") 
+        });
         setEmail(""); setProfesorIndrumator(""); setTelefon("");
         setErrors({ email: "", telefon: "", profesorIndrumator: "" });
       } else {
@@ -228,7 +243,6 @@ function ClassForm({ selectedSchool, schoolId }) {
       <>
         <div className={styles.authOverlay}>
           <div className={styles.authModal}>
-            {/* Header cu iconiță */}
             <div className={styles.authHeader}>
               <div className={styles.authIcon}>🔐</div>
               <h2 className={styles.authTitle}>Acces Restricționat</h2>
@@ -237,7 +251,6 @@ function ClassForm({ selectedSchool, schoolId }) {
               </p>
             </div>
 
-            {/* Formular */}
             <form onSubmit={handleAuthSubmit} className={styles.authForm}>
               <div className={styles.authInputGroup}>
                 <label htmlFor="accessCode" className={styles.authLabel}>
@@ -269,7 +282,6 @@ function ClassForm({ selectedSchool, schoolId }) {
                 {isBlocked ? "Blocat..." : "Validează Codul"}
               </button>
 
-              {/* Footer info */}
               <div className={styles.authFooter}>
                 <p>
                   <strong>Nu aveți cod?</strong> Contactați coordonatorul la<br />
@@ -277,7 +289,6 @@ function ClassForm({ selectedSchool, schoolId }) {
                 </p>
               </div>
 
-              {/* Indicator încercări */}
               <div className={styles.authAttempts}>
                 {[...Array(MAX_ATTEMPTS)].map((_, i) => (
                   <span 
@@ -293,25 +304,43 @@ function ClassForm({ selectedSchool, schoolId }) {
     );
   }
 
-  // === RENDER FORMULAR PRINCIPAL (după autentificare) ===
+  // === RENDER FORMULAR PRINCIPAL ===
   return (
     <div className={styles["form-container"]}>
       <h2>Înscriere elevi</h2>
+      
+      {/* Mesaj VIP */}
+      {isVip && (
+        <div className={styles.infoMessage}>
+          ✨ <strong>Status Special:</strong> Această școală poate înscrie mai mulți elevi. 
+          După ce completați și trimiteți primii 5 elevi, formularul se va goli automat și puteți adăuga următoarea serie.
+        </div>
+      )}
 
       <form onSubmit={handleInscrieClick} className={styles["form-group"]}>
-        {/* Grupare: Fiecare statistică + formular împreună */}
         <div className={styles["class-groups"]}>
           {Object.keys(studentsByClass).map((className) => {
             const used = countByClass[className];
             const pending = localProposedCount(className);
-            const left = Math.max(0, 5 - used - pending);
-            const total = Math.min(5, used + pending);
-            const pct = Math.round((total / 5) * 100);
             const g = CLASS_COLORS[className];
+
+            // UI adaptat
+            let left, total, pct, limitDisplay;
+            
+            if (isVip) {
+              left = "∞";
+              total = used + pending;
+              pct = 0;
+              limitDisplay = `${used} total`;
+            } else {
+              left = Math.max(0, 5 - used - pending);
+              total = Math.min(5, used + pending);
+              pct = Math.round((total / 5) * 100);
+              limitDisplay = `${used}/5`;
+            }
 
             return (
               <div className={styles["class-group"]} key={className}>
-                {/* Statistică colorată deasupra formularului */}
                 <div
                   className={styles.statChip}
                   style={{ "--chip-from": g.from, "--chip-to": g.to }}
@@ -319,26 +348,28 @@ function ClassForm({ selectedSchool, schoolId }) {
                   <div className={styles.statTitle}>{className}</div>
                   <div className={styles.statRow}>
                     <span className={styles.statNum}>{used}</span>
-                    <span className={styles.statSlash}>/5</span>
+                    <span className={styles.statSlash}>
+                      {isVip ? " total școală" : "/5"}
+                    </span>
                   </div>
                   <div className={styles.statMeta}>
                     în curs: <strong>{pending}</strong> • rămase: <strong>{left}</strong>
                   </div>
                 </div>
 
-                {/* Header card: progress bar dinamic */}
-                <div className={styles.cardHeader}>
-                  <div className={styles.classBadge}>{className}</div>
-                  <div className={styles.progressWrap} aria-label={`Ocupate + în curs: ${total}/5`}>
-                    <div
-                      className={styles.progressBar}
-                      style={{ width: `${pct}%`, background: barColor(pct) }}
-                    />
+                {!isVip && (
+                  <div className={styles.cardHeader}>
+                    <div className={styles.classBadge}>{className}</div>
+                    <div className={styles.progressWrap} aria-label={`Ocupate + în curs: ${total}/5`}>
+                      <div
+                        className={styles.progressBar}
+                        style={{ width: `${pct}%`, background: barColor(pct) }}
+                      />
+                    </div>
+                    <div className={styles.progressText}>{total}/5</div>
                   </div>
-                  <div className={styles.progressText}>{total}/5</div>
-                </div>
+                )}
 
-                {/* Inputuri elevi */}
                 {studentsByClass[className].map((student, index) => (
                   <input
                     key={index}
@@ -347,18 +378,25 @@ function ClassForm({ selectedSchool, schoolId }) {
                     value={student}
                     onChange={(e) => handleChange(className, index, e.target.value)}
                     className={styles["input-field"]}
+                    disabled={!isVip && used >= 5}
                   />
                 ))}
 
                 <div className={styles["quota-inline"]}>
-                  Ocupate: {used}/5 &nbsp;|&nbsp; în curs: {pending} &nbsp;|&nbsp; rămase: {Math.max(0, 5 - used - pending)}
+                  {isVip ? (
+                    <>Total școală: {used} | În curs acum: {pending}</>
+                  ) : (
+                    <>
+                      Ocupate: {used}/5 | în curs: {pending} | rămase: {left}
+                      {used >= 5 && <span style={{color: '#ef4444', marginLeft: '10px'}}>● Limită atinsă</span>}
+                    </>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Contact info */}
         <div className={styles["email-container"]}>
           <div className={styles["guide-container"]}>
             <div className={styles["input-group"]}>
@@ -415,7 +453,10 @@ function ClassForm({ selectedSchool, schoolId }) {
         <>
           <div className={styles.modalOverlay} />
           <div className={styles.confirmationModal}>
-            <p>Confirmi înscrierea elevilor? (Limita este 5 elevi/școală pentru fiecare ciclu.)</p>
+            <p>
+              Confirmi înscrierea elevilor? 
+              {!isVip && " (Limita este 5 elevi/școală pentru fiecare ciclu.)"}
+            </p>
             <button onClick={handleConfirmInscriere} className={styles.confirmButton}>DA</button>
             <button onClick={handleCancel} className={styles.cancelButton}>Anulează</button>
           </div>

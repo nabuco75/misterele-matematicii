@@ -55,7 +55,6 @@
   }
 }
 
-/* Header cu gradient */
 .authHeader {
   background: linear-gradient(135deg, #7c4dff 0%, #3f8efc 100%);
   padding: 40px 30px 35px;
@@ -122,7 +121,6 @@
   font-weight: 500;
 }
 
-/* Formular */
 .authForm {
   padding: 35px 30px 30px;
 }
@@ -269,7 +267,6 @@
   transform: none;
 }
 
-/* Footer */
 .authFooter {
   margin-top: 28px;
   padding-top: 24px;
@@ -301,7 +298,6 @@
   transform: translateX(2px);
 }
 
-/* Indicator încercări (dots) */
 .authAttempts {
   display: flex;
   justify-content: center;
@@ -339,7 +335,7 @@
 }
 
 /* ========================================
-   FORMULAR PRINCIPAL (stiluri existente)
+   FORMULAR PRINCIPAL
 ======================================== */
 .form-container {
   padding: 28px;
@@ -358,7 +354,6 @@
   gap: 20px; 
 }
 
-/* Grupare: carduri clase cu statistică */
 .class-groups { 
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -375,7 +370,6 @@
   flex-direction: column;
 }
 
-/* Statistică colorată în partea de sus */
 .statChip{
   --from: var(--chip-from);
   --to: var(--chip-to);
@@ -417,7 +411,6 @@
   opacity: .95; 
 }
 
-/* Conținut formular sub statistică */
 .cardHeader {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -457,7 +450,6 @@
   color: #475569; 
 }
 
-/* input-uri */
 .input-field{
   padding: 12px; 
   font-size: 16px; 
@@ -484,7 +476,6 @@
   color: #4b5563; 
 }
 
-/* jos – formular contact */
 .email-container { 
   margin-bottom: 20px; 
 }
@@ -555,7 +546,6 @@
   margin-top: 5px; 
 }
 
-/* modal + overlay (confirmare înscriere) */
 .confirmationModal{
   position: fixed; 
   top: 50%; 
@@ -612,7 +602,56 @@
   z-index: 999; 
 }
 
-/* ===== RESPONSIVE ===== */
+/* ========================================
+   MESAJ INFORMATIV PENTRU ȘCOLI VIP
+======================================== */
+.infoMessage {
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  color: #065f46;
+  padding: 16px 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  border: 2px solid #10b981;
+  font-size: 15px;
+  line-height: 1.6;
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.15);
+  animation: infoSlideDown 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes infoSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.infoMessage strong {
+  color: #047857;
+  font-weight: 800;
+}
+
+/* ========================================
+   INPUT DISABLED PENTRU ȘCOLI PLINE
+======================================== */
+.input-field:disabled {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.input-field:disabled::placeholder {
+  color: #cbd5e1;
+}
+
+/* ========================================
+   RESPONSIVE
+======================================== */
 @media (max-width: 1024px){ 
   .class-groups{ 
     grid-template-columns: repeat(2, 1fr); 
