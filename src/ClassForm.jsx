@@ -12,20 +12,33 @@ const CLASS_COLORS = {
 };
 
 // === IDENTIFICARE ȘCOLI VIP (FĂRĂ LIMITĂ) ===
-const isVipSchool = (schoolId) => {
-  if (!schoolId) return false;
-  // Normalizare agresivă: elimină tot ce nu e alfanumeric
-  const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const target = normalize(schoolId);
+const isVipSchool = (schoolName) => {
+  if (!schoolName) return false;
   
-  return (target.includes("stefancelmare") && target.includes("vaslui")) ||
-         (target.includes("georgetutoveanu") && target.includes("barlad")) ||
-         (target.includes("constantinparfene") && target.includes("vaslui"));
-         };
+  // ✅ Normalizare corectă pentru diacritice românești
+  const normalize = (str) => {
+    return str
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "");
+  };
+  
+  const target = normalize(schoolName);
+  
+  return (
+    (target.includes("stefancelmare") && target.includes("vaslui")) ||
+    (target.includes("georgetutoveanu") && target.includes("barlad")) ||
+    (target.includes("constantinparfene") && target.includes("vaslui"))
+  );
+};
+
 const barColor = (pct) => pct < 60 ? "#22c55e" : pct < 100 ? "#f59e0b" : "#ef4444";
 
-function ClassForm({ selectedSchool, schoolId }) {
-  // === AUTENTIFICARE ===
+function ClassForm({ selectedSchool }) {
+  const schoolId = selectedSchool?.id || "";
+  const schoolName = selectedSchool?.name || "";
+  
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [accessCode, setAccessCode] = useState("");
   const [authError, setAuthError] = useState("");
@@ -34,9 +47,8 @@ function ClassForm({ selectedSchool, schoolId }) {
   const MAX_ATTEMPTS = 3;
   const CORRECT_CODE = "MMVSSC5";
 
-  const isVip = isVipSchool(schoolId);
-
-  // === STATE ===
+  const isVip = isVipSchool(schoolName);
+  
   const [studentsByClass, setStudentsByClass] = useState({
     "a IV-a": Array(5).fill(""),
     "a V-a": Array(5).fill(""),
@@ -60,7 +72,6 @@ function ClassForm({ selectedSchool, schoolId }) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const phoneRegex = /^\d{10}$/;
 
-  // === HANDLER AUTENTIFICARE ===
   const handleAuthSubmit = (e) => {
     e.preventDefault();
     
@@ -85,7 +96,6 @@ function ClassForm({ selectedSchool, schoolId }) {
     }
   };
 
-  // === FETCH COUNT REAL-TIME ===
   useEffect(() => {
     if (!schoolId) return;
     const classes = Object.keys(studentsByClass);
@@ -125,7 +135,6 @@ function ClassForm({ selectedSchool, schoolId }) {
   const localProposedCount = (className) =>
     studentsByClass[className].map((s) => s?.trim()).filter(Boolean).length;
 
-  // === LOGICĂ VALIDARE ===
   const handleInscrieClick = async (e) => {
     e.preventDefault();
     setMessage({ type: "", content: "" });
@@ -139,7 +148,6 @@ function ClassForm({ selectedSchool, schoolId }) {
       return;
     }
 
-    // DACĂ NU E ȘCOALĂ VIP, verificăm limita
     if (!isVip) {
       const classes = Object.keys(studentsByClass);
       for (const className of classes) {
@@ -165,7 +173,6 @@ function ClassForm({ selectedSchool, schoolId }) {
         }
       }
     }
-    // DACĂ E VIP: Nu verificăm nimic, merge direct
 
     setShowConfirmation(true);
   };
@@ -184,7 +191,7 @@ function ClassForm({ selectedSchool, schoolId }) {
 
         await addDoc(collection(db, "registration"), {
           class: className,
-          school: selectedSchool,
+          school: schoolName,
           schoolId,
           students: filtered,
           profesorIndrumatorEmail: profesorIndrumator,
@@ -237,7 +244,6 @@ function ClassForm({ selectedSchool, schoolId }) {
 
   const handleCancel = () => setShowConfirmation(false);
 
-  // === RENDER MODAL AUTENTIFICARE ===
   if (!isAuthenticated) {
     return (
       <>
@@ -304,12 +310,10 @@ function ClassForm({ selectedSchool, schoolId }) {
     );
   }
 
-  // === RENDER FORMULAR PRINCIPAL ===
   return (
     <div className={styles["form-container"]}>
       <h2>Înscriere elevi</h2>
       
-      {/* Mesaj VIP */}
       {isVip && (
         <div className={styles.infoMessage}>
           ✨ <strong>Status Special:</strong> Această școală poate înscrie mai mulți elevi. 
@@ -324,19 +328,16 @@ function ClassForm({ selectedSchool, schoolId }) {
             const pending = localProposedCount(className);
             const g = CLASS_COLORS[className];
 
-            // UI adaptat
-            let left, total, pct, limitDisplay;
+            let left, total, pct;
             
             if (isVip) {
               left = "∞";
               total = used + pending;
               pct = 0;
-              limitDisplay = `${used} total`;
             } else {
               left = Math.max(0, 5 - used - pending);
               total = Math.min(5, used + pending);
               pct = Math.round((total / 5) * 100);
-              limitDisplay = `${used}/5`;
             }
 
             return (

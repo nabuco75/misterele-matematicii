@@ -11,7 +11,6 @@ function SchoolSelection({ setSelectedSchool }) {
   const [selectedLocality, setSelectedLocality] = useState("");
   const [selectedSchoolId, setSelectedSchoolId] = useState("");
 
-  // 1) județe - sortate alfabetic
   useEffect(() => {
     const fetchCounties = async () => {
       const snap = await getDocs(collection(db, "schools"));
@@ -25,7 +24,6 @@ function SchoolSelection({ setSelectedSchool }) {
     fetchCounties();
   }, []);
 
-  // 2) localități - sortate alfabetic
   useEffect(() => {
     if (!selectedCounty) {
       setLocalities([]);
@@ -43,7 +41,6 @@ function SchoolSelection({ setSelectedSchool }) {
     fetchLocalities();
   }, [selectedCounty]);
 
-  // 3) școli - sortate alfabetic
   useEffect(() => {
     if (!selectedLocality) {
       setSchools([]);
@@ -55,10 +52,10 @@ function SchoolSelection({ setSelectedSchool }) {
         id: scDoc.id,
         name: scDoc.data().name,
       }));
-      // sortare alfabetică după nume
       list.sort((a, b) => 
         a.name.localeCompare(b.name, "ro", { sensitivity: "base" })
       );
+      console.log("🏫 Schools loaded:", list); // ← DEBUG
       setSchools(list);
     };
     fetchSchools();
@@ -117,8 +114,15 @@ function SchoolSelection({ setSelectedSchool }) {
             id="schoolSelect"
             value={selectedSchoolId}
             onChange={(e) => {
-              setSelectedSchoolId(e.target.value);
-              setSelectedSchool(e.target.value); // trimitem ID-ul
+              const schoolId = e.target.value;
+              const schoolName = schools.find(s => s.id === schoolId)?.name || "";
+              
+              console.log("🔍 DEBUG SchoolSelection - schoolId:", schoolId); // ← DEBUG
+              console.log("🔍 DEBUG SchoolSelection - schoolName:", schoolName); // ← DEBUG
+              console.log("🔍 DEBUG SchoolSelection - Trimit obiect:", { id: schoolId, name: schoolName }); // ← DEBUG
+              
+              setSelectedSchoolId(schoolId);
+              setSelectedSchool({ id: schoolId, name: schoolName });
             }}
             className={styles.selectField}
           >
