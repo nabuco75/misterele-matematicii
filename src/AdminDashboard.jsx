@@ -30,7 +30,7 @@ function AdminDashboard() {
   // —— Bulk upload
   const [bulkUploadStatus, setBulkUploadStatus] = useState(null);
 
-  // —— Editor elevi - modificat pentru salvare manuală
+  // —— Editor elevi
   const [showStudentEditor, setShowStudentEditor] = useState(false);
   const [students, setStudents] = useState([]);
   const [originalStudents, setOriginalStudents] = useState([]);
@@ -171,7 +171,11 @@ function AdminDashboard() {
           setShowStudentEditor(false);
           setStudents([]);
           showSuccessMessage("Școala a fost ștearsă cu succes!");
+
+          // ✅ Actualizare completă date
           fetchSchools();
+          if (showStatistics) fetchStatistics();
+          if (showRegisteredSchools) fetchRegisteredSchools();
         } catch (err) {
           console.error("Eroare la ștergerea școlii/elevilor:", err);
           showSuccessMessage("Eroare la ștergerea școlii!");
@@ -295,16 +299,14 @@ function AdminDashboard() {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(rows);
 
-      // Setare lățimi coloane
       ws["!cols"] = [
-        { wch: 10 },  // Nr. Curent
-        { wch: 35 },  // Numele și Prenumele
-        { wch: 12 },  // Clasa
-        { wch: 45 },  // Școala
-        { wch: 30 },  // Profesor îndrumător
+        { wch: 10 },
+        { wch: 35 },
+        { wch: 12 },
+        { wch: 45 },
+        { wch: 30 },
       ];
 
-      // Autofilter și freeze
       ws["!autofilter"] = { ref: XLSX.utils.encode_range(XLSX.utils.decode_range(ws["!ref"])) };
       ws["!freeze"] = { xSplit: 0, ySplit: 1 };
 
@@ -524,7 +526,7 @@ function AdminDashboard() {
       });
 
       setStudents(list);
-      setOriginalStudents(JSON.parse(JSON.stringify(list))); // Deep copy
+      setOriginalStudents(JSON.parse(JSON.stringify(list)));
       setHasUnsavedChanges(false);
       setShowStudentEditor(true);
     } catch (err) {
@@ -550,7 +552,6 @@ function AdminDashboard() {
         try {
           setIsSaving(true);
 
-          // Grupăm studenții după registrationId
           const changesByReg = {};
           students.forEach((student) => {
             const [regId, idxStr] = student.id.split("-");
@@ -563,10 +564,9 @@ function AdminDashboard() {
             });
           });
 
-          // Salvăm fiecare registration
           for (const [regId, changes] of Object.entries(changesByReg)) {
             const regRef = doc(db, "registration", regId);
-            
+
             await runTransaction(db, async (tx) => {
               const snap = await tx.get(regRef);
               if (!snap.exists()) return;
@@ -574,7 +574,6 @@ function AdminDashboard() {
               const data = snap.data();
               const arr = Array.isArray(data.students) ? [...data.students] : [];
 
-              // Aplicăm modificările
               changes.forEach(({ index, nume }) => {
                 if (index >= 0 && index < arr.length) {
                   const prev = arr[index];
@@ -661,9 +660,58 @@ function AdminDashboard() {
     });
   };
 
+  // ====== ȘTERGERE ÎN MASĂ - CONSOLIDATĂ ======
+  const handleDeleteAllRegistrations = (type = 'elevi') => {
+    const messages = {
+      elevi: {
+        title: "⚠️ ATENȚIE: Ștergere completă elevi",
+        message: "Sigur doriți să ștergeți TOȚI elevii înscriși din TOATE școlile? Această acțiune este IREVERSIBILĂ și va șterge toate înregistrările de elevi din sistem!",
+        success: (count) => `✅ Au fost șterse ${count} înregistrări de elevi!`,
+        error: "❌ Eroare la ștergerea elevilor!"
+      },
+      indrumatori: {
+        title: "⚠️ ATENȚIE: Ștergere completă îndrumători",
+        message: "Sigur doriți să ștergeți TOȚI profesorii îndrumători și elevii asociați din sistem? Această acțiune va șterge TOATE înregistrările din baza de date și este IREVERSIBILĂ!",
+        success: (count) => `✅ Au fost șterse ${count} înregistrări (îndrumători + elevi)!`,
+        error: "❌ Eroare la ștergerea datelor!"
+      }
+    };
+
+    const config = messages[type];
+
+    setConfirmModal({
+      isOpen: true,
+      title: config.title,
+      message: config.message,
+      onConfirm: async () => {
+        try {
+          const regsSnap = await getDocs(collection(db, "registration"));
+          const deletePromises = regsSnap.docs.map((doc) => deleteDoc(doc.ref));
+          await Promise.all(deletePromises);
+
+          // Resetare stare completă
+          setShowStudentEditor(false);
+          setStudents([]);
+          setOriginalStudents([]);
+          setHasUnsavedChanges(false);
+
+          // Mesaj de succes
+          showSuccessMessage(config.success(regsSnap.size));
+
+          // Actualizare date afișate
+          if (showStatistics) fetchStatistics();
+          if (showRegisteredSchools) fetchRegisteredSchools();
+        } catch (err) {
+          console.error(`Eroare la ștergerea ${type}:`, err);
+          showSuccessMessage(config.error);
+        }
+        setConfirmModal({ ...confirmModal, isOpen: false });
+      },
+    });
+  };
+
   return (
     <div>
-      {/* ✅ Modal de confirmare */}
       <ConfirmModal
         isOpen={confirmModal.isOpen}
         title={confirmModal.title}
@@ -675,10 +723,8 @@ function AdminDashboard() {
       <div className={styles.container}>
         <h1 className={styles.title}>Bine ai venit în panoul de administrare!</h1>
 
-        {/* ✅ Mesaj de confirmare pentru operațiuni școală */}
         {schoolOperationMessage && <p className={styles.successMessage}>{schoolOperationMessage}</p>}
 
-        {/* Butoane acțiuni - Grid responsive */}
         <div className={styles.buttonContainer}>
           <button onClick={() => setShowAddSchoolForm((v) => !v)} className={styles.addButton}>
             {showAddSchoolForm ? "Ascunde formularul" : "Adaugă o școală"}
@@ -713,12 +759,25 @@ function AdminDashboard() {
           <button onClick={() => document.querySelector(`.${styles.fileInput}`)?.click()} className={styles.bulkUploadButton}>
             Încarcă școli din Excel
           </button>
+
+          <button
+            onClick={() => handleDeleteAllRegistrations('elevi')}
+            className={styles.dangerButton}
+          >
+            🗑️ Șterge toți elevii
+          </button>
+
+          <button
+            onClick={() => handleDeleteAllRegistrations('indrumatori')}
+            className={styles.dangerButton}
+          >
+            🗑️ Șterge toți îndrumătorii
+          </button>
         </div>
 
         <input type="file" accept=".xlsx, .xls" onChange={handleBulkUpload} className={styles.fileInput} />
         {bulkUploadStatus && <p className={styles.successMessage}>{bulkUploadStatus}</p>}
 
-        {/* Formular adăugare / editare școală */}
         {showAddSchoolForm && (
           <form onSubmit={handleAddOrEditSchool} className={styles.formContainer}>
             <input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} placeholder="Nume școală" className={styles.inputField} />
@@ -744,7 +803,6 @@ function AdminDashboard() {
           </form>
         )}
 
-        {/* Statistici */}
         {showStatistics && statistics && (
           <div className={styles.statistics}>
             <h2>Statistici înscrieri</h2>
@@ -757,7 +815,6 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* Școli înscrise */}
         {showRegisteredSchools && (
           <div className={styles.registeredSchoolsContainer}>
             <h2>Școli cu elevi înscriși</h2>
@@ -792,7 +849,6 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* Selector școală */}
         <h2 className={styles.schoolListTitle}>Lista școlilor:</h2>
         <div className={styles.dropdownContainer}>
           <select
@@ -827,7 +883,6 @@ function AdminDashboard() {
           </div>
         </div>
 
-        {/* ✅ Editor elevi - CU BUTON DE SALVARE */}
         {showStudentEditor && (
           <div className={styles.studentEditorContainer}>
             <div className={styles.studentEditorHeader}>
@@ -846,7 +901,6 @@ function AdminDashboard() {
               </div>
             </div>
 
-            {/* ✅ Mesaj de confirmare pentru acțiuni editor elevi */}
             {studentEditorMessage && (
               <p className={studentEditorMessage.type === "success" ? styles.successMessage : styles.errorMessage}>
                 {studentEditorMessage.text}
