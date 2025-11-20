@@ -3,9 +3,17 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, r
 import { db } from "./firebase";
 import * as XLSX from "xlsx";
 import ConfirmModal from "./ConfirmModal.jsx";
+import RoomAllocation from "./RoomAllocation.jsx"; // Acum e importat
+import AllocationProcess from "./AllocationProcess.jsx"; // 🌟 NOU: Importăm și pasul 2
 import styles from "./AdminDashboard.module.css";
 
 function AdminDashboard() {
+  // ------------------------------------------------------------------
+  // 1. STARE NAVIGARE NOUĂ (FIX)
+  // 'dashboard' | 'rooms' | 'allocation'
+  const [currentView, setCurrentView] = useState("dashboard");
+  // ------------------------------------------------------------------
+
   // —— Școli / selecție / form școală
   const [schools, setSchools] = useState([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState("");
@@ -37,6 +45,9 @@ function AdminDashboard() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [studentEditorMessage, setStudentEditorMessage] = useState(null);
+
+  // ⚠️ ATENȚIE: S-a eliminat `const [showRoomAllocation, setShowRoomAllocation] = useState(false);`
+  // ⚠️ S-a înlocuit cu `currentView` pentru navigare completă.
 
   // —— Modal confirmare
   const [confirmModal, setConfirmModal] = useState({
@@ -85,7 +96,7 @@ function AdminDashboard() {
     }, 3000);
   };
 
-  // ====== CRUD ȘCOALĂ ======
+  // ====== CRUD ȘCOALĂ (Funcțiile rămân la fel) ======
   const resetSchoolForm = () => {
     setSchoolName("");
     setJudet("");
@@ -185,7 +196,7 @@ function AdminDashboard() {
     });
   };
 
-  // ====== STATISTICI / ȘCOLI ÎNSCRISE ======
+  // ====== STATISTICI / ȘCOLI ÎNSCRISE (Funcțiile rămân la fel) ======
   const toggleStatistics = () => {
     if (!showStatistics) fetchStatistics();
     setShowStatistics((v) => !v);
@@ -252,7 +263,7 @@ function AdminDashboard() {
     }
   };
 
-  // ====== EXPORT SIMPLIFICAT ======
+  // ====== EXPORT SIMPLIFICAT (Rămâne la fel) ======
   const exportSimplifiedList = async () => {
     try {
       const [regsSnap, schoolsSnap] = await Promise.all([
@@ -317,7 +328,7 @@ function AdminDashboard() {
     }
   };
 
-  // ====== EXPORT ÎNDRUMĂTORI ======
+  // ====== EXPORT ÎNDRUMĂTORI (Rămâne la fel) ======
   const exportInstrumatoriToExcel = async () => {
     try {
       const [regsSnap, schoolsSnap] = await Promise.all([
@@ -391,7 +402,7 @@ function AdminDashboard() {
     }
   };
 
-  // ====== EXPORT EXCEL COMPLET ======
+  // ====== EXPORT EXCEL COMPLET (Rămâne la fel) ======
   const exportToExcel = async () => {
     try {
       const [regsSnap, schoolsSnap] = await Promise.all([getDocs(collection(db, "registration")), getDocs(collection(db, "schools"))]);
@@ -476,7 +487,7 @@ function AdminDashboard() {
     }
   };
 
-  // ====== BULK UPLOAD ȘCOLI ======
+  // ====== BULK UPLOAD ȘCOLI (Rămâne la fel) ======
   const handleBulkUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -508,7 +519,7 @@ function AdminDashboard() {
     }
   };
 
-  // ====== EDITOR ELEV — încărcare ======
+  // ====== EDITOR ELEV (Funcțiile rămân la fel) ======
   const handleEditStudents = async () => {
     if (!selectedSchoolId) return;
     try {
@@ -534,13 +545,11 @@ function AdminDashboard() {
     }
   };
 
-  // ====== EDITOR ELEV — modificare nume ======
   const handleStudentNameChange = (studentId, newName) => {
     setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, nume: newName } : s)));
     setHasUnsavedChanges(true);
   };
 
-  // ====== EDITOR ELEV — salvare modificări ======
   const handleSaveStudentChanges = () => {
     if (!hasUnsavedChanges) return;
 
@@ -599,7 +608,6 @@ function AdminDashboard() {
     });
   };
 
-  // ====== EDITOR ELEV — anulare modificări ======
   const handleCancelStudentChanges = () => {
     if (!hasUnsavedChanges) {
       setShowStudentEditor(false);
@@ -620,7 +628,6 @@ function AdminDashboard() {
     });
   };
 
-  // ====== EDITOR ELEV — ștergere elev ======
   const handleDeleteStudent = (studentId) => {
     setConfirmModal({
       isOpen: true,
@@ -660,7 +667,7 @@ function AdminDashboard() {
     });
   };
 
-  // ====== ȘTERGERE ÎN MASĂ - CONSOLIDATĂ ======
+  // ====== ȘTERGERE ÎN MASĂ - CONSOLIDATĂ (Rămâne la fel) ======
   const handleDeleteAllRegistrations = (type = 'elevi') => {
     const messages = {
       elevi: {
@@ -709,7 +716,31 @@ function AdminDashboard() {
       },
     });
   };
+  
+  // ===========================================
+  // 🌟 RENDER NAVIGARE FIXATĂ 🌟
+  // ===========================================
 
+  // 1. VIZUALIZARE REPARTIZARE SĂLI
+  if (currentView === "rooms") {
+    return (
+      <RoomAllocation
+        onNextStep={() => setCurrentView("allocation")} // Trecere la pasul următor (AllocationProcess)
+        onCancel={() => setCurrentView("dashboard")} // Reîntoarcere la Dashboard
+      />
+    );
+  }
+
+  // 2. VIZUALIZARE PROCES REPARTIZARE
+  if (currentView === "allocation") {
+    return (
+      <AllocationProcess
+        onBack={() => setCurrentView("rooms")} // Reîntoarcere la RoomAllocation
+      />
+    );
+  }
+
+  // 3. VIZUALIZARE DASHBOARD (DEFAULT)
   return (
     <div>
       <ConfirmModal
@@ -756,6 +787,14 @@ function AdminDashboard() {
             Descarcă profesori îndrumători
           </button>
 
+          {/* 🌟 BUTON NAVIGARE REPARTIZARE FIXAT 🌟 */}
+          <button
+            onClick={() => setCurrentView("rooms")} // Setăm direct la "rooms" pentru a randa componenta
+            className={styles.addButton}
+          >
+            📋 Repartizare în săli
+          </button>
+
           <button onClick={() => document.querySelector(`.${styles.fileInput}`)?.click()} className={styles.bulkUploadButton}>
             Încarcă școli din Excel
           </button>
@@ -775,7 +814,7 @@ function AdminDashboard() {
           </button>
         </div>
 
-        <input type="file" accept=".xlsx, .xls" onChange={handleBulkUpload} className={styles.fileInput} />
+        <input type="file" accept=".xlsx, .xls" onChange={handleBulkUpload} className={styles.fileInput} style={{ display: 'none' }} />
         {bulkUploadStatus && <p className={styles.successMessage}>{bulkUploadStatus}</p>}
 
         {showAddSchoolForm && (
@@ -902,30 +941,47 @@ function AdminDashboard() {
             </div>
 
             {studentEditorMessage && (
-              <p className={studentEditorMessage.type === "success" ? styles.successMessage : styles.errorMessage}>
-                {studentEditorMessage.text}
-              </p>
+                <p className={studentEditorMessage.type === "success" ? styles.successMessage : styles.errorMessage}>
+                    {studentEditorMessage.text}
+                </p>
             )}
 
-            {students.length > 0 ? (
-              <div className={styles.studentList}>
-                {students.map((student) => (
-                  <div key={student.id} className={styles.studentItem}>
-                    <input
-                      type="text"
-                      value={student.nume || ""}
-                      onChange={(e) => handleStudentNameChange(student.id, e.target.value)}
-                      className={styles.inputField}
-                      disabled={isSaving}
-                    />
-                    <button onClick={() => handleDeleteStudent(student.id)} className={styles.deleteButton} disabled={isSaving}>
-                      Șterge
-                    </button>
-                  </div>
-                ))}
-              </div>
+            {students.length === 0 ? (
+                <p>Niciun elev înscris sub această școală.</p>
             ) : (
-              <p className={styles.noStudentsMessage}>Nu există elevi înscriși.</p>
+                <table className={styles.studentTable}>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Nume și Prenume</th>
+                            <th>Acțiuni</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {students.map((student, index) => (
+                            <tr key={student.id}>
+                                <td>{index + 1}</td>
+                                <td>
+                                    <input
+                                        type="text"
+                                        value={student.nume}
+                                        onChange={(e) => handleStudentNameChange(student.id, e.target.value)}
+                                        className={styles.studentInput}
+                                    />
+                                </td>
+                                <td>
+                                    <button
+                                        onClick={() => handleDeleteStudent(student.id)}
+                                        className={styles.deleteStudentButton}
+                                        disabled={isSaving}
+                                    >
+                                        Șterge
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             )}
           </div>
         )}
