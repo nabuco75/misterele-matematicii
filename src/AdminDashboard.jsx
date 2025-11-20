@@ -1,15 +1,27 @@
+// AdminDashboard.jsx
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, runTransaction } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  query,
+  where,
+  runTransaction,
+} from "firebase/firestore";
 import { db } from "./firebase";
 import * as XLSX from "xlsx";
 import ConfirmModal from "./ConfirmModal.jsx";
-import RoomAllocation from "./RoomAllocation.jsx"; // Acum e importat
-import AllocationProcess from "./AllocationProcess.jsx"; // 🌟 NOU: Importăm și pasul 2
+import RoomAllocation from "./RoomAllocation.jsx";
+import AllocationProcess from "./AllocationProcess.jsx";
+import ClassForm from "./ClassForm.jsx";
 import styles from "./AdminDashboard.module.css";
 
 function AdminDashboard() {
   // ------------------------------------------------------------------
-  // 1. STARE NAVIGARE NOUĂ (FIX)
+  // 1. STARE NAVIGARE
   // 'dashboard' | 'rooms' | 'allocation'
   const [currentView, setCurrentView] = useState("dashboard");
   // ------------------------------------------------------------------
@@ -46,8 +58,8 @@ function AdminDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [studentEditorMessage, setStudentEditorMessage] = useState(null);
 
-  // ⚠️ ATENȚIE: S-a eliminat `const [showRoomAllocation, setShowRoomAllocation] = useState(false);`
-  // ⚠️ S-a înlocuit cu `currentView` pentru navigare completă.
+  // —— Form de înscriere suplimentară (ADMIN)
+  const [showAdminEnroll, setShowAdminEnroll] = useState(false);
 
   // —— Modal confirmare
   const [confirmModal, setConfirmModal] = useState({
@@ -62,6 +74,10 @@ function AdminDashboard() {
     fetchSchools();
   }, []);
 
+  // școala selectată ca obiect
+  const selectedSchool =
+    schools.find((s) => s.id === selectedSchoolId) || null;
+
   // ====== FETCH ȘCOLI ======
   const fetchSchools = async () => {
     try {
@@ -70,9 +86,15 @@ function AdminDashboard() {
 
       list.sort(
         (a, b) =>
-          (a.county || "").localeCompare(b.county || "", "ro", { sensitivity: "base" }) ||
-          (a.locality || "").localeCompare(b.locality || "", "ro", { sensitivity: "base" }) ||
-          (a.name || "").localeCompare(b.name || "", "ro", { sensitivity: "base" })
+          (a.county || "").localeCompare(b.county || "", "ro", {
+            sensitivity: "base",
+          }) ||
+          (a.locality || "").localeCompare(b.locality || "", "ro", {
+            sensitivity: "base",
+          }) ||
+          (a.name || "").localeCompare(b.name || "", "ro", {
+            sensitivity: "base",
+          })
       );
       setSchools(list);
     } catch (err) {
@@ -96,7 +118,7 @@ function AdminDashboard() {
     }, 3000);
   };
 
-  // ====== CRUD ȘCOALĂ (Funcțiile rămân la fel) ======
+  // ====== CRUD ȘCOALĂ ======
   const resetSchoolForm = () => {
     setSchoolName("");
     setJudet("");
@@ -169,10 +191,14 @@ function AdminDashboard() {
     setConfirmModal({
       isOpen: true,
       title: "Confirmare ștergere școală",
-      message: "Sigur doriți să ștergeți această școală și toți elevii înscriși? Această acțiune este ireversibilă.",
+      message:
+        "Sigur doriți să ștergeți această școală și toți elevii înscriși? Această acțiune este ireversibilă.",
       onConfirm: async () => {
         try {
-          const qReg = query(collection(db, "registration"), where("schoolId", "==", selectedSchoolId));
+          const qReg = query(
+            collection(db, "registration"),
+            where("schoolId", "==", selectedSchoolId)
+          );
           const qSnap = await getDocs(qReg);
           for (const regDoc of qSnap.docs) {
             await deleteDoc(regDoc.ref);
@@ -180,10 +206,11 @@ function AdminDashboard() {
           await deleteDoc(doc(db, "schools", selectedSchoolId));
           setSelectedSchoolId("");
           setShowStudentEditor(false);
+          setShowAdminEnroll(false);
           setStudents([]);
           showSuccessMessage("Școala a fost ștearsă cu succes!");
 
-          // ✅ Actualizare completă date
+          // Actualizare date
           fetchSchools();
           if (showStatistics) fetchStatistics();
           if (showRegisteredSchools) fetchRegisteredSchools();
@@ -191,12 +218,12 @@ function AdminDashboard() {
           console.error("Eroare la ștergerea școlii/elevilor:", err);
           showSuccessMessage("Eroare la ștergerea școlii!");
         }
-        setConfirmModal({ ...confirmModal, isOpen: false });
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
       },
     });
   };
 
-  // ====== STATISTICI / ȘCOLI ÎNSCRISE (Funcțiile rămân la fel) ======
+  // ====== STATISTICI / ȘCOLI ÎNSCRISE ======
   const toggleStatistics = () => {
     if (!showStatistics) fetchStatistics();
     setShowStatistics((v) => !v);
@@ -205,21 +232,31 @@ function AdminDashboard() {
   const fetchStatistics = async () => {
     try {
       const regsSnap = await getDocs(collection(db, "registration"));
-      const classCounts = { "a IV-a": 0, "a V-a": 0, "a VI-a": 0, "a VII-a": 0 };
+      const classCounts = {
+        "a IV-a": 0,
+        "a V-a": 0,
+        "a VI-a": 0,
+        "a VII-a": 0,
+      };
       const schoolSet = new Set();
 
       regsSnap.docs.forEach((r) => {
         const d = r.data();
         schoolSet.add(d.schoolId);
         if (classCounts[d.class] !== undefined) {
-          classCounts[d.class] += Array.isArray(d.students) ? d.students.length : 0;
+          classCounts[d.class] += Array.isArray(d.students)
+            ? d.students.length
+            : 0;
         }
       });
 
       setStatistics({
         totalSchools: schoolSet.size,
         ...classCounts,
-        totalStudents: Object.values(classCounts).reduce((a, n) => a + n, 0),
+        totalStudents: Object.values(classCounts).reduce(
+          (a, n) => a + n,
+          0
+        ),
       });
     } catch (err) {
       console.error("Eroare la obținerea statisticilor:", err);
@@ -229,7 +266,10 @@ function AdminDashboard() {
   const fetchRegisteredSchools = async () => {
     try {
       setLoadingRegs(true);
-      const [schoolsSnap, regsSnap] = await Promise.all([getDocs(collection(db, "schools")), getDocs(collection(db, "registration"))]);
+      const [schoolsSnap, regsSnap] = await Promise.all([
+        getDocs(collection(db, "schools")),
+        getDocs(collection(db, "registration")),
+      ]);
 
       const schoolMap = {};
       schoolsSnap.forEach((s) => {
@@ -263,12 +303,12 @@ function AdminDashboard() {
     }
   };
 
-  // ====== EXPORT SIMPLIFICAT (Rămâne la fel) ======
+  // ====== EXPORT SIMPLIFICAT ======
   const exportSimplifiedList = async () => {
     try {
       const [regsSnap, schoolsSnap] = await Promise.all([
         getDocs(collection(db, "registration")),
-        getDocs(collection(db, "schools"))
+        getDocs(collection(db, "schools")),
       ]);
 
       const schoolById = {};
@@ -293,10 +333,13 @@ function AdminDashboard() {
       for (const regDoc of regsSnap.docs) {
         const data = regDoc.data();
         const sc = schoolById[data.schoolId] || { name: "" };
-        const studentsArr = Array.isArray(data.students) ? data.students : [];
+        const studentsArr = Array.isArray(data.students)
+          ? data.students
+          : [];
 
         for (const st of studentsArr) {
-          const nume = typeof st === "string" ? st : st?.nume || "";
+          const nume =
+            typeof st === "string" ? st : st?.nume || "";
           rows.push({
             nrCurent: rowNumber++,
             numePrenume: nume,
@@ -318,7 +361,11 @@ function AdminDashboard() {
         { wch: 30 },
       ];
 
-      ws["!autofilter"] = { ref: XLSX.utils.encode_range(XLSX.utils.decode_range(ws["!ref"])) };
+      ws["!autofilter"] = {
+        ref: XLSX.utils.encode_range(
+          XLSX.utils.decode_range(ws["!ref"])
+        ),
+      };
       ws["!freeze"] = { xSplit: 0, ySplit: 1 };
 
       XLSX.utils.book_append_sheet(wb, ws, "Lista Participanți");
@@ -328,7 +375,7 @@ function AdminDashboard() {
     }
   };
 
-  // ====== EXPORT ÎNDRUMĂTORI (Rămâne la fel) ======
+  // ====== EXPORT ÎNDRUMĂTORI ======
   const exportInstrumatoriToExcel = async () => {
     try {
       const [regsSnap, schoolsSnap] = await Promise.all([
@@ -351,7 +398,11 @@ function AdminDashboard() {
         const data = regDoc.data();
         const email = data.profesorIndrumatorEmail || "";
         const telefon = data.telefon || "";
-        const sc = schoolById[data.schoolId] || { name: "", county: "", locality: "" };
+        const sc = schoolById[data.schoolId] || {
+          name: "",
+          county: "",
+          locality: "",
+        };
 
         if (email) {
           if (!instrumatoriMap.has(email)) {
@@ -366,7 +417,12 @@ function AdminDashboard() {
         }
       });
 
-      const rows = Array.from(instrumatoriMap.values()).sort((a, b) => a.scoala.localeCompare(b.scoala, "ro", { sensitivity: "base" }));
+      const rows = Array.from(instrumatoriMap.values()).sort(
+        (a, b) =>
+          a.scoala.localeCompare(b.scoala, "ro", {
+            sensitivity: "base",
+          })
+      );
 
       const excelData = [
         {
@@ -390,9 +446,20 @@ function AdminDashboard() {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(excelData);
 
-      const maxWidths = [{ wch: 8 }, { wch: 40 }, { wch: 20 }, { wch: 15 }, { wch: 30 }, { wch: 15 }];
+      const maxWidths = [
+        { wch: 8 },
+        { wch: 40 },
+        { wch: 20 },
+        { wch: 15 },
+        { wch: 30 },
+        { wch: 15 },
+      ];
       ws["!cols"] = maxWidths;
-      ws["!autofilter"] = { ref: XLSX.utils.encode_range(XLSX.utils.decode_range(ws["!ref"])) };
+      ws["!autofilter"] = {
+        ref: XLSX.utils.encode_range(
+          XLSX.utils.decode_range(ws["!ref"])
+        ),
+      };
       ws["!freeze"] = { xSplit: 0, ySplit: 1 };
 
       XLSX.utils.book_append_sheet(wb, ws, "Profesori Îndrumători");
@@ -402,10 +469,13 @@ function AdminDashboard() {
     }
   };
 
-  // ====== EXPORT EXCEL COMPLET (Rămâne la fel) ======
+  // ====== EXPORT EXCEL COMPLET ======
   const exportToExcel = async () => {
     try {
-      const [regsSnap, schoolsSnap] = await Promise.all([getDocs(collection(db, "registration")), getDocs(collection(db, "schools"))]);
+      const [regsSnap, schoolsSnap] = await Promise.all([
+        getDocs(collection(db, "registration")),
+        getDocs(collection(db, "schools")),
+      ]);
 
       const schoolById = {};
       schoolsSnap.forEach((s) => {
@@ -434,14 +504,27 @@ function AdminDashboard() {
 
       for (const regDoc of regsSnap.docs) {
         const data = regDoc.data();
-        const sc = schoolById[data.schoolId] || { name: "", county: "", locality: "" };
-        const studentsArr = Array.isArray(data.students) ? data.students : [];
+        const sc = schoolById[data.schoolId] || {
+          name: "",
+          county: "",
+          locality: "",
+        };
+        const studentsArr = Array.isArray(data.students)
+          ? data.students
+          : [];
 
-        countBySchool.set(data.schoolId, (countBySchool.get(data.schoolId) || 0) + studentsArr.length);
+        countBySchool.set(
+          data.schoolId,
+          (countBySchool.get(data.schoolId) || 0) + studentsArr.length
+        );
 
         for (const st of studentsArr) {
-          const nume = typeof st === "string" ? st : st?.nume || "";
-          const tel = typeof st === "object" ? st?.telefon || data.telefon || "" : data.telefon || "";
+          const nume =
+            typeof st === "string" ? st : st?.nume || "";
+          const tel =
+            typeof st === "object"
+              ? st?.telefon || data.telefon || ""
+              : data.telefon || "";
           rows.push({
             nrCrt: rowNumber++,
             elev: nume,
@@ -457,28 +540,59 @@ function AdminDashboard() {
 
       const fitCols = (arr) =>
         Object.keys(arr[0] || {}).map((k) => ({
-          wch: Math.max(k.length, ...arr.slice(1).map((r) => (r[k] ? String(r[k]).length : 0))) + 2,
+          wch:
+            Math.max(
+              k.length,
+              ...arr
+                .slice(1)
+                .map((r) => (r[k] ? String(r[k]).length : 0))
+            ) + 2,
         }));
 
       const wb = XLSX.utils.book_new();
 
       const ws1 = XLSX.utils.json_to_sheet(rows);
       ws1["!cols"] = fitCols(rows);
-      ws1["!autofilter"] = { ref: XLSX.utils.encode_range(XLSX.utils.decode_range(ws1["!ref"])) };
+      ws1["!autofilter"] = {
+        ref: XLSX.utils.encode_range(
+          XLSX.utils.decode_range(ws1["!ref"])
+        ),
+      };
       ws1["!freeze"] = { xSplit: 0, ySplit: 1 };
       XLSX.utils.book_append_sheet(wb, ws1, "Elevi Înscriși");
 
       const summary = [["Școala", "Localitate", "Județ", "Nr. elevi"]];
       for (const [schoolId, cnt] of countBySchool.entries()) {
-        const sc = schoolById[schoolId] || { name: "", county: "", locality: "" };
+        const sc = schoolById[schoolId] || {
+          name: "",
+          county: "",
+          locality: "",
+        };
         summary.push([sc.name, sc.locality, sc.county, cnt]);
       }
-      const ws2 = XLSX.utils.aoa_to_sheet([summary[0], ...summary.slice(1).sort((a, b) => b[3] - a[3])]);
-      ws2["!cols"] = fitCols([
-        { a: "Școala", b: "Localitate", c: "Județ", d: "Nr. elevi" },
-        ...summary.slice(1).map((r) => ({ a: r[0], b: r[1], c: r[2], d: String(r[3]) })),
+      const ws2 = XLSX.utils.aoa_to_sheet([
+        summary[0],
+        ...summary.slice(1).sort((a, b) => b[3] - a[3]),
       ]);
-      ws2["!autofilter"] = { ref: XLSX.utils.encode_range(XLSX.utils.decode_range(ws2["!ref"])) };
+      ws2["!cols"] = fitCols([
+        {
+          a: "Școala",
+          b: "Localitate",
+          c: "Județ",
+          d: "Nr. elevi",
+        },
+        ...summary.slice(1).map((r) => ({
+          a: r[0],
+          b: r[1],
+          c: r[2],
+          d: String(r[3]),
+        })),
+      ]);
+      ws2["!autofilter"] = {
+        ref: XLSX.utils.encode_range(
+          XLSX.utils.decode_range(ws2["!ref"])
+        ),
+      };
       XLSX.utils.book_append_sheet(wb, ws2, "Școli – total");
 
       XLSX.writeFile(wb, "elevi_inscrisi.xlsx");
@@ -487,7 +601,7 @@ function AdminDashboard() {
     }
   };
 
-  // ====== BULK UPLOAD ȘCOLI (Rămâne la fel) ======
+  // ====== BULK UPLOAD ȘCOLI ======
   const handleBulkUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -495,7 +609,9 @@ function AdminDashboard() {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: "array" });
       const firstSheet = workbook.SheetNames[0];
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet]);
+      const rows = XLSX.utils.sheet_to_json(
+        workbook.Sheets[firstSheet]
+      );
 
       await Promise.all(
         rows.map((row) => {
@@ -514,16 +630,21 @@ function AdminDashboard() {
       setTimeout(() => setBulkUploadStatus(null), 3000);
     } catch (err) {
       console.error("Eroare la încărcarea bulk:", err);
-      setBulkUploadStatus("Eroare la încărcarea bulk a școlilor.");
+      setBulkUploadStatus(
+        "Eroare la încărcarea bulk a școlilor."
+      );
       setTimeout(() => setBulkUploadStatus(null), 3000);
     }
   };
 
-  // ====== EDITOR ELEV (Funcțiile rămân la fel) ======
+  // ====== EDITOR ELEV ======
   const handleEditStudents = async () => {
     if (!selectedSchoolId) return;
     try {
-      const qRegs = query(collection(db, "registration"), where("schoolId", "==", selectedSchoolId));
+      const qRegs = query(
+        collection(db, "registration"),
+        where("schoolId", "==", selectedSchoolId)
+      );
       const snap = await getDocs(qRegs);
 
       const list = [];
@@ -531,7 +652,10 @@ function AdminDashboard() {
         const d = reg.data();
         const arr = Array.isArray(d.students) ? d.students : [];
         arr.forEach((student, index) => {
-          const nume = typeof student === "string" ? student : student?.nume || "";
+          const nume =
+            typeof student === "string"
+              ? student
+              : student?.nume || "";
           list.push({ id: `${reg.id}-${index}`, nume });
         });
       });
@@ -540,13 +664,18 @@ function AdminDashboard() {
       setOriginalStudents(JSON.parse(JSON.stringify(list)));
       setHasUnsavedChanges(false);
       setShowStudentEditor(true);
+      setShowAdminEnroll(false);
     } catch (err) {
       console.error("Eroare la aducerea elevilor:", err);
     }
   };
 
   const handleStudentNameChange = (studentId, newName) => {
-    setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, nume: newName } : s)));
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.id === studentId ? { ...s, nume: newName } : s
+      )
+    );
     setHasUnsavedChanges(true);
   };
 
@@ -556,7 +685,8 @@ function AdminDashboard() {
     setConfirmModal({
       isOpen: true,
       title: "Confirmare salvare modificări",
-      message: "Sigur doriți să salvați toate modificările efectuate asupra elevilor?",
+      message:
+        "Sigur doriți să salvați toate modificările efectuate asupra elevilor?",
       onConfirm: async () => {
         try {
           setIsSaving(true);
@@ -573,7 +703,9 @@ function AdminDashboard() {
             });
           });
 
-          for (const [regId, changes] of Object.entries(changesByReg)) {
+          for (const [regId, changes] of Object.entries(
+            changesByReg
+          )) {
             const regRef = doc(db, "registration", regId);
 
             await runTransaction(db, async (tx) => {
@@ -581,12 +713,17 @@ function AdminDashboard() {
               if (!snap.exists()) return;
 
               const data = snap.data();
-              const arr = Array.isArray(data.students) ? [...data.students] : [];
+              const arr = Array.isArray(data.students)
+                ? [...data.students]
+                : [];
 
               changes.forEach(({ index, nume }) => {
                 if (index >= 0 && index < arr.length) {
                   const prev = arr[index];
-                  arr[index] = typeof prev === "object" ? { ...prev, nume } : nume;
+                  arr[index] =
+                    typeof prev === "object"
+                      ? { ...prev, nume }
+                      : nume;
                 }
               });
 
@@ -596,13 +733,22 @@ function AdminDashboard() {
 
           setOriginalStudents(JSON.parse(JSON.stringify(students)));
           setHasUnsavedChanges(false);
-          showStudentEditorMessage("✅ Modificările au fost salvate cu succes!", "success");
+          showStudentEditorMessage(
+            "✅ Modificările au fost salvate cu succes!",
+            "success"
+          );
         } catch (err) {
-          console.error("Eroare la salvarea modificărilor:", err);
-          showStudentEditorMessage("❌ Eroare la salvarea modificărilor!", "error");
+          console.error(
+            "Eroare la salvarea modificărilor:",
+            err
+          );
+          showStudentEditorMessage(
+            "❌ Eroare la salvarea modificărilor!",
+            "error"
+          );
         } finally {
           setIsSaving(false);
-          setConfirmModal({ ...confirmModal, isOpen: false });
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
         }
       },
     });
@@ -618,12 +764,13 @@ function AdminDashboard() {
     setConfirmModal({
       isOpen: true,
       title: "Anulare modificări",
-      message: "Aveți modificări nesalvate. Sigur doriți să renunțați la ele?",
+      message:
+        "Aveți modificări nesalvate. Sigur doriți să renunțați la ele?",
       onConfirm: () => {
         setStudents(JSON.parse(JSON.stringify(originalStudents)));
         setHasUnsavedChanges(false);
         setShowStudentEditor(false);
-        setConfirmModal({ ...confirmModal, isOpen: false });
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
       },
     });
   };
@@ -632,7 +779,8 @@ function AdminDashboard() {
     setConfirmModal({
       isOpen: true,
       title: "Confirmare ștergere elev",
-      message: "Sigur doriți să ștergeți acest elev din sistem?",
+      message:
+        "Sigur doriți să ștergeți acest elev din sistem?",
       onConfirm: async () => {
         const [registrationId, idxStr] = studentId.split("-");
         const idx = parseInt(idxStr, 10);
@@ -644,8 +792,15 @@ function AdminDashboard() {
             if (!snap.exists()) return;
 
             const data = snap.data();
-            const arr = Array.isArray(data.students) ? [...data.students] : [];
-            if (Number.isNaN(idx) || idx < 0 || idx >= arr.length) return;
+            const arr = Array.isArray(data.students)
+              ? [...data.students]
+              : [];
+            if (
+              Number.isNaN(idx) ||
+              idx < 0 ||
+              idx >= arr.length
+            )
+              return;
 
             const updated = arr.filter((_, i) => i !== idx);
             if (updated.length === 0) {
@@ -655,33 +810,47 @@ function AdminDashboard() {
             }
           });
 
-          setStudents((prev) => prev.filter((s) => s.id !== studentId));
-          setOriginalStudents((prev) => prev.filter((s) => s.id !== studentId));
-          showStudentEditorMessage("✅ Elevul a fost șters cu succes!", "success");
+          setStudents((prev) =>
+            prev.filter((s) => s.id !== studentId)
+          );
+          setOriginalStudents((prev) =>
+            prev.filter((s) => s.id !== studentId)
+          );
+          showStudentEditorMessage(
+            "✅ Elevul a fost șters cu succes!",
+            "success"
+          );
         } catch (e) {
           console.error("Eroare la ștergerea elevului:", e);
-          showStudentEditorMessage("❌ Eroare la ștergerea elevului!", "error");
+          showStudentEditorMessage(
+            "❌ Eroare la ștergerea elevului!",
+            "error"
+          );
         }
-        setConfirmModal({ ...confirmModal, isOpen: false });
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
       },
     });
   };
 
-  // ====== ȘTERGERE ÎN MASĂ - CONSOLIDATĂ (Rămâne la fel) ======
-  const handleDeleteAllRegistrations = (type = 'elevi') => {
+  // ====== ȘTERGERE ÎN MASĂ ======
+  const handleDeleteAllRegistrations = (type = "elevi") => {
     const messages = {
       elevi: {
         title: "⚠️ ATENȚIE: Ștergere completă elevi",
-        message: "Sigur doriți să ștergeți TOȚI elevii înscriși din TOATE școlile? Această acțiune este IREVERSIBILĂ și va șterge toate înregistrările de elevi din sistem!",
-        success: (count) => `✅ Au fost șterse ${count} înregistrări de elevi!`,
-        error: "❌ Eroare la ștergerea elevilor!"
+        message:
+          "Sigur doriți să ștergeți TOȚI elevii înscriși din TOATE școlile? Această acțiune este IREVERSIBILĂ și va șterge toate înregistrările de elevi din sistem!",
+        success: (count) =>
+          `✅ Au fost șterse ${count} înregistrări de elevi!`,
+        error: "❌ Eroare la ștergerea elevilor!",
       },
       indrumatori: {
         title: "⚠️ ATENȚIE: Ștergere completă îndrumători",
-        message: "Sigur doriți să ștergeți TOȚI profesorii îndrumători și elevii asociați din sistem? Această acțiune va șterge TOATE înregistrările din baza de date și este IREVERSIBILĂ!",
-        success: (count) => `✅ Au fost șterse ${count} înregistrări (îndrumători + elevi)!`,
-        error: "❌ Eroare la ștergerea datelor!"
-      }
+        message:
+          "Sigur doriți să ștergeți TOȚI profesorii îndrumători și elevii asociați din sistem? Această acțiune va șterge TOATE înregistrările din baza de date și este IREVERSIBILĂ!",
+        success: (count) =>
+          `✅ Au fost șterse ${count} înregistrări (îndrumători + elevi)!`,
+        error: "❌ Eroare la ștergerea datelor!",
+      },
     };
 
     const config = messages[type];
@@ -692,41 +861,48 @@ function AdminDashboard() {
       message: config.message,
       onConfirm: async () => {
         try {
-          const regsSnap = await getDocs(collection(db, "registration"));
-          const deletePromises = regsSnap.docs.map((doc) => deleteDoc(doc.ref));
+          const regsSnap = await getDocs(
+            collection(db, "registration")
+          );
+          const deletePromises = regsSnap.docs.map((docu) =>
+            deleteDoc(docu.ref)
+          );
           await Promise.all(deletePromises);
 
-          // Resetare stare completă
           setShowStudentEditor(false);
+          setShowAdminEnroll(false);
           setStudents([]);
           setOriginalStudents([]);
           setHasUnsavedChanges(false);
 
-          // Mesaj de succes
-          showSuccessMessage(config.success(regsSnap.size));
+          showSuccessMessage(
+            config.success(regsSnap.size)
+          );
 
-          // Actualizare date afișate
           if (showStatistics) fetchStatistics();
           if (showRegisteredSchools) fetchRegisteredSchools();
         } catch (err) {
-          console.error(`Eroare la ștergerea ${type}:`, err);
+          console.error(
+            `Eroare la ștergerea ${type}:`,
+            err
+          );
           showSuccessMessage(config.error);
         }
-        setConfirmModal({ ...confirmModal, isOpen: false });
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
       },
     });
   };
-  
+
   // ===========================================
-  // 🌟 RENDER NAVIGARE FIXATĂ 🌟
+  // 🌟 RENDER NAVIGARE
   // ===========================================
 
   // 1. VIZUALIZARE REPARTIZARE SĂLI
   if (currentView === "rooms") {
     return (
       <RoomAllocation
-        onNextStep={() => setCurrentView("allocation")} // Trecere la pasul următor (AllocationProcess)
-        onCancel={() => setCurrentView("dashboard")} // Reîntoarcere la Dashboard
+        onNextStep={() => setCurrentView("allocation")}
+        onCancel={() => setCurrentView("dashboard")}
       />
     );
   }
@@ -735,12 +911,12 @@ function AdminDashboard() {
   if (currentView === "allocation") {
     return (
       <AllocationProcess
-        onBack={() => setCurrentView("rooms")} // Reîntoarcere la RoomAllocation
+        onBack={() => setCurrentView("rooms")}
       />
     );
   }
 
-  // 3. VIZUALIZARE DASHBOARD (DEFAULT)
+  // 3. VIZUALIZARE DASHBOARD
   return (
     <div>
       <ConfirmModal
@@ -748,21 +924,39 @@ function AdminDashboard() {
         title={confirmModal.title}
         message={confirmModal.message}
         onConfirm={confirmModal.onConfirm}
-        onCancel={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+        onCancel={() =>
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }))
+        }
       />
 
       <div className={styles.container}>
-        <h1 className={styles.title}>Bine ai venit în panoul de administrare!</h1>
+        <h1 className={styles.title}>
+          Bine ai venit în panoul de administrare!
+        </h1>
 
-        {schoolOperationMessage && <p className={styles.successMessage}>{schoolOperationMessage}</p>}
+        {schoolOperationMessage && (
+          <p className={styles.successMessage}>
+            {schoolOperationMessage}
+          </p>
+        )}
 
         <div className={styles.buttonContainer}>
-          <button onClick={() => setShowAddSchoolForm((v) => !v)} className={styles.addButton}>
-            {showAddSchoolForm ? "Ascunde formularul" : "Adaugă o școală"}
+          <button
+            onClick={() => setShowAddSchoolForm((v) => !v)}
+            className={styles.addButton}
+          >
+            {showAddSchoolForm
+              ? "Ascunde formularul"
+              : "Adaugă o școală"}
           </button>
 
-          <button onClick={toggleStatistics} className={styles.statsButton}>
-            {showStatistics ? "Ascunde situație înscrieri" : "Situație înscrieri"}
+          <button
+            onClick={toggleStatistics}
+            className={styles.statsButton}
+          >
+            {showStatistics
+              ? "Ascunde situație înscrieri"
+              : "Situație înscrieri"}
           </button>
 
           <button
@@ -772,69 +966,136 @@ function AdminDashboard() {
             }}
             className={styles.statsButton}
           >
-            {showRegisteredSchools ? "Ascunde școli înscrise" : "Școli înscrise"}
+            {showRegisteredSchools
+              ? "Ascunde școli înscrise"
+              : "Școli înscrise"}
           </button>
 
-          <button onClick={exportToExcel} className={styles.exportButton}>
+          <button
+            onClick={exportToExcel}
+            className={styles.exportButton}
+          >
             Descarcă elevii înscriși
           </button>
 
-          <button onClick={exportSimplifiedList} className={styles.exportButton}>
+          <button
+            onClick={exportSimplifiedList}
+            className={styles.exportButton}
+          >
             Descarcă lista simplificată
           </button>
 
-          <button onClick={exportInstrumatoriToExcel} className={styles.exportButton}>
+          <button
+            onClick={exportInstrumatoriToExcel}
+            className={styles.exportButton}
+          >
             Descarcă profesori îndrumători
           </button>
 
-          {/* 🌟 BUTON NAVIGARE REPARTIZARE FIXAT 🌟 */}
           <button
-            onClick={() => setCurrentView("rooms")} // Setăm direct la "rooms" pentru a randa componenta
+            onClick={() => setCurrentView("rooms")}
             className={styles.addButton}
           >
             📋 Repartizare în săli
           </button>
 
-          <button onClick={() => document.querySelector(`.${styles.fileInput}`)?.click()} className={styles.bulkUploadButton}>
+          <button
+            onClick={() =>
+              document
+                .querySelector(`.${styles.fileInput}`)
+                ?.click()
+            }
+            className={styles.bulkUploadButton}
+          >
             Încarcă școli din Excel
           </button>
 
           <button
-            onClick={() => handleDeleteAllRegistrations('elevi')}
+            onClick={() =>
+              handleDeleteAllRegistrations("elevi")
+            }
             className={styles.dangerButton}
           >
             🗑️ Șterge toți elevii
           </button>
 
           <button
-            onClick={() => handleDeleteAllRegistrations('indrumatori')}
+            onClick={() =>
+              handleDeleteAllRegistrations("indrumatori")
+            }
             className={styles.dangerButton}
           >
             🗑️ Șterge toți îndrumătorii
           </button>
         </div>
 
-        <input type="file" accept=".xlsx, .xls" onChange={handleBulkUpload} className={styles.fileInput} style={{ display: 'none' }} />
-        {bulkUploadStatus && <p className={styles.successMessage}>{bulkUploadStatus}</p>}
+        <input
+          type="file"
+          accept=".xlsx, .xls"
+          onChange={handleBulkUpload}
+          className={styles.fileInput}
+          style={{ display: "none" }}
+        />
+        {bulkUploadStatus && (
+          <p className={styles.successMessage}>
+            {bulkUploadStatus}
+          </p>
+        )}
 
         {showAddSchoolForm && (
-          <form onSubmit={handleAddOrEditSchool} className={styles.formContainer}>
-            <input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} placeholder="Nume școală" className={styles.inputField} />
-            <input type="text" value={judet} onChange={(e) => setJudet(e.target.value)} placeholder="Județul școlii" className={styles.inputField} />
-            <input type="text" value={localitate} onChange={(e) => setLocalitate(e.target.value)} placeholder="Localitatea școlii" className={styles.inputField} />
+          <form
+            onSubmit={handleAddOrEditSchool}
+            className={styles.formContainer}
+          >
+            <input
+              type="text"
+              value={schoolName}
+              onChange={(e) =>
+                setSchoolName(e.target.value)
+              }
+              placeholder="Nume școală"
+              className={styles.inputField}
+            />
+            <input
+              type="text"
+              value={judet}
+              onChange={(e) => setJudet(e.target.value)}
+              placeholder="Județul școlii"
+              className={styles.inputField}
+            />
+            <input
+              type="text"
+              value={localitate}
+              onChange={(e) =>
+                setLocalitate(e.target.value)
+              }
+              placeholder="Localitatea școlii"
+              className={styles.inputField}
+            />
 
             <div className={styles.formActions}>
               {isEditing ? (
                 <>
-                  <button type="button" onClick={handleSaveEdit} className={styles.submitButton}>
+                  <button
+                    type="button"
+                    onClick={handleSaveEdit}
+                    className={styles.submitButton}
+                  >
                     Salvează
                   </button>
-                  <button type="button" onClick={handleCancelEdit} className={styles.cancelButton}>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className={styles.cancelButton}
+                  >
                     Anulează
                   </button>
                 </>
               ) : (
-                <button type="submit" className={styles.submitButton}>
+                <button
+                  type="submit"
+                  className={styles.submitButton}
+                >
                   Adaugă
                 </button>
               )}
@@ -845,12 +1106,30 @@ function AdminDashboard() {
         {showStatistics && statistics && (
           <div className={styles.statistics}>
             <h2>Statistici înscrieri</h2>
-            <p>Număr total școli înscrise: {statistics.totalSchools}</p>
-            <p>Număr elevi clasa a IV-a: {statistics["a IV-a"]}</p>
-            <p>Număr elevi clasa a V-a: {statistics["a V-a"]}</p>
-            <p>Număr elevi clasa a VI-a: {statistics["a VI-a"]}</p>
-            <p>Număr elevi clasa a VII-a: {statistics["a VII-a"]}</p>
-            <p>Total elevi înscriși: {statistics.totalStudents}</p>
+            <p>
+              Număr total școli înscrise:{" "}
+              {statistics.totalSchools}
+            </p>
+            <p>
+              Număr elevi clasa a IV-a:{" "}
+              {statistics["a IV-a"]}
+            </p>
+            <p>
+              Număr elevi clasa a V-a:{" "}
+              {statistics["a V-a"]}
+            </p>
+            <p>
+              Număr elevi clasa a VI-a:{" "}
+              {statistics["a VI-a"]}
+            </p>
+            <p>
+              Număr elevi clasa a VII-a:{" "}
+              {statistics["a VII-a"]}
+            </p>
+            <p>
+              Total elevi înscriși:{" "}
+              {statistics.totalStudents}
+            </p>
           </div>
         )}
 
@@ -888,13 +1167,16 @@ function AdminDashboard() {
           </div>
         )}
 
-        <h2 className={styles.schoolListTitle}>Lista școlilor:</h2>
+        <h2 className={styles.schoolListTitle}>
+          Lista școlilor:
+        </h2>
         <div className={styles.dropdownContainer}>
           <select
             value={selectedSchoolId}
             onChange={(e) => {
               setSelectedSchoolId(e.target.value);
               setShowStudentEditor(false);
+              setShowAdminEnroll(false);
               setStudents([]);
             }}
             className={styles.dropdown}
@@ -904,20 +1186,44 @@ function AdminDashboard() {
             </option>
             {schools.map((school) => (
               <option key={school.id} value={school.id}>
-                {school.name} - {school.county} - {school.locality}
+                {school.name} - {school.county} -{" "}
+                {school.locality}
               </option>
             ))}
           </select>
 
           <div className={styles.buttonGroup}>
-            <button onClick={handleDeleteSchool} disabled={!selectedSchoolId} className={styles.deleteButton}>
+            <button
+              onClick={handleDeleteSchool}
+              disabled={!selectedSchoolId}
+              className={styles.deleteButton}
+            >
               Șterge școala selectată
             </button>
-            <button onClick={handleEditSchool} disabled={!selectedSchoolId} className={styles.editButton}>
+            <button
+              onClick={handleEditSchool}
+              disabled={!selectedSchoolId}
+              className={styles.editButton}
+            >
               Editează școala selectată
             </button>
-            <button onClick={handleEditStudents} disabled={!selectedSchoolId} className={styles.editButton}>
+            <button
+              onClick={handleEditStudents}
+              disabled={!selectedSchoolId}
+              className={styles.editButton}
+            >
               Editare Elevi
+            </button>
+            <button
+              onClick={() =>
+                setShowAdminEnroll((v) => !v)
+              }
+              disabled={!selectedSchoolId}
+              className={styles.editButton}
+            >
+              {showAdminEnroll
+                ? "Ascunde înscriere ADMIN"
+                : "Înscrie suplimentar (ADMIN)"}
             </button>
           </div>
         </div>
@@ -930,59 +1236,103 @@ function AdminDashboard() {
                 <button
                   onClick={handleSaveStudentChanges}
                   disabled={!hasUnsavedChanges || isSaving}
-                  className={`${styles.saveChangesButton} ${hasUnsavedChanges ? styles.hasChanges : ""}`}
+                  className={`${styles.saveChangesButton} ${
+                    hasUnsavedChanges
+                      ? styles.hasChanges
+                      : ""
+                  }`}
                 >
-                  {isSaving ? "Se salvează..." : hasUnsavedChanges ? "💾 Salvează modificările" : "✓ Salvat"}
+                  {isSaving
+                    ? "Se salvează..."
+                    : hasUnsavedChanges
+                    ? "💾 Salvează modificările"
+                    : "✓ Salvat"}
                 </button>
-                <button onClick={handleCancelStudentChanges} disabled={isSaving} className={styles.cancelButton}>
-                  {hasUnsavedChanges ? "Anulează" : "Închide"}
+                <button
+                  onClick={handleCancelStudentChanges}
+                  disabled={isSaving}
+                  className={styles.cancelButton}
+                >
+                  {hasUnsavedChanges
+                    ? "Anulează"
+                    : "Închide"}
                 </button>
               </div>
             </div>
 
             {studentEditorMessage && (
-                <p className={studentEditorMessage.type === "success" ? styles.successMessage : styles.errorMessage}>
-                    {studentEditorMessage.text}
-                </p>
+              <p
+                className={
+                  studentEditorMessage.type === "success"
+                    ? styles.successMessage
+                    : styles.errorMessage
+                }
+              >
+                {studentEditorMessage.text}
+              </p>
             )}
 
             {students.length === 0 ? (
-                <p>Niciun elev înscris sub această școală.</p>
+              <p>Niciun elev înscris sub această școală.</p>
             ) : (
-                <table className={styles.studentTable}>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Nume și Prenume</th>
-                            <th>Acțiuni</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {students.map((student, index) => (
-                            <tr key={student.id}>
-                                <td>{index + 1}</td>
-                                <td>
-                                    <input
-                                        type="text"
-                                        value={student.nume}
-                                        onChange={(e) => handleStudentNameChange(student.id, e.target.value)}
-                                        className={styles.studentInput}
-                                    />
-                                </td>
-                                <td>
-                                    <button
-                                        onClick={() => handleDeleteStudent(student.id)}
-                                        className={styles.deleteStudentButton}
-                                        disabled={isSaving}
-                                    >
-                                        Șterge
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+              <table className={styles.studentTable}>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Nume și Prenume</th>
+                    <th>Acțiuni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.map((student, index) => (
+                    <tr key={student.id}>
+                      <td>{index + 1}</td>
+                      <td>
+                        <input
+                          type="text"
+                          value={student.nume}
+                          onChange={(e) =>
+                            handleStudentNameChange(
+                              student.id,
+                              e.target.value
+                            )
+                          }
+                          className={styles.studentInput}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          onClick={() =>
+                            handleDeleteStudent(
+                              student.id
+                            )
+                          }
+                          className={
+                            styles.deleteStudentButton
+                          }
+                          disabled={isSaving}
+                        >
+                          Șterge
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
+          </div>
+        )}
+
+        {showAdminEnroll && selectedSchool && (
+          <div className={styles.studentEditorContainer}>
+            <h2>
+              Înscriere suplimentară (ADMIN) pentru:{" "}
+              {selectedSchool.name}
+            </h2>
+            <ClassForm
+              selectedSchool={selectedSchool}
+              isAdminOverride={true}
+            />
           </div>
         )}
       </div>
