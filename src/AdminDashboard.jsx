@@ -37,13 +37,15 @@ function AdminDashboard() {
   const [localitate, setLocalitate] = useState("");
 
   // —— Mesaje de confirmare pentru operațiuni școală
-  const [schoolOperationMessage, setSchoolOperationMessage] = useState(null);
+  const [schoolOperationMessage, setSchoolOperationMessage] =
+    useState(null);
 
   // —— Statistici / listă școli înscrise
   const [statistics, setStatistics] = useState(null);
   const [showStatistics, setShowStatistics] = useState(false);
 
-  const [showRegisteredSchools, setShowRegisteredSchools] = useState(false);
+  const [showRegisteredSchools, setShowRegisteredSchools] =
+    useState(false);
   const [registeredSchools, setRegisteredSchools] = useState([]);
   const [loadingRegs, setLoadingRegs] = useState(false);
 
@@ -56,7 +58,8 @@ function AdminDashboard() {
   const [originalStudents, setOriginalStudents] = useState([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [studentEditorMessage, setStudentEditorMessage] = useState(null);
+  const [studentEditorMessage, setStudentEditorMessage] =
+    useState(null);
 
   // —— Form de înscriere suplimentară (ADMIN)
   const [showAdminEnroll, setShowAdminEnroll] = useState(false);
@@ -167,7 +170,8 @@ function AdminDashboard() {
   };
 
   const handleSaveEdit = async () => {
-    if (!selectedSchoolId || !schoolName || !judet || !localitate) return;
+    if (!selectedSchoolId || !schoolName || !judet || !localitate)
+      return;
     try {
       await updateDoc(doc(db, "schools", selectedSchoolId), {
         name: schoolName,
@@ -231,7 +235,21 @@ function AdminDashboard() {
 
   const fetchStatistics = async () => {
     try {
-      const regsSnap = await getDocs(collection(db, "registration"));
+      const [regsSnap, schoolsSnap] = await Promise.all([
+        getDocs(collection(db, "registration")),
+        getDocs(collection(db, "schools")),
+      ]);
+
+      // mapare schoolId -> info școală (judet, localitate)
+      const schoolById = {};
+      schoolsSnap.forEach((s) => {
+        const d = s.data();
+        schoolById[s.id] = {
+          county: d.county || "",
+          locality: d.locality || "",
+        };
+      });
+
       const classCounts = {
         "a IV-a": 0,
         "a V-a": 0,
@@ -239,10 +257,32 @@ function AdminDashboard() {
         "a VII-a": 0,
       };
       const schoolSet = new Set();
+      const countiesSet = new Set();
+      const localitiesSet = new Set();
 
       regsSnap.docs.forEach((r) => {
         const d = r.data();
-        schoolSet.add(d.schoolId);
+
+        // școala
+        if (d.schoolId) {
+          schoolSet.add(d.schoolId);
+
+          const info = schoolById[d.schoolId];
+          if (info) {
+            const county = (info.county || "").trim();
+            const locality = (info.locality || "").trim();
+
+            if (county) countiesSet.add(county);
+            // localitate unică în combinație cu județul
+            if (locality) {
+              localitiesSet.add(
+                county ? `${locality} (${county})` : locality
+              );
+            }
+          }
+        }
+
+        // număr elevi / clasă
         if (classCounts[d.class] !== undefined) {
           classCounts[d.class] += Array.isArray(d.students)
             ? d.students.length
@@ -252,6 +292,8 @@ function AdminDashboard() {
 
       setStatistics({
         totalSchools: schoolSet.size,
+        uniqueCounties: countiesSet.size,
+        uniqueLocalities: localitiesSet.size,
         ...classCounts,
         totalStudents: Object.values(classCounts).reduce(
           (a, n) => a + n,
@@ -738,10 +780,7 @@ function AdminDashboard() {
             "success"
           );
         } catch (err) {
-          console.error(
-            "Eroare la salvarea modificărilor:",
-            err
-          );
+          console.error("Eroare la salvarea modificărilor:", err);
           showStudentEditorMessage(
             "❌ Eroare la salvarea modificărilor!",
             "error"
@@ -779,8 +818,7 @@ function AdminDashboard() {
     setConfirmModal({
       isOpen: true,
       title: "Confirmare ștergere elev",
-      message:
-        "Sigur doriți să ștergeți acest elev din sistem?",
+      message: "Sigur doriți să ștergeți acest elev din sistem?",
       onConfirm: async () => {
         const [registrationId, idxStr] = studentId.split("-");
         const idx = parseInt(idxStr, 10);
@@ -795,11 +833,7 @@ function AdminDashboard() {
             const arr = Array.isArray(data.students)
               ? [...data.students]
               : [];
-            if (
-              Number.isNaN(idx) ||
-              idx < 0 ||
-              idx >= arr.length
-            )
+            if (Number.isNaN(idx) || idx < 0 || idx >= arr.length)
               return;
 
             const updated = arr.filter((_, i) => i !== idx);
@@ -875,17 +909,12 @@ function AdminDashboard() {
           setOriginalStudents([]);
           setHasUnsavedChanges(false);
 
-          showSuccessMessage(
-            config.success(regsSnap.size)
-          );
+          showSuccessMessage(config.success(regsSnap.size));
 
           if (showStatistics) fetchStatistics();
           if (showRegisteredSchools) fetchRegisteredSchools();
         } catch (err) {
-          console.error(
-            `Eroare la ștergerea ${type}:`,
-            err
-          );
+          console.error(`Eroare la ștergerea ${type}:`, err);
           showSuccessMessage(config.error);
         }
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
@@ -910,9 +939,7 @@ function AdminDashboard() {
   // 2. VIZUALIZARE PROCES REPARTIZARE
   if (currentView === "allocation") {
     return (
-      <AllocationProcess
-        onBack={() => setCurrentView("rooms")}
-      />
+      <AllocationProcess onBack={() => setCurrentView("rooms")} />
     );
   }
 
@@ -1011,9 +1038,7 @@ function AdminDashboard() {
           </button>
 
           <button
-            onClick={() =>
-              handleDeleteAllRegistrations("elevi")
-            }
+            onClick={() => handleDeleteAllRegistrations("elevi")}
             className={styles.dangerButton}
           >
             🗑️ Șterge toți elevii
@@ -1050,9 +1075,7 @@ function AdminDashboard() {
             <input
               type="text"
               value={schoolName}
-              onChange={(e) =>
-                setSchoolName(e.target.value)
-              }
+              onChange={(e) => setSchoolName(e.target.value)}
               placeholder="Nume școală"
               className={styles.inputField}
             />
@@ -1066,9 +1089,7 @@ function AdminDashboard() {
             <input
               type="text"
               value={localitate}
-              onChange={(e) =>
-                setLocalitate(e.target.value)
-              }
+              onChange={(e) => setLocalitate(e.target.value)}
               placeholder="Localitatea școlii"
               className={styles.inputField}
             />
@@ -1109,6 +1130,14 @@ function AdminDashboard() {
             <p>
               Număr total școli înscrise:{" "}
               {statistics.totalSchools}
+            </p>
+            <p>
+              Număr județe unice:{" "}
+              {statistics.uniqueCounties}
+            </p>
+            <p>
+              Număr localități unice:{" "}
+              {statistics.uniqueLocalities}
             </p>
             <p>
               Număr elevi clasa a IV-a:{" "}
@@ -1215,9 +1244,7 @@ function AdminDashboard() {
               Editare Elevi
             </button>
             <button
-              onClick={() =>
-                setShowAdminEnroll((v) => !v)
-              }
+              onClick={() => setShowAdminEnroll((v) => !v)}
               disabled={!selectedSchoolId}
               className={styles.editButton}
             >
@@ -1237,9 +1264,7 @@ function AdminDashboard() {
                   onClick={handleSaveStudentChanges}
                   disabled={!hasUnsavedChanges || isSaving}
                   className={`${styles.saveChangesButton} ${
-                    hasUnsavedChanges
-                      ? styles.hasChanges
-                      : ""
+                    hasUnsavedChanges ? styles.hasChanges : ""
                   }`}
                 >
                   {isSaving
@@ -1253,9 +1278,7 @@ function AdminDashboard() {
                   disabled={isSaving}
                   className={styles.cancelButton}
                 >
-                  {hasUnsavedChanges
-                    ? "Anulează"
-                    : "Închide"}
+                  {hasUnsavedChanges ? "Anulează" : "Închide"}
                 </button>
               </div>
             </div>
@@ -1303,9 +1326,7 @@ function AdminDashboard() {
                       <td>
                         <button
                           onClick={() =>
-                            handleDeleteStudent(
-                              student.id
-                            )
+                            handleDeleteStudent(student.id)
                           }
                           className={
                             styles.deleteStudentButton
