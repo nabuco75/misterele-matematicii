@@ -37,13 +37,15 @@ function AdminDashboard() {
   const [localitate, setLocalitate] = useState("");
 
   // —— Mesaje de confirmare pentru operațiuni școală
-  const [schoolOperationMessage, setSchoolOperationMessage] = useState(null);
+  const [schoolOperationMessage, setSchoolOperationMessage] =
+    useState(null);
 
   // —— Statistici / listă școli înscrise
   const [statistics, setStatistics] = useState(null);
   const [showStatistics, setShowStatistics] = useState(false);
 
-  const [showRegisteredSchools, setShowRegisteredSchools] = useState(false);
+  const [showRegisteredSchools, setShowRegisteredSchools] =
+    useState(false);
   const [registeredSchools, setRegisteredSchools] = useState([]);
   const [loadingRegs, setLoadingRegs] = useState(false);
 
@@ -56,7 +58,8 @@ function AdminDashboard() {
   const [originalStudents, setOriginalStudents] = useState([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [studentEditorMessage, setStudentEditorMessage] = useState(null);
+  const [studentEditorMessage, setStudentEditorMessage] =
+    useState(null);
 
   // —— Form de înscriere suplimentară (ADMIN)
   const [showAdminEnroll, setShowAdminEnroll] = useState(false);
@@ -167,7 +170,8 @@ function AdminDashboard() {
   };
 
   const handleSaveEdit = async () => {
-    if (!selectedSchoolId || !schoolName || !judet || !localitate) return;
+    if (!selectedSchoolId || !schoolName || !judet || !localitate)
+      return;
     try {
       await updateDoc(doc(db, "schools", selectedSchoolId), {
         name: schoolName,
@@ -338,14 +342,14 @@ function AdminDashboard() {
           : [];
 
         for (const st of studentsArr) {
-          const nume =
-            typeof st === "string" ? st : st?.nume || "";
+          const nume = typeof st === "string" ? st : st?.nume || "";
           rows.push({
             nrCurent: rowNumber++,
             numePrenume: nume,
             clasa: data.class || "",
             scoala: sc.name,
-            profesorIndrumator: data.profesorIndrumatorEmail || "",
+            profesorIndrumator:
+              data.profesorIndrumatorEmail || "",
           });
         }
       }
@@ -469,6 +473,91 @@ function AdminDashboard() {
     }
   };
 
+  // 🌟 NOU: EXPORT LISTĂ ȘCOLI PARTICIPANTE
+  const exportParticipatingSchools = async () => {
+    try {
+      const [schoolsSnap, regsSnap] = await Promise.all([
+        getDocs(collection(db, "schools")),
+        getDocs(collection(db, "registration")),
+      ]);
+
+      const schoolMap = {};
+      schoolsSnap.forEach((s) => {
+        const d = s.data();
+        schoolMap[s.id] = {
+          name: d.name || "",
+          county: d.county || "",
+          locality: d.locality || "",
+          count: 0,
+        };
+      });
+
+      regsSnap.forEach((r) => {
+        const d = r.data();
+        const n = Array.isArray(d.students) ? d.students.length : 0;
+        if (d.schoolId && schoolMap[d.schoolId]) {
+          schoolMap[d.schoolId].count += n;
+        }
+      });
+
+      const list = Object.values(schoolMap)
+        .filter((s) => s.count > 0)
+        .sort(
+          (a, b) =>
+            b.count - a.count ||
+            a.name.localeCompare(b.name, "ro", {
+              sensitivity: "base",
+            })
+        );
+
+      const excelData = [
+        {
+          nrCrt: "Nr. crt",
+          scoala: "Școala",
+          localitate: "Localitate",
+          judet: "Județ",
+          nrElevi: "Nr. elevi",
+        },
+        ...list.map((s, idx) => ({
+          nrCrt: idx + 1,
+          scoala: s.name,
+          localitate: s.locality,
+          judet: s.county,
+          nrElevi: s.count,
+        })),
+      ];
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      ws["!cols"] = [
+        { wch: 8 },
+        { wch: 40 },
+        { wch: 25 },
+        { wch: 15 },
+        { wch: 12 },
+      ];
+      ws["!autofilter"] = {
+        ref: XLSX.utils.encode_range(
+          XLSX.utils.decode_range(ws["!ref"])
+        ),
+      };
+      ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+
+      XLSX.utils.book_append_sheet(
+        wb,
+        ws,
+        "Școli participante"
+      );
+      XLSX.writeFile(wb, "scoli_participante.xlsx");
+    } catch (err) {
+      console.error(
+        "Eroare la exportul școlilor participante:",
+        err
+      );
+    }
+  };
+
   // ====== EXPORT EXCEL COMPLET ======
   const exportToExcel = async () => {
     try {
@@ -515,12 +604,12 @@ function AdminDashboard() {
 
         countBySchool.set(
           data.schoolId,
-          (countBySchool.get(data.schoolId) || 0) + studentsArr.length
+          (countBySchool.get(data.schoolId) || 0) +
+            studentsArr.length
         );
 
         for (const st of studentsArr) {
-          const nume =
-            typeof st === "string" ? st : st?.nume || "";
+          const nume = typeof st === "string" ? st : st?.nume || "";
           const tel =
             typeof st === "object"
               ? st?.telefon || data.telefon || ""
@@ -532,7 +621,8 @@ function AdminDashboard() {
             scoala: sc.name,
             localitate: sc.locality,
             judet: sc.county,
-            profesorIndrumator: data.profesorIndrumatorEmail || "",
+            profesorIndrumator:
+              data.profesorIndrumatorEmail || "",
             telefon: tel,
           });
         }
@@ -990,6 +1080,14 @@ function AdminDashboard() {
             className={styles.exportButton}
           >
             Descarcă profesori îndrumători
+          </button>
+
+          {/* 🌟 NOU: buton pentru lista școlilor participante */}
+          <button
+            onClick={exportParticipatingSchools}
+            className={styles.exportButton}
+          >
+            Descarcă școlile participante
           </button>
 
           <button
