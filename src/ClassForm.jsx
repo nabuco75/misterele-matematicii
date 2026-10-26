@@ -85,6 +85,9 @@ const isVipSchool = (schoolName) => {
   );
 };
 
+const GDPR_REMINDER =
+  "Nu uitați să le transmiteți elevilor să aducă acordul GDPR semnat!";
+
 const EMAIL_FAILED_MSG =
   "✅ Elevii au fost înscriși cu succes! Mesajul de confirmare prin email a întâmpinat probleme la trimitere. Puteți descărca confirmarea înscrierii de aici:";
 
@@ -122,6 +125,7 @@ const buildReceiptHtml = (r) => {
 </div>
 <table><thead><tr><th>Clasa</th><th>Elevi înscriși</th></tr></thead><tbody>${rows}</tbody></table>
 <p><strong>Total elevi înscriși:</strong> ${total}</p>
+<p style="border:2px solid #b45309;background:#fff7ed;padding:10px;font-weight:bold">⚠️ IMPORTANT: ${GDPR_REMINDER}</p>
 <p class="note">Înscrierea a fost înregistrată în baza de date a concursului.
 Pentru întrebări: contact@scoala5vaslui.ro</p>
 <button onclick="window.print()">Printează / Salvează ca PDF</button>
@@ -505,7 +509,8 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
       const emailContent =
         "<table border='1' cellpadding='5' cellspacing='0'><thead><tr><th>Clasa</th><th>Elevi</th></tr></thead><tbody>" +
         rows +
-        "</tbody></table>";
+        "</tbody></table>" +
+        `<p style="margin-top:16px;padding:10px;border:2px solid #b45309;background:#fff7ed;font-weight:bold">⚠️ IMPORTANT: ${GDPR_REMINDER}</p>`;
 
       const response = await emailjs.send(
         "service_e2pf9w6",
@@ -873,6 +878,12 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
             }`}
           >
             {message.content}
+            {(message.type === "success" ||
+              message.type === "warning") && (
+              <div className={styles.gdprNotice}>
+                ⚠️ <strong>IMPORTANT:</strong> {GDPR_REMINDER}
+              </div>
+            )}
             {receipt && message.type === "warning" && (
               <div style={{ marginTop: "12px" }}>
                 <button
