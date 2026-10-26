@@ -85,6 +85,19 @@ const isVipSchool = (schoolName) => {
   );
 };
 
+// validare nume elev ("" = valid; câmpurile goale sunt permise)
+// full=false → doar greșelile evidente (@, cifre), afișate în timp ce scrie
+const validateStudent = (value, full = true) => {
+  const v = (value || "").trim();
+  if (!v) return "";
+  if (v.includes("@"))
+    return "Numele elevului nu poate conține @ (adresa de email se scrie mai jos).";
+  if (/\d/.test(v)) return "Numele elevului nu poate conține cifre.";
+  if (full && v.split(/\s+/).filter(Boolean).length < 2)
+    return "Scrieți numele și prenumele elevului.";
+  return "";
+};
+
 const GDPR_REMINDER =
   "Nu uitați să le transmiteți elevilor să aducă acordul GDPR semnat!";
 
@@ -208,6 +221,8 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
     useState(false);
   // confirmarea descărcabilă (afișată când emailul nu a plecat)
   const [receipt, setReceipt] = useState(null);
+  // câmpurile de elevi marcate greșit la apăsarea „Înscrie” (cheie: "clasa|index")
+  const [studentSubmitErrors, setStudentSubmitErrors] = useState({});
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const phoneRegex = /^\d{10}$/;
@@ -302,6 +317,15 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
       ...prev,
       [className]: next,
     }));
+    // eroarea de la trimitere dispare când câmpul devine corect
+    const key = `${className}|${index}`;
+    if (studentSubmitErrors[key] && !validateStudent(value)) {
+      setStudentSubmitErrors((p) => {
+        const rest = { ...p };
+        delete rest[key];
+        return rest;
+      });
+    }
   };
 
   const handleBlur = (field) => {
@@ -334,6 +358,25 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
   const handleInscrieClick = async (e) => {
     e.preventDefault();
     setMessage({ type: "", content: "" });
+
+    // validare nume elevi
+    const badStudents = {};
+    let firstStudentError = "";
+    Object.keys(studentsByClass).forEach((className) => {
+      studentsByClass[className].forEach((s, index) => {
+        const err = validateStudent(s);
+        if (err) {
+          badStudents[`${className}|${index}`] = err;
+          if (!firstStudentError)
+            firstStudentError = `Clasa ${className}, elevul ${index + 1}: ${err}`;
+        }
+      });
+    });
+    setStudentSubmitErrors(badStudents);
+    if (firstStudentError) {
+      setMessage({ type: "error", content: firstStudentError });
+      return;
+    }
 
     const profesorError = validateProfesor(profesorIndrumator);
     if (profesorError) {
@@ -729,27 +772,41 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
                 )}
 
                 {studentsByClass[className].map(
-                  (student, index) => (
-                    <input
-                      key={index}
-                      type="text"
-                      placeholder={`Nume Elev ${
-                        index + 1
-                      }`}
-                      value={student}
-                      onChange={(e) =>
-                        handleChange(
-                          className,
-                          index,
-                          e.target.value
-                        )
-                      }
-                      className={styles["input-field"]}
-                      disabled={
-                        !isUnlimited && used >= 5
-                      }
-                    />
-                  )
+                  (student, index) => {
+                    const studentError =
+                      validateStudent(student, false) ||
+                      studentSubmitErrors[`${className}|${index}`] ||
+                      "";
+                    return (
+                      <React.Fragment key={index}>
+                        <input
+                          type="text"
+                          placeholder={`Nume și prenume elev ${
+                            index + 1
+                          }`}
+                          value={student}
+                          onChange={(e) =>
+                            handleChange(
+                              className,
+                              index,
+                              e.target.value
+                            )
+                          }
+                          className={`${styles["input-field"]} ${
+                            studentError ? styles.invalid : ""
+                          }`}
+                          disabled={
+                            !isUnlimited && used >= 5
+                          }
+                        />
+                        {studentError && (
+                          <div className={styles["error-message"]}>
+                            {studentError}
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  }
                 )}
 
                 <div className={styles["quota-inline"]}>

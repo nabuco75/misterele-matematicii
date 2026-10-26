@@ -2,7 +2,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth"; // Importă Authentication
-import { getAnalytics } from "firebase/analytics";
 
 // Configurația Firebase pentru aplicația ta web
 const firebaseConfig = {
@@ -23,9 +22,6 @@ const db = getFirestore(app);
 
 // Inițializează Authentication
 const auth = getAuth(app);
-
-// Inițializează Analytics (opțional)
-const analytics = getAnalytics(app);
 
 // Exportă instanțele Firestore și Authentication pentru a putea fi utilizate în alte componente
 export { db, auth };
