@@ -208,6 +208,19 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const phoneRegex = /^\d{10}$/;
 
+  // returnează mesajul de eroare pentru numele profesorului ("" = valid)
+  const validateProfesor = (value) => {
+    const v = value.trim();
+    if (!v) return "Numele profesorului îndrumător este necesar!";
+    if (v.includes("@"))
+      return "Ați introdus o adresă de email. Aici scrieți numele și prenumele profesorului; emailul se completează în câmpul de mai jos.";
+    if (/\d/.test(v))
+      return "Numele nu poate conține cifre. Telefonul se completează în câmpul de mai jos.";
+    if (v.split(/\s+/).filter(Boolean).length < 2)
+      return "Scrieți numele și prenumele profesorului (ex: Popescu Maria).";
+    return "";
+  };
+
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
 
@@ -305,9 +318,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
     if (field === "profesorIndrumator")
       setErrors((p) => ({
         ...p,
-        profesorIndrumator: profesorIndrumator.trim()
-          ? ""
-          : "Numele profesorului îndrumător este necesar!",
+        profesorIndrumator: validateProfesor(profesorIndrumator),
       }));
   };
 
@@ -320,10 +331,16 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
     e.preventDefault();
     setMessage({ type: "", content: "" });
 
+    const profesorError = validateProfesor(profesorIndrumator);
+    if (profesorError) {
+      setErrors((p) => ({ ...p, profesorIndrumator: profesorError }));
+      setMessage({ type: "error", content: profesorError });
+      return;
+    }
+
     if (
       !emailRegex.test(email) ||
-      !phoneRegex.test(telefon) ||
-      !profesorIndrumator.trim()
+      !phoneRegex.test(telefon)
     ) {
       setMessage({
         type: "error",
@@ -765,9 +782,19 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
                 type="text"
                 placeholder="Nume și prenume profesor îndrumător"
                 value={profesorIndrumator}
-                onChange={(e) =>
-                  setProfesorIndrumator(e.target.value)
-                }
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setProfesorIndrumator(v);
+                  // avertizare imediată la "@" sau cifre; dacă e deja o eroare
+                  // afișată, o actualizăm la fiecare tastă (dispare când e corect)
+                  setErrors((p) => ({
+                    ...p,
+                    profesorIndrumator:
+                      v.includes("@") || /\d/.test(v) || p.profesorIndrumator
+                        ? validateProfesor(v)
+                        : "",
+                  }));
+                }}
                 onBlur={() =>
                   handleBlur("profesorIndrumator")
                 }
