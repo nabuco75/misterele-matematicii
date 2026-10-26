@@ -11,7 +11,7 @@ exports.deleteStudentsOnSchoolDelete = functions.firestore.document("schools/{sc
 
   try {
     // Query the 'registration' collection to find all students related to the deleted school
-    const registrationQuerySnapshot = await db.collection("registration").where("school", "==", schoolId).get();
+    const registrationQuerySnapshot = await db.collection("registration").where("schoolId", "==", schoolId).get();
 
     const batch = db.batch();
 

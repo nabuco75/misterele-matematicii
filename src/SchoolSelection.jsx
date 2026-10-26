@@ -55,7 +55,6 @@ function SchoolSelection({ setSelectedSchool }) {
       list.sort((a, b) => 
         a.name.localeCompare(b.name, "ro", { sensitivity: "base" })
       );
-      console.log("🏫 Schools loaded:", list); // ← DEBUG
       setSchools(list);
     };
     fetchSchools();
@@ -117,9 +116,6 @@ function SchoolSelection({ setSelectedSchool }) {
               const schoolId = e.target.value;
               const schoolName = schools.find(s => s.id === schoolId)?.name || "";
               
-              console.log("🔍 DEBUG SchoolSelection - schoolId:", schoolId); // ← DEBUG
-              console.log("🔍 DEBUG SchoolSelection - schoolName:", schoolName); // ← DEBUG
-              console.log("🔍 DEBUG SchoolSelection - Trimit obiect:", { id: schoolId, name: schoolName }); // ← DEBUG
               
               setSelectedSchoolId(schoolId);
               setSelectedSchool({ id: schoolId, name: schoolName });

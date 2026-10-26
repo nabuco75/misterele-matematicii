@@ -4,13 +4,55 @@ import emailjs from "emailjs-com";
 import { db } from "./firebase";
 import {
   collection,
-  addDoc,
+  doc,
   getDocs,
   query,
   where,
   onSnapshot,
+  writeBatch,
 } from "firebase/firestore";
 import styles from "./ClassForm.module.css";
+
+// Codul de acces nu mai apare în clar în aplicația publicată;
+// se compară doar amprenta SHA-256 a codului introdus.
+// Pentru a schimba codul: node -e "console.log(require('crypto').createHash('sha256').update('COD_NOU').digest('hex'))"
+const ACCESS_CODE_HASH =
+  "d530d32a93323ef75e161781fe19cc792aaa013cb75d56387d1e319c32d37ea7";
+
+const sha256Hex = async (text) => {
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(text)
+  );
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+};
+
+const escapeHtml = (str) =>
+  String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+// numără elevii deja înscriși (citire proaspătă din baza de date)
+const fetchCountsByClass = async (schoolId, classes) => {
+  const snap = await getDocs(
+    query(collection(db, "registration"), where("schoolId", "==", schoolId))
+  );
+  const counts = Object.fromEntries(classes.map((c) => [c, 0]));
+  snap.forEach((d) => {
+    const data = d.data();
+    if (counts[data.class] !== undefined) {
+      counts[data.class] += Array.isArray(data.students)
+        ? data.students.length
+        : 0;
+    }
+  });
+  return counts;
+};
 
 const CLASS_COLORS = {
   "a IV-a": { from: "#7c4dff", to: "#3f8efc" },
@@ -43,6 +85,74 @@ const isVipSchool = (schoolName) => {
   );
 };
 
+const EMAIL_FAILED_MSG =
+  "✅ Elevii au fost înscriși cu succes! Mesajul de confirmare prin email a întâmpinat probleme la trimitere. Puteți descărca confirmarea înscrierii de aici:";
+
+// pagina de confirmare (printabilă / salvabilă ca PDF)
+const buildReceiptHtml = (r) => {
+  const rows = r.classes
+    .map(
+      ({ className, students }) =>
+        `<tr><td>${escapeHtml(className)}</td><td><ol>${students
+          .map((s) => `<li>${escapeHtml(s)}</li>`)
+          .join("")}</ol></td></tr>`
+    )
+    .join("");
+  const total = r.classes.reduce((n, c) => n + c.students.length, 0);
+
+  return `<!doctype html>
+<html lang="ro"><head><meta charset="utf-8">
+<title>Confirmare înscriere - ${escapeHtml(r.schoolName)}</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;max-width:720px;margin:32px auto;padding:0 16px;color:#111}
+  h1{font-size:22px;margin-bottom:4px} h2{font-size:16px;font-weight:normal;color:#444;margin-top:0}
+  table{width:100%;border-collapse:collapse;margin-top:16px}
+  th,td{border:1px solid #999;padding:8px;text-align:left;vertical-align:top}
+  th{background:#f0f0f0} ol{margin:0;padding-left:20px}
+  .meta p{margin:4px 0} .note{margin-top:24px;font-size:13px;color:#555}
+  @media print{button{display:none}}
+</style></head><body>
+<h1>Confirmare înscriere — Misterele Matematicii</h1>
+<h2>Școala Gimnazială „Ștefan cel Mare” Vaslui</h2>
+<div class="meta">
+  <p><strong>Școala:</strong> ${escapeHtml(r.schoolName)}</p>
+  <p><strong>Profesor îndrumător:</strong> ${escapeHtml(r.profesor)}</p>
+  <p><strong>Email:</strong> ${escapeHtml(r.email)} &nbsp; <strong>Telefon:</strong> ${escapeHtml(r.telefon)}</p>
+  <p><strong>Data înscrierii:</strong> ${escapeHtml(r.date)}</p>
+</div>
+<table><thead><tr><th>Clasa</th><th>Elevi înscriși</th></tr></thead><tbody>${rows}</tbody></table>
+<p><strong>Total elevi înscriși:</strong> ${total}</p>
+<p class="note">Înscrierea a fost înregistrată în baza de date a concursului.
+Pentru întrebări: contact@scoala5vaslui.ro</p>
+<button onclick="window.print()">Printează / Salvează ca PDF</button>
+</body></html>`;
+};
+
+const downloadReceipt = (r) => {
+  const html = buildReceiptHtml(r);
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+    return;
+  }
+  // fereastra a fost blocată → descărcăm confirmarea ca fișier
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Confirmare_inscriere_${r.schoolName
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "_")}.html`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
 const barColor = (pct) =>
   pct < 60 ? "#22c55e" : pct < 100 ? "#f59e0b" : "#ef4444";
 
@@ -57,7 +167,6 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
   const [attempts, setAttempts] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const MAX_ATTEMPTS = 3;
-  const CORRECT_CODE = "MMVSSC5";
 
   const isVip = isVipSchool(schoolName);
   const isUnlimited = isVip || isAdminOverride;
@@ -93,16 +202,29 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
   });
   const [showConfirmation, setShowConfirmation] =
     useState(false);
+  // confirmarea descărcabilă (afișată când emailul nu a plecat)
+  const [receipt, setReceipt] = useState(null);
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const phoneRegex = /^\d{10}$/;
 
-  const handleAuthSubmit = (e) => {
+  const handleAuthSubmit = async (e) => {
     e.preventDefault();
 
     if (isBlocked) return;
 
-    if (accessCode.trim() === CORRECT_CODE) {
+    let codeHash = "";
+    try {
+      codeHash = await sha256Hex(accessCode.trim());
+    } catch (err) {
+      console.error("Verificarea codului nu este disponibilă:", err);
+      setAuthError(
+        "❌ Verificarea codului nu este disponibilă în acest browser. Deschideți pagina prin https."
+      );
+      return;
+    }
+
+    if (codeHash === ACCESS_CODE_HASH) {
       setIsAuthenticated(true);
       setAuthError("");
       setAccessCode("");
@@ -256,34 +378,108 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
     setShowConfirmation(false);
     setLoading(true);
     setMessage({ type: "", content: "" });
+    setReceipt(null);
 
+    const resetForm = () => {
+      setStudentsByClass({
+        "a IV-a": Array(5).fill(""),
+        "a V-a": Array(5).fill(""),
+        "a VI-a": Array(5).fill(""),
+        "a VII-a": Array(5).fill(""),
+      });
+      setEmail("");
+      setProfesorIndrumator("");
+      setTelefon("");
+      setErrors({
+        email: "",
+        telefon: "",
+        profesorIndrumator: "",
+      });
+    };
+
+    const classes = Object.keys(studentsByClass);
+
+    // —— 1. Salvare în baza de date (totul sau nimic)
     try {
-      const classes = Object.keys(studentsByClass);
+      // re-verificare limită cu date proaspete, chiar înainte de scriere
+      // (alt profesor de la aceeași școală poate fi înscris între timp)
+      if (!isUnlimited) {
+        const freshCounts = await fetchCountsByClass(schoolId, classes);
+        for (const className of classes) {
+          const proposed = localProposedCount(className);
+          if (proposed && freshCounts[className] + proposed > 5) {
+            const left = Math.max(0, 5 - freshCounts[className]);
+            setMessage({
+              type: "error",
+              content: left
+                ? `Pentru ${className} mai sunt disponibile doar ${left} loc(uri). Ajustați lista.`
+                : `Școala dvs. a atins deja limita de 5 elevi pentru ${className}. În caz de neclarități, contact@scoala5vaslui.ro`,
+            });
+            setLoading(false);
+            return;
+          }
+        }
+      }
 
+      const batch = writeBatch(db);
       for (const className of classes) {
         const filtered = studentsByClass[className]
           .map((s) => s?.trim())
           .filter(Boolean);
         if (!filtered.length) continue;
 
-        await addDoc(collection(db, "registration"), {
+        // NOTĂ: câmpul "profesorIndrumatorEmail" conține, istoric, NUMELE
+        // profesorului (exporturile îl citesc așa). Emailul real e în "profesorEmail".
+        batch.set(doc(collection(db, "registration")), {
           class: className,
           school: schoolName,
           schoolId,
           students: filtered,
           profesorIndrumatorEmail: profesorIndrumator,
+          profesorEmail: email.trim(),
           telefon,
           createdAt: Date.now(),
         });
       }
+      await batch.commit();
+    } catch (err) {
+      console.error("Eroare la înscriere:", err);
+      setMessage({
+        type: "error",
+        content:
+          "A apărut o eroare la înscriere. Încercați din nou.",
+      });
+      setLoading(false);
+      return;
+    }
 
+    // —— 2. Elevii sunt salvați; trimitem emailul de confirmare.
+    // Dacă emailul eșuează, NU cerem reînscrierea (ar dubla elevii),
+    // ci oferim confirmarea spre descărcare.
+    const receiptData = {
+      schoolName,
+      profesor: profesorIndrumator.trim(),
+      email: email.trim(),
+      telefon,
+      date: new Date().toLocaleString("ro-RO"),
+      classes: classes
+        .map((c) => ({
+          className: c,
+          students: studentsByClass[c].map((s) => s?.trim()).filter(Boolean),
+        }))
+        .filter((c) => c.students.length),
+    };
+
+    try {
       const rows = classes
         .map((c) => {
           const arr = studentsByClass[c]
             .map((s) => s?.trim())
             .filter(Boolean);
           if (!arr.length) return "";
-          const li = arr.map((s) => `<li>${s}</li>`).join("");
+          const li = arr
+            .map((s) => `<li>${escapeHtml(s)}</li>`)
+            .join("");
           return `<tr><td>${c}</td><td><ul>${li}</ul></td></tr>`;
         })
         .filter(Boolean)
@@ -312,34 +508,16 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
           : "Elevii au fost înscriși și emailul a fost trimis cu succes!";
 
         setMessage({ type: "success", content: successMsg });
-        setStudentsByClass({
-          "a IV-a": Array(5).fill(""),
-          "a V-a": Array(5).fill(""),
-          "a VI-a": Array(5).fill(""),
-          "a VII-a": Array(5).fill(""),
-        });
-        setEmail("");
-        setProfesorIndrumator("");
-        setTelefon("");
-        setErrors({
-          email: "",
-          telefon: "",
-          profesorIndrumator: "",
-        });
       } else {
-        setMessage({
-          type: "error",
-          content:
-            "Eroare la trimiterea emailului. Încercați din nou.",
-        });
+        setMessage({ type: "warning", content: EMAIL_FAILED_MSG });
+        setReceipt(receiptData);
       }
+      resetForm();
     } catch (err) {
-      console.error("Eroare la înscriere:", err);
-      setMessage({
-        type: "error",
-        content:
-          "A apărut o eroare la înscriere. Încercați din nou.",
-      });
+      console.error("Eroare la trimiterea emailului:", err);
+      setMessage({ type: "warning", content: EMAIL_FAILED_MSG });
+      setReceipt(receiptData);
+      resetForm();
     } finally {
       setLoading(false);
     }
@@ -585,7 +763,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
             <div className={styles["input-group"]}>
               <input
                 type="text"
-                placeholder="Profesor îndrumător"
+                placeholder="Nume și prenume profesor îndrumător"
                 value={profesorIndrumator}
                 onChange={(e) =>
                   setProfesorIndrumator(e.target.value)
@@ -609,7 +787,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
             <div className={styles["input-group"]}>
               <input
                 type="email"
-                placeholder="E-mail"
+                placeholder="E-mail profesor (pentru confirmare)"
                 value={email}
                 onChange={(e) =>
                   setEmail(e.target.value)
@@ -662,10 +840,23 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
             className={`${styles.message} ${
               message.type === "success"
                 ? styles.success
+                : message.type === "warning"
+                ? styles.warning
                 : styles.error
             }`}
           >
             {message.content}
+            {receipt && message.type === "warning" && (
+              <div style={{ marginTop: "12px" }}>
+                <button
+                  type="button"
+                  onClick={() => downloadReceipt(receipt)}
+                  className={styles["submit-button"]}
+                >
+                  📄 Descarcă confirmarea înscrierii
+                </button>
+              </div>
+            )}
           </div>
         )}
       </form>

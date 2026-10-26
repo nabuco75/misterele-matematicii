@@ -35,7 +35,6 @@ export const useAppStatus = () => {
           const data = docSnap.data();
           setIsActive(data?.isActive ?? false);
           setMessage(data?.message ?? '');
-          console.log('📡 Firebase status:', data);
         } else {
           console.warn('⚠️ Firebase config not found');
           setIsActive(false);

@@ -531,8 +531,12 @@
   color: #0f9d58; 
 } 
 
-.error{ 
-  color: #dc2626; 
+.error{
+  color: #dc2626;
+}
+
+.warning{
+  color: #b45309;
 }
 
 .input-field.invalid{ 

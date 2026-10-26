@@ -17,9 +17,7 @@ function LoginForm() {
       await setPersistence(auth, browserLocalPersistence);
 
       // Autentificare cu email și parolă
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      console.log("Autentificare reușită:", user);
+      await signInWithEmailAndPassword(auth, email, password);
 
       // Redirecționează utilizatorul către pagina de admin după autentificare
       navigate("/admin");
