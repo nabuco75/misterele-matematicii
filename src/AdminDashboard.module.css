@@ -554,3 +554,57 @@
     width: 100%;
   }
 }
+
+/* Înscrieri întregi în editorul de elevi (mutare / ștergere) */
+.regList {
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #ddd;
+}
+
+.regList h3 {
+  margin: 0 0 5px;
+  color: var(--text-color-dark);
+}
+
+.regHint {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.regItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.regInfo {
+  line-height: 1.4;
+}
+
+.regDate {
+  color: #777;
+  font-size: 0.9rem;
+}
+
+.regActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.regSelect {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}

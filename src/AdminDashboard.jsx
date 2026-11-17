@@ -71,6 +71,10 @@ function AdminDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [studentEditorMessage, setStudentEditorMessage] =
     useState(null);
+  // înscrierile (documentele din "registration") ale școlii selectate
+  const [schoolRegs, setSchoolRegs] = useState([]);
+  // școala-destinație aleasă pentru mutare, per înscriere: { regId: schoolId }
+  const [moveTargets, setMoveTargets] = useState({});
 
   // —— Form de înscriere suplimentară (ADMIN)
   const [showAdminEnroll, setShowAdminEnroll] = useState(false);
@@ -880,18 +884,32 @@ function AdminDashboard() {
       const snap = await getDocs(qRegs);
 
       const list = [];
-      snap.forEach((reg) => {
+      const regs = [];
+      const docs = [...snap.docs].sort(
+        (a, b) => (a.data().createdAt || 0) - (b.data().createdAt || 0)
+      );
+      docs.forEach((reg) => {
         const d = reg.data();
         const arr = Array.isArray(d.students) ? d.students : [];
+        regs.push({
+          id: reg.id,
+          class: d.class || "",
+          profesor: d.profesorIndrumatorEmail || "",
+          profesorEmail: d.profesorEmail || "",
+          count: arr.length,
+          createdAt: d.createdAt || null,
+        });
         arr.forEach((student, index) => {
           const nume =
             typeof student === "string"
               ? student
               : student?.nume || "";
-          list.push({ id: `${reg.id}-${index}`, nume });
+          list.push({ id: `${reg.id}-${index}`, nume, class: d.class || "" });
         });
       });
 
+      setSchoolRegs(regs);
+      setMoveTargets({});
       setStudents(list);
       setOriginalStudents(JSON.parse(JSON.stringify(list)));
       setHasUnsavedChanges(false);
@@ -1070,6 +1088,100 @@ function AdminDashboard() {
             e?.message === "STALE_STUDENT_LIST"
               ? "⚠️ Lista de elevi s-a modificat între timp. Închideți și redeschideți editorul, apoi reîncercați."
               : "❌ Eroare la ștergerea elevului!",
+            "error"
+          );
+        }
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
+  // ====== ÎNSCRIERI ÎNTREGI (ștergere / mutare la altă școală) ======
+  // scoate din editor înscrierea și elevii ei, după ce a fost ștearsă sau mutată
+  const removeRegFromEditor = (regId) => {
+    const keep = (list) => list.filter((s) => !s.id.startsWith(`${regId}-`));
+    setStudents(keep);
+    setOriginalStudents(keep);
+    setSchoolRegs((prev) => prev.filter((r) => r.id !== regId));
+  };
+
+  const describeReg = (reg) =>
+    `clasa ${reg.class}, prof. ${reg.profesor || "—"}, ${reg.count} ${
+      reg.count === 1 ? "elev" : "elevi"
+    }`;
+
+  const handleDeleteRegistration = (reg) => {
+    if (hasUnsavedChanges) {
+      showStudentEditorMessage(
+        "⚠️ Salvați sau anulați întâi modificările de nume.",
+        "error"
+      );
+      return;
+    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Ștergere înscriere",
+      message: `Sigur ștergeți înscrierea (${describeReg(
+        reg
+      )}) de la ${selectedSchool?.name}? Toți elevii din ea vor fi șterși. Acțiunea este ireversibilă.`,
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, "registration", reg.id));
+          removeRegFromEditor(reg.id);
+          showStudentEditorMessage(
+            "✅ Înscrierea a fost ștearsă.",
+            "success"
+          );
+          if (showStatistics) fetchStatistics();
+          if (showRegisteredSchools) fetchRegisteredSchools();
+        } catch (e) {
+          console.error("Eroare la ștergerea înscrierii:", e);
+          showStudentEditorMessage(
+            "❌ Eroare la ștergerea înscrierii!",
+            "error"
+          );
+        }
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
+  const handleMoveRegistration = (reg) => {
+    const targetId = moveTargets[reg.id];
+    const target = schools.find((s) => s.id === targetId);
+    if (!target) return;
+    if (hasUnsavedChanges) {
+      showStudentEditorMessage(
+        "⚠️ Salvați sau anulați întâi modificările de nume.",
+        "error"
+      );
+      return;
+    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Mutare înscriere la altă școală",
+      message: `Mutați înscrierea (${describeReg(reg)}) de la ${
+        selectedSchool?.name
+      } la ${target.name} (${target.locality}, ${
+        target.county
+      })? Elevii, profesorul și datele de contact rămân aceleași.`,
+      onConfirm: async () => {
+        try {
+          await updateDoc(doc(db, "registration", reg.id), {
+            schoolId: target.id,
+            school: target.name,
+          });
+          removeRegFromEditor(reg.id);
+          showStudentEditorMessage(
+            `✅ Înscrierea a fost mutată la ${target.name}.`,
+            "success"
+          );
+          if (showStatistics) fetchStatistics();
+          if (showRegisteredSchools) fetchRegisteredSchools();
+        } catch (e) {
+          console.error("Eroare la mutarea înscrierii:", e);
+          showStudentEditorMessage(
+            "❌ Eroare la mutarea înscrierii!",
             "error"
           );
         }
@@ -1559,6 +1671,72 @@ function AdminDashboard() {
               </p>
             )}
 
+            {schoolRegs.length > 0 && (
+              <div className={styles.regList}>
+                <h3>Înscrieri ({schoolRegs.length})</h3>
+                <p className={styles.regHint}>
+                  Dacă un profesor a ales școala greșită, mutați
+                  înscrierea la școala corectă sau ștergeți-o.
+                </p>
+                {schoolRegs.map((reg) => (
+                  <div key={reg.id} className={styles.regItem}>
+                    <div className={styles.regInfo}>
+                      <strong>Clasa {reg.class}</strong> · prof.{" "}
+                      {reg.profesor || "—"} · {reg.count}{" "}
+                      {reg.count === 1 ? "elev" : "elevi"}
+                      {reg.createdAt && (
+                        <span className={styles.regDate}>
+                          {" "}
+                          · {new Date(reg.createdAt).toLocaleString("ro-RO")}
+                        </span>
+                      )}
+                      {reg.profesorEmail && (
+                        <span className={styles.regDate}>
+                          {" "}
+                          · {reg.profesorEmail}
+                        </span>
+                      )}
+                    </div>
+                    <div className={styles.regActions}>
+                      <select
+                        value={moveTargets[reg.id] || ""}
+                        onChange={(e) =>
+                          setMoveTargets((prev) => ({
+                            ...prev,
+                            [reg.id]: e.target.value,
+                          }))
+                        }
+                        className={styles.regSelect}
+                      >
+                        <option value="">Mută la școala…</option>
+                        {schools
+                          .filter((s) => s.id !== selectedSchoolId)
+                          .map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} - {s.county} - {s.locality}
+                            </option>
+                          ))}
+                      </select>
+                      <button
+                        onClick={() => handleMoveRegistration(reg)}
+                        disabled={!moveTargets[reg.id] || isSaving}
+                        className={styles.editButton}
+                      >
+                        Mută
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRegistration(reg)}
+                        disabled={isSaving}
+                        className={styles.deleteStudentButton}
+                      >
+                        Șterge înscrierea
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {students.length === 0 ? (
               <p>Niciun elev înscris sub această școală.</p>
             ) : (
@@ -1566,6 +1744,7 @@ function AdminDashboard() {
                 <thead>
                   <tr>
                     <th>#</th>
+                    <th>Clasa</th>
                     <th>Nume și Prenume</th>
                     <th>Acțiuni</th>
                   </tr>
@@ -1574,6 +1753,7 @@ function AdminDashboard() {
                   {students.map((student, index) => (
                     <tr key={student.id}>
                       <td>{index + 1}</td>
+                      <td>{student.class}</td>
                       <td>
                         <input
                           type="text"
