@@ -859,3 +859,36 @@
     font-size: 1.2rem;
   }
 }
+
+/* iconița Excel de pe plăcile de descărcare */
+.tileExcel {
+  position: relative;
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  filter: drop-shadow(0 3px 5px rgba(16, 124, 65, 0.35));
+  transition: transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.tileExcelArrow {
+  position: absolute;
+  right: -6px;
+  bottom: -5px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: #fff;
+  background: #2563eb;
+  border: 2px solid #fff;
+  transition: transform 0.2s;
+}
+.tile:hover .tileExcel {
+  transform: scale(1.12) rotate(4deg);
+}
+.tile:hover .tileExcelArrow {
+  transform: translateY(2px);
+}

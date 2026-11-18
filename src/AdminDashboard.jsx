@@ -21,6 +21,17 @@ import Grading from "./Grading.jsx";
 import ClassForm from "./ClassForm.jsx";
 import styles from "./AdminDashboard.module.css";
 
+// iconița de fișier Excel (foaie verde cu X) pentru butoanele de descărcare
+const ExcelIcon = () => (
+  <svg viewBox="0 0 32 32" width="34" height="34" aria-hidden="true">
+    <path d="M10 3h13l6 6v18a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="#21a366" />
+    <path d="M23 3l6 6h-4a2 2 0 0 1-2-2z" fill="#185c37" />
+    <path d="M14 13h12M14 18h12M14 23h12M20 11v14" stroke="#fff" strokeOpacity=".45" strokeWidth="1.2" />
+    <rect x="2" y="9" width="15" height="15" rx="2.5" fill="#107c41" />
+    <path d="M6 12.5l7 8M13 12.5l-7 8" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+  </svg>
+);
+
 function AdminDashboard() {
   // ------------------------------------------------------------------
   // 1. STARE NAVIGARE
@@ -1419,7 +1430,12 @@ function AdminDashboard() {
                       <span className={styles.tileLabel}>{t.label}</span>
                       <span className={styles.tileSub}>{t.sub}</span>
                     </span>
-                    {t.download && <span className={styles.tileBadge}>⬇</span>}
+                    {t.download && (
+                      <span className={styles.tileExcel} title="Descarcă Excel">
+                        <ExcelIcon />
+                        <span className={styles.tileExcelArrow}>⬇</span>
+                      </span>
+                    )}
                     {section.hero && <span className={styles.tileArrow}>→</span>}
                   </button>
                 ))}
