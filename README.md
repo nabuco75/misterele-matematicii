@@ -11,10 +11,12 @@ organizat de Școala Gimnazială „Ștefan cel Mare” Vaslui.
   (școlile „VIP” și adminul nu au limită), email de confirmare.
 - **Admin (`/admin`):** CRUD școli, import școli din Excel (fără dubluri), statistici, editare/ștergere elevi,
   înscriere suplimentară, exporturi Excel, repartizare automată în săli.
-- **Repartizare în săli** (`src/allocation.js`): câte 2 clase în fiecare sală, aproximativ jumătate-jumătate
+- **Repartizare în săli** (`src/allocation.js`): sălile se umplu complet, în ordine (locurile libere rămân
+  în ultima sală); câte 2 clase în fiecare sală, aproximativ jumătate-jumătate
   (clasa cea mai numeroasă se împerechează pe rând cu celelalte); dacă locurile sunt la limită, ultima sală
   poate fi „mozaic” (mai multe clase). Elevii sunt alfabetic, în continuare de la o sală
-  la alta. Listele pentru uși se descarcă în Excel (cu antet și culori pe clase) și PDF (`src/roomLists.js`).
+  la alta. Listele pentru uși se descarcă în Excel (cu antet și culori pe clase) și PDF (`src/roomLists.js`);
+  ediția și data din antet se completează în pagina de repartizare.
 - **Deschidere/închidere înscrieri:** documentul Firestore `config/appStatus` (`isActive`, `message`).
   Pe localhost se poate testa cu `?force=true`.
 

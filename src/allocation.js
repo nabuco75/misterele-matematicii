@@ -1,14 +1,17 @@
 // Repartizarea elevilor pe săli: câte 2 clase în fiecare sală, aproximativ jumătate-jumătate.
 //
-// Fiecare sală are două „jumătăți” (la sala cu număr impar de locuri, prima jumătate are un loc în plus).
-// Fiecare clasă primește un număr întreg de jumătăți, suficient cât să-i încapă elevii, iar elevii ei
-// se împart cât mai egal pe acestea (alfabetic, în continuare de la o sală la alta).
-// Jumătățile se așază în ordinea claselor (cea mai numeroasă prima): primele R jumătăți merg în prima
-// jumătate a sălilor 1..R, următoarele R în a doua jumătate. Astfel în fiecare sală se întâlnesc
-// două clase diferite (de ex. a V-a cu a VI-a, apoi a V-a cu a VII-a ...).
-// Dacă sălile nu ajung pentru această împărțire, elevii se pun în ordine, sală după sală (pot apărea 3 clase).
+// 1. Elevii se grupează pe clase, iar clasele se ordonează descrescător după numărul de elevi.
+// 2. Șirul obținut (clasa cea mai numeroasă prima) se taie în două „fluxuri”: prima jumătate a elevilor
+//    ocupă prima jumătate a fiecărei săli, a doua jumătate a elevilor ocupă cealaltă jumătate.
+//    Astfel, în fiecare sală se întâlnesc două clase diferite (de ex. V cu VI, apoi V cu VII ...).
+// 3. Sălile se umplu complet, în ordine; locurile libere rămân în ultima sală folosită.
+// 4. Împărțirea între cele două jumătăți poate varia de la o sală la alta (cel mult 20%), aleasă pentru
+//    toate sălile odată, astfel încât cât mai multe săli să aibă exact 2 clase.
+//    Ultima sală poate fi „mozaic” (mai multe clase), dacă e cazul.
+// 5. În fiecare clasă, elevii se iau alfabetic, în continuare de la o sală la alta.
 
 export const CLASS_ORDER = ["a IV-a", "a V-a", "a VI-a", "a VII-a"];
+const MAX_SHIFT_RATIO = 0.2; // cât se poate abate o sală de la „jumătate-jumătate” (20% din locuri)
 
 const classRank = (cls) => {
   const i = CLASS_ORDER.indexOf(cls);
@@ -16,160 +19,6 @@ const classRank = (cls) => {
 };
 
 const seatsOf = (room) => Math.max(0, parseInt(room.seats) || 0);
-
-// capacitățile jumătăților pentru primele R săli: întâi primele jumătăți, apoi cele de-a doua
-const halfSlots = (rooms, R) => {
-  const first = rooms.slice(0, R).map((room, i) => ({ room: i, cap: Math.ceil(seatsOf(room) / 2) }));
-  const second = rooms.slice(0, R).map((room, i) => ({ room: i, cap: Math.floor(seatsOf(room) / 2) }));
-  return [...first, ...second];
-};
-
-// împarte n elevi cât mai egal pe jumătățile date, fără a depăși capacitatea fiecăreia
-const spread = (n, caps) => {
-  const counts = caps.map(() => 0);
-  for (let s = 0; s < n; s++) {
-    let best = -1;
-    caps.forEach((cap, j) => {
-      if (counts[j] < cap && (best === -1 || counts[j] < counts[best])) best = j;
-    });
-    if (best === -1) return null;
-    counts[best]++;
-  }
-  return counts;
-};
-
-// încearcă împărțirea pe jumătăți; întoarce numărul de elevi pentru fiecare (sală, jumătate) sau null
-const planByHalves = (classes, groups, rooms) => {
-  const usableRooms = rooms.filter((r) => seatsOf(r) > 0);
-  const allCaps = halfSlots(usableRooms, usableRooms.length).map((s) => s.cap);
-  const avgHalf = allCaps.reduce((s, n) => s + n, 0) / (allCaps.length || 1);
-  if (!avgHalf) return null;
-
-  const k = {};
-  classes.forEach((cls) => {
-    k[cls] = Math.max(1, Math.ceil(groups[cls].length / avgHalf));
-  });
-
-  for (let attempt = 0; attempt < 100; attempt++) {
-    let S = classes.reduce((s, cls) => s + k[cls], 0);
-    // numărul de jumătăți trebuie să fie par, iar clasa cea mai numeroasă nu poate avea mai multe
-    // jumătăți decât săli (altfel ar ajunge cu ea însăși în aceeași sală) → le dăm celorlalte câte una în plus
-    const big = classes[0];
-    const others = classes.slice(1);
-    let turn = 0;
-    while (S % 2 === 1 || (others.length && k[big] > S / 2)) {
-      if (!others.length || (S % 2 === 1 && k[big] + 1 <= (S + 1) / 2)) {
-        k[big]++;
-      } else {
-        k[others[turn % others.length]]++;
-        turn++;
-      }
-      S++;
-    }
-    const R = S / 2;
-    if (R > usableRooms.length) return null;
-
-    const slots = halfSlots(usableRooms, R);
-    // ordinea jumătăților în listă: 0..R-1 = prima jumătate a sălilor, R..2R-1 = a doua
-    let cursor = 0;
-    let overflow = null;
-    const plan = [];
-    for (const cls of classes) {
-      const mine = slots.slice(cursor, cursor + k[cls]);
-      const counts = spread(groups[cls].length, mine.map((s) => s.cap));
-      if (!counts) {
-        overflow = cls;
-        break;
-      }
-      mine.forEach((slot, j) => plan.push({ cls, room: slot.room, half: cursor + j < R ? 0 : 1, count: counts[j] }));
-      cursor += k[cls];
-    }
-    if (!overflow) return { plan, rooms: usableRooms };
-    k[overflow]++;
-  }
-  return null;
-};
-
-// sălile nu ajung pentru exact 2 clase peste tot → primele săli rămân cu 2 clase (jumătăți pline),
-// iar ultima sală (sau ultimele) devine „mozaic” cu elevii rămași din toate clasele
-const planWithMosaic = (classes, groups, rooms) => {
-  const usableRooms = rooms.filter((r) => seatsOf(r) > 0);
-  for (let m = 1; m < usableRooms.length; m++) {
-    const R = usableRooms.length - m;
-    const slots = halfSlots(usableRooms, R);
-    const avgHalf = slots.reduce((s, x) => s + x.cap, 0) / slots.length;
-    const big = classes[0];
-
-    // fiecare clasă primește atâtea jumătăți câte poate umple complet
-    const k = {};
-    classes.forEach((cls) => {
-      k[cls] = Math.floor(groups[cls].length / avgHalf);
-    });
-    k[big] = Math.min(k[big], R); // clasa cea mai mare nu poate sta cu ea însăși
-    let S = classes.reduce((s, cls) => s + k[cls], 0);
-    while (S > 2 * R) {
-      const cls = classes.find((c) => k[c] > 0 && c !== big) || big;
-      k[cls]--;
-      S--;
-    }
-    // jumătățile rămase libere → clasele cu cei mai mulți elevi neacoperiți
-    while (S < 2 * R) {
-      const cls = [...classes]
-        .filter((c) => c !== big || k[c] < R)
-        .sort((a, b) => (groups[b].length - k[b] * avgHalf) - (groups[a].length - k[a] * avgHalf))[0];
-      if (!cls || groups[cls].length - k[cls] * avgHalf <= 0) break;
-      k[cls]++;
-      S++;
-    }
-
-    // umplem jumătățile în ordine; ce nu încape rămâne pentru sala mozaic
-    const plan = [];
-    const leftover = {};
-    let cursor = 0;
-    classes.forEach((cls) => {
-      let rest = groups[cls].length;
-      slots.slice(cursor, cursor + k[cls]).forEach((slot) => {
-        const n = Math.min(slot.cap, rest);
-        if (n > 0) plan.push({ cls, room: slot.room, count: n });
-        rest -= n;
-      });
-      cursor += k[cls];
-      leftover[cls] = rest;
-    });
-
-    // sălile mozaic: elevii rămași, clasele alternând (prima jumătate / a doua jumătate)
-    const mosaicRooms = usableRooms.slice(R);
-    const restTotal = classes.reduce((s, cls) => s + leftover[cls], 0);
-    const mosaicSeats = mosaicRooms.reduce((s, r) => s + seatsOf(r), 0);
-    // nu încap toți: mai facem o sală mozaic (doar dacă locurile, în total, ajung pentru toți elevii)
-    const totalStudents = classes.reduce((s, cls) => s + groups[cls].length, 0);
-    const totalSeats = usableRooms.reduce((s, r) => s + seatsOf(r), 0);
-    if (restTotal > mosaicSeats && totalStudents <= totalSeats && m < usableRooms.length - 1) continue;
-
-    const sequence = classes.flatMap((cls) => Array(leftover[cls]).fill(cls));
-    let left = sequence.length;
-    const counts = mosaicRooms.map((room) => {
-      const n = Math.min(seatsOf(room), left);
-      left -= n;
-      return n;
-    });
-    let c1 = 0;
-    let c2 = counts.reduce((s, n) => s + Math.ceil(n / 2), 0);
-    counts.forEach((n, j) => {
-      const first = Math.ceil(n / 2);
-      const inRoom = [...sequence.slice(c1, c1 + first), ...sequence.slice(c2, c2 + n - first)];
-      c1 += first;
-      c2 += n - first;
-      const perCls = {};
-      inRoom.forEach((cls) => {
-        perCls[cls] = (perCls[cls] || 0) + 1;
-      });
-      Object.entries(perCls).forEach(([cls, count]) => plan.push({ cls, room: R + j, count }));
-    });
-    return { plan, rooms: usableRooms, mosaicFrom: R };
-  }
-  return null;
-};
 
 export function allocateByClassPairs(students, rooms) {
   // grupare pe clase, păstrând ordinea alfabetică primită
@@ -180,61 +29,120 @@ export function allocateByClassPairs(students, rooms) {
   const classes = Object.keys(groups).sort(
     (a, b) => groups[b].length - groups[a].length || classRank(a) - classRank(b)
   );
+  const sequence = classes.flatMap((cls) => groups[cls].map(() => cls));
+  const N = sequence.length;
 
-  const byRoom = rooms.map(() => []);
-  const result = planByHalves(classes, groups, rooms) || planWithMosaic(classes, groups, rooms);
-  const mosaicRooms = new Set(
-    result && result.mosaicFrom !== undefined ? result.rooms.slice(result.mosaicFrom) : []
-  );
+  // câți elevi intră în fiecare sală: sălile se umplu complet, în ordine; ultima folosită poate rămâne parțială
+  let left = N;
+  const roomCounts = rooms.map((room) => {
+    const n = Math.min(seatsOf(room), left);
+    left -= n;
+    return n;
+  });
+  const lastUsed = roomCounts.reduce((last, n, i) => (n > 0 ? i : last), -1);
 
-  if (result) {
-    // elevii unei clase se împart alfabetic în ordinea sălilor (Sala 6, 7, 8 ...)
-    const offset = {};
-    [...result.plan].sort((a, b) => a.room - b.room).forEach(({ cls, room, count }) => {
-      const from = offset[cls] || 0;
-      const roomIndex = rooms.indexOf(result.rooms[room]);
-      byRoom[roomIndex].push(...groups[cls].slice(from, from + count));
-      offset[cls] = from + count;
+  const classesIn = (from, to, set) => {
+    for (let i = from; i < to; i++) set.add(sequence[i]);
+    return set;
+  };
+
+  // costul unei săli: o clasă în plus față de 2 costă mult (la ultima sală – mozaic – mai puțin),
+  // o singură clasă în toată sala la fel, iar abaterea de la jumătate-jumătate puțin
+  const roomCost = (p1, a, p2, b, isLast) => {
+    const distinct = classesIn(p2, p2 + b, classesIn(p1, p1 + a, new Set())).size;
+    const c = a + b;
+    let cost = (a - c / 2) ** 2;
+    if (distinct > 2) cost += (distinct - 2) * (isLast ? 100 : 1000);
+    if (distinct === 1 && c > 1) cost += isLast ? 50 : 500;
+    return cost;
+  };
+
+  // pentru un punct de tăiere end1 al șirului, alegem (programare dinamică) câți elevi din primul flux
+  // intră în fiecare sală, astfel încât costul total să fie minim
+  const solve = (end1) => {
+    let states = new Map([[0, { cost: 0, path: [] }]]);
+    let placedBefore = 0;
+    roomCounts.forEach((c, i) => {
+      if (c === 0) return;
+      const next = new Map();
+      const isLast = i === lastUsed;
+      states.forEach((st, p1) => {
+        const p2 = end1 + (placedBefore - p1);
+        const lo = Math.max(0, c - (N - p2));
+        const hi = Math.min(c, end1 - p1);
+        const limit = isLast ? c : Math.max(2, Math.round(c * MAX_SHIFT_RATIO));
+        let from = Math.max(lo, Math.ceil(c / 2 - limit));
+        let to = Math.min(hi, Math.floor(c / 2 + limit));
+        if (from > to) {
+          from = lo;
+          to = hi;
+        }
+        for (let a = from; a <= to; a++) {
+          const cost = st.cost + roomCost(p1, a, p2, c - a, isLast);
+          const key = p1 + a;
+          const prev = next.get(key);
+          if (!prev || cost < prev.cost) next.set(key, { cost, path: [...st.path, a] });
+        }
+      });
+      states = next;
+      placedBefore += c;
     });
-  } else {
-    // nu ajung sălile pentru exact 2 clase/sală → elevii (clasele una după alta) umplu întâi prima
-    // jumătate a tuturor sălilor, apoi a doua; unde se termină o clasă pot apărea 3 clase într-o sală
-    const sequence = classes.flatMap((cls) => groups[cls]);
-    let left = sequence.length;
-    const counts = rooms.map((room) => {
-      const n = Math.min(seatsOf(room), left);
-      left -= n;
-      return n;
+    let best = null;
+    states.forEach((st) => {
+      if (!best || st.cost < best.cost) best = st;
     });
-    const firstHalf = counts.map((n) => Math.ceil(n / 2));
-    let c1 = 0;
-    let c2 = firstHalf.reduce((s, n) => s + n, 0);
-    rooms.forEach((room, i) => {
-      byRoom[i] = [
-        ...sequence.slice(c1, c1 + firstHalf[i]),
-        ...sequence.slice(c2, c2 + counts[i] - firstHalf[i]),
-      ];
-      c1 += firstHalf[i];
-      c2 += counts[i] - firstHalf[i];
-    });
+    return best && { ...best, end1 };
+  };
+
+  let best = null;
+  const mid = Math.ceil(N / 2);
+  for (let end1 = Math.max(0, mid - 15); end1 <= Math.min(N, mid + 15); end1++) {
+    const res = solve(end1);
+    if (res && (!best || res.cost < best.cost - 1e-9 ||
+      (Math.abs(res.cost - best.cost) < 1e-9 && Math.abs(end1 - mid) < Math.abs(best.end1 - mid)))) {
+      best = res;
+    }
   }
 
+  // reconstruim: câți elevi din fiecare clasă intră în fiecare sală
+  let p1 = 0;
+  let p2 = best ? best.end1 : 0;
+  let step = 0;
+  const countsByRoom = roomCounts.map((c) => {
+    const counts = {};
+    if (c === 0 || !best) return counts;
+    const a = best.path[step++];
+    [...sequence.slice(p1, p1 + a), ...sequence.slice(p2, p2 + c - a)].forEach((cls) => {
+      counts[cls] = (counts[cls] || 0) + 1;
+    });
+    p1 += a;
+    p2 += c - a;
+    return counts;
+  });
+
+  // elevii fiecărei clase se împart alfabetic, în ordinea sălilor (Sala 6, 7, 8 ...)
+  const offset = {};
   const data = [];
   const roomSummaries = [];
   rooms.forEach((room, i) => {
-    const placed = byRoom[i];
+    const perClass = countsByRoom[i];
+    const placed = [];
+    Object.keys(perClass)
+      .sort((x, y) => classRank(x) - classRank(y))
+      .forEach((cls) => {
+        const from = offset[cls] || 0;
+        placed.push(...groups[cls].slice(from, from + perClass[cls]));
+        offset[cls] = from + perClass[cls];
+      });
     if (placed.length === 0) return;
 
     // în listă: pe clase (IV, V, VI, VII), apoi alfabetic
     placed.sort(
-      (a, b) =>
-        classRank(a.clasa) - classRank(b.clasa) ||
-        a.nume.localeCompare(b.nume, "ro", { sensitivity: "base" })
+      (x, y) =>
+        classRank(x.clasa) - classRank(y.clasa) ||
+        x.nume.localeCompare(y.nume, "ro", { sensitivity: "base" })
     );
-
-    const perClass = {};
     placed.forEach((student, idx) => {
-      perClass[student.clasa] = (perClass[student.clasa] || 0) + 1;
       data.push({ ...student, sala: room.name, etaj: room.floor || "", loc_in_sala: idx + 1 });
     });
     roomSummaries.push({
@@ -242,7 +150,7 @@ export function allocateByClassPairs(students, rooms) {
       seats: seatsOf(room),
       count: placed.length,
       perClass,
-      mosaic: mosaicRooms.has(room) || Object.keys(perClass).length > 2,
+      mosaic: Object.keys(perClass).length > 2,
     });
   });
 

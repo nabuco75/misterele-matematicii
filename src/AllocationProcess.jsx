@@ -3,9 +3,31 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
 import styles from "./AllocationProcess.module.css";
 import { allocateByClassPairs, CLASS_ORDER } from "./allocation";
-import { exportRoomsExcel, groupByRoom, printRoomsPdf, CLASS_COLORS } from "./roomLists";
+import {
+    exportRoomsExcel,
+    groupByRoom,
+    printRoomsPdf,
+    CLASS_COLORS,
+    DEFAULT_EDITION,
+    DEFAULT_CONTEST_DATE,
+} from "./roomLists";
+
+// antetul listelor (ediția, data) – reținut în browser, ca să nu fie reintrodus la fiecare deschidere
+const HEADER_STORAGE_KEY = "repartizare-antet";
+const loadHeader = () => {
+    try {
+        const saved = JSON.parse(localStorage.getItem(HEADER_STORAGE_KEY));
+        if (saved && typeof saved === "object") {
+            return { edition: DEFAULT_EDITION, date: DEFAULT_CONTEST_DATE, ...saved };
+        }
+    } catch {
+        // fără localStorage → valorile implicite
+    }
+    return { edition: DEFAULT_EDITION, date: DEFAULT_CONTEST_DATE };
+};
 
 function AllocationProcess({ onBack }) {
+    const [header, setHeader] = useState(loadHeader);
     const [loading, setLoading] = useState(true);
     const [students, setStudents] = useState([]);
     const [rooms, setRooms] = useState([]);
@@ -19,6 +41,18 @@ function AllocationProcess({ onBack }) {
     useEffect(() => {
         loadData();
     }, []);
+
+    const updateHeader = (field, value) => {
+        setHeader((prev) => {
+            const next = { ...prev, [field]: value };
+            try {
+                localStorage.setItem(HEADER_STORAGE_KEY, JSON.stringify(next));
+            } catch {
+                // nu se poate salva → rămâne doar pentru sesiunea curentă
+            }
+            return next;
+        });
+    };
 
     const showMessage = (type, text) => {
         setMessage({ type, text });
@@ -174,7 +208,7 @@ function AllocationProcess({ onBack }) {
             showMessage("warning", "Nu există date de repartizare pentru export!");
             return;
         }
-        exportRoomsExcel(groupByRoom(allocationResult, rooms));
+        exportRoomsExcel(groupByRoom(allocationResult, rooms), header);
         showMessage("success", "✅ Exportul Excel a fost finalizat!");
     };
 
@@ -186,7 +220,11 @@ function AllocationProcess({ onBack }) {
         const groups = groupByRoom(allocationResult, rooms).filter(
             (g) => !roomName || g.room.name === roomName
         );
-        printRoomsPdf(groups, roomName ? `Lista_${roomName.replace(/s+/g, "_")}` : "Repartizare_pe_Sali");
+        printRoomsPdf(
+            groups,
+            header,
+            roomName ? `Lista_${roomName.replace(/\s+/g, "_")}` : "Repartizare_pe_Sali"
+        );
     };
 
     // ====== RENDER ======
@@ -275,6 +313,31 @@ function AllocationProcess({ onBack }) {
                         </span>
                     </div>
                 </div>
+            </div>
+
+            <div className={styles.headerSettings}>
+                <h3>📝 Antetul listelor</h3>
+                <label>
+                    Ediția
+                    <input
+                        type="text"
+                        value={header.edition}
+                        onChange={(e) => updateHeader("edition", e.target.value)}
+                        placeholder="ex: a XX-a"
+                    />
+                </label>
+                <label>
+                    Data concursului
+                    <input
+                        type="text"
+                        value={header.date}
+                        onChange={(e) => updateHeader("date", e.target.value)}
+                        placeholder="ex: 21 noiembrie 2026"
+                    />
+                </label>
+                <p className={styles.headerPreview}>
+                    Pe liste: <b>Ediția {header.edition} - {header.date}</b>
+                </p>
             </div>
 
             <div className={styles.actionButtonsContainer}>

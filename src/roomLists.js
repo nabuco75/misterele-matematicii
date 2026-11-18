@@ -5,6 +5,13 @@ import { CLASS_ORDER } from "./allocation";
 
 export const CONTEST_TITLE = "CONCURS REGIONAL DE MATEMATICĂ - MISTERELE MATEMATICII";
 export const ORGANIZER = "Școala Gimnazială „Ștefan cel Mare” Vaslui";
+// valorile implicite pentru antet; se pot schimba din pagina de repartizare
+export const DEFAULT_EDITION = "a XX-a";
+export const DEFAULT_CONTEST_DATE = "21 noiembrie 2026";
+
+// „Ediția a XX-a - 21 noiembrie 2026”
+const editionLine = ({ edition, date } = {}) =>
+  [edition && `Ediția ${edition}`, date].filter(Boolean).join(" - ");
 
 const COLUMNS = [
   "Nr. Curent",
@@ -24,8 +31,6 @@ export const CLASS_COLORS = {
 const TITLE_FILL = "F2DCDB";
 const ROOM_FILL = "FCD5B4";
 const HEADER_FILL = "DAEEF3";
-
-const contestYear = () => new Date().getFullYear();
 
 const escapeHtml = (s) =>
   String(s ?? "")
@@ -93,39 +98,40 @@ const sheetName = (name, used) => {
   return candidate;
 };
 
-export const exportRoomsExcel = (groups) => {
+export const exportRoomsExcel = (groups, header) => {
   const workbook = XLSX.utils.book_new();
   const usedNames = new Set();
-  const year = contestYear();
 
   groups.forEach(({ room, title, students }) => {
     const rows = [
-      [`${CONTEST_TITLE} - ${year}`, "", "", "", ""],
+      [CONTEST_TITLE, "", "", "", ""],
+      [editionLine(header), "", "", "", ""],
       [title, "", "", "", ""],
       COLUMNS,
       ...students.map((s, i) => [i + 1, s.nume, s.clasa, s.scoala, s.profesor]),
     ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
 
-    ws["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
-    ];
+    ws["!merges"] = [0, 1, 2].map((r) => ({ s: { r, c: 0 }, e: { r, c: 4 } }));
     ws["!cols"] = [{ wch: 8 }, { wch: 32 }, { wch: 9 }, { wch: 42 }, { wch: 30 }];
-    ws["!rows"] = [{ hpt: 30 }, { hpt: 24 }, { hpt: 32 }, ...students.map(() => ({ hpt: 30 }))];
+    ws["!rows"] = [{ hpt: 28 }, { hpt: 20 }, { hpt: 24 }, { hpt: 32 }, ...students.map(() => ({ hpt: 30 }))];
 
-    for (let c = 0; c < 5; c++) {
-      const top = XLSX.utils.encode_cell({ r: 0, c });
-      const sub = XLSX.utils.encode_cell({ r: 1, c });
-      const head = XLSX.utils.encode_cell({ r: 2, c });
-      ws[top] = { ...(ws[top] || { t: "s", v: "" }), s: cellStyle(TITLE_FILL, { bold: true, size: 13 }) };
-      ws[sub] = { ...(ws[sub] || { t: "s", v: "" }), s: cellStyle(ROOM_FILL, { bold: true, size: 12 }) };
-      ws[head].s = cellStyle(HEADER_FILL, { bold: true });
+    const headerStyles = [
+      cellStyle(TITLE_FILL, { bold: true, size: 13 }),
+      cellStyle(TITLE_FILL, { bold: true, size: 11 }),
+      cellStyle(ROOM_FILL, { bold: true, size: 12 }),
+      cellStyle(HEADER_FILL, { bold: true }),
+    ];
+    for (let r = 0; r < headerStyles.length; r++) {
+      for (let c = 0; c < 5; c++) {
+        const ref = XLSX.utils.encode_cell({ r, c });
+        ws[ref] = { ...(ws[ref] || { t: "s", v: "" }), s: headerStyles[r] };
+      }
     }
     students.forEach((s, i) => {
       const fill = CLASS_COLORS[s.clasa] || "FFFFFF";
       for (let c = 0; c < 5; c++) {
-        const ref = XLSX.utils.encode_cell({ r: i + 3, c });
+        const ref = XLSX.utils.encode_cell({ r: i + headerStyles.length, c });
         ws[ref].s = cellStyle(fill);
       }
     });
@@ -143,8 +149,8 @@ export const exportRoomsExcel = (groups) => {
 };
 
 // ====== PDF (pagina de printare → „Salvează ca PDF”) ======
-const buildRoomsHtml = (groups) => {
-  const year = contestYear();
+const buildRoomsHtml = (groups, header) => {
+  const edition = editionLine(header);
   const pages = groups
     .map(({ title, students }) => {
       const rows = students
@@ -157,7 +163,7 @@ const buildRoomsHtml = (groups) => {
       return `<section class="page">
 <table>
 <thead>
-<tr><th colspan="5" class="title">${escapeHtml(CONTEST_TITLE)} - ${year}<div class="org">${escapeHtml(ORGANIZER)}</div></th></tr>
+<tr><th colspan="5" class="title">${escapeHtml(CONTEST_TITLE)}${edition ? `<div class="edition">${escapeHtml(edition)}</div>` : ""}<div class="org">${escapeHtml(ORGANIZER)}</div></th></tr>
 <tr><th colspan="5" class="room">${escapeHtml(title)}</th></tr>
 <tr class="head">${COLUMNS.map((c) => `<th>${c}</th>`).join("")}</tr>
 </thead>
@@ -169,7 +175,7 @@ const buildRoomsHtml = (groups) => {
     .join("");
 
   return `<!doctype html><html lang="ro"><head><meta charset="utf-8">
-<title>Repartizare pe săli ${year}</title>
+<title>Repartizare pe săli${edition ? ` - ${escapeHtml(edition)}` : ""}</title>
 <style>
 @page { size: A4 portrait; margin: 10mm; }
 * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
@@ -179,6 +185,7 @@ body { font-family: Calibri, "Segoe UI", Arial, sans-serif; margin: 0; color: #0
 table { width: 100%; border-collapse: collapse; font-size: 9.5pt; line-height: 1.15; }
 th, td { border: 1px solid #000; padding: 2px 4px; text-align: center; vertical-align: middle; }
 th.title { background: #${TITLE_FILL}; font-size: 13pt; padding: 6px; }
+.edition { font-size: 11.5pt; margin-top: 3px; }
 .org { font-size: 10pt; font-weight: normal; font-style: italic; margin-top: 2px; }
 th.room { background: #${ROOM_FILL}; font-size: 12pt; padding: 4px; letter-spacing: 0.5px; }
 tr.head th { background: #${HEADER_FILL}; font-size: 10pt; }
@@ -195,8 +202,8 @@ ${pages}
 </body></html>`;
 };
 
-export const printRoomsPdf = (groups, fileLabel = "Repartizare_pe_Sali") => {
-  const html = buildRoomsHtml(groups);
+export const printRoomsPdf = (groups, header, fileLabel = "Repartizare_pe_Sali") => {
+  const html = buildRoomsHtml(groups, header);
   const win = window.open("", "_blank");
   if (win) {
     win.document.write(html);
