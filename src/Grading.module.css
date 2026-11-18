@@ -482,53 +482,55 @@
   color: #1f3864;
 }
 
-/* media: pastilă colorată după valoare, cu bară de umplere */
+/* media: inel de progres (cât din 10) + cifra în culoarea treptei */
 .mediaPill {
-  position: relative;
-  display: inline-block;
-  min-width: 62px;
-  padding: 5px 10px 7px;
-  border-radius: 10px;
-  font-weight: 800;
-  font-size: 1.05rem;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
-  text-align: center;
-  color: var(--fg);
-  background: var(--bg);
-  box-shadow: inset 0 0 0 1px var(--ring);
-  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 5px;
+  border-radius: 999px;
+  background: var(--soft);
+  transition: transform 0.15s;
 }
-.mediaPill::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 3px;
-  width: var(--p);
-  background: var(--fg);
-  opacity: 0.55;
-  border-radius: 0 3px 3px 0;
+.mediaPill:hover {
+  transform: scale(1.06);
+}
+.mediaRing {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: conic-gradient(var(--fg) var(--p), var(--track) 0);
+  -webkit-mask: radial-gradient(circle, transparent 6px, #000 6.5px);
+  mask: radial-gradient(circle, transparent 6px, #000 6.5px);
+}
+.mediaValue {
+  font-weight: 800;
+  font-size: 1.08rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  min-width: 3.1ch;
+  text-align: left;
 }
 .media_top {
-  --fg: #0f6b3a;
-  --bg: linear-gradient(135deg, #e3f9ec, #c6f1d7);
-  --ring: #9fdcb8;
+  --fg: #12924a;
+  --soft: #e9f8ef;
+  --track: #cdebd9;
 }
 .media_good {
-  --fg: #1d4f91;
-  --bg: linear-gradient(135deg, #e8f1ff, #d3e4ff);
-  --ring: #a9c6f2;
+  --fg: #2563eb;
+  --soft: #eef4ff;
+  --track: #d3e1fb;
 }
 .media_mid {
-  --fg: #8a5300;
-  --bg: linear-gradient(135deg, #fff6e0, #ffe8b3);
-  --ring: #f2cf7f;
+  --fg: #d97706;
+  --soft: #fff6e6;
+  --track: #f8e2bd;
 }
 .media_low {
-  --fg: #a3261b;
-  --bg: linear-gradient(135deg, #fff0ee, #ffdcd7);
-  --ring: #f2b0a8;
+  --fg: #dc2626;
+  --soft: #fff0f0;
+  --track: #f8d0d0;
 }
 .mediaPending {
   display: inline-block;
