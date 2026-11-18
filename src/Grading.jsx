@@ -350,6 +350,13 @@ function Grading({ onDashboard }) {
 
       {loadError && <div className={styles.error}>❌ {loadError}</div>}
       {saveError && <div className={styles.error}>❌ {saveError}</div>}
+      {!loading && rows.some((r) => !r.cod) && (
+        <div className={styles.warning}>
+          ⚠️ {rows.every((r) => !r.cod) ? "Niciun elev nu are" : `${rows.filter((r) => !r.cod).length} elevi nu au`} încă
+          cod de anonimizare, iar notele se pot introduce doar pe coduri. Mergeți la Panou Admin → 📋 Repartizare în
+          săli → „Generează coduri anonimizare”, apoi reveniți aici.
+        </div>
+      )}
 
       {/* situația pe clase */}
       <div className={styles.stats}>
