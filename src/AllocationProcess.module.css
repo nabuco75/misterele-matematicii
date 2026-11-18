@@ -447,3 +447,17 @@
   margin: 0;
   font-size: 0.95rem;
 }
+
+.smallExcelButton {
+  background-color: #27ae60;
+  color: white;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.smallExcelButton:hover {
+  background-color: #229954;
+}

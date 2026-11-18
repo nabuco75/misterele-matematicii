@@ -98,7 +98,7 @@ const sheetName = (name, used) => {
   return candidate;
 };
 
-export const exportRoomsExcel = (groups, header) => {
+export const exportRoomsExcel = (groups, header, roomName = null) => {
   const workbook = XLSX.utils.book_new();
   const usedNames = new Set();
 
@@ -144,7 +144,9 @@ export const exportRoomsExcel = (groups, header) => {
     new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8",
     }),
-    `Repartizare_pe_Sali_${new Date().toISOString().slice(0, 10)}.xlsx`
+    roomName
+      ? `Lista_${roomName.replace(/\s+/g, "_")}.xlsx`
+      : `Repartizare_pe_Sali_${new Date().toISOString().slice(0, 10)}.xlsx`
   );
 };
 

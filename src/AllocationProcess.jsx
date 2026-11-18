@@ -203,12 +203,15 @@ function AllocationProcess({ onBack }) {
     };
 
     // ====== EXPORT LISTE PE SĂLI (Excel + PDF, cu antet) ======
-    const handleExportExcel = () => {
+    const handleExportExcel = (roomName) => {
         if (!allocationResult || allocationResult.length === 0) {
             showMessage("warning", "Nu există date de repartizare pentru export!");
             return;
         }
-        exportRoomsExcel(groupByRoom(allocationResult, rooms), header);
+        const groups = groupByRoom(allocationResult, rooms).filter(
+            (g) => typeof roomName !== "string" || g.room.name === roomName
+        );
+        exportRoomsExcel(groups, header, typeof roomName === "string" ? roomName : null);
         showMessage("success", "✅ Exportul Excel a fost finalizat!");
     };
 
@@ -413,6 +416,12 @@ function AllocationProcess({ onBack }) {
                                                 className={styles.smallPdfButton}
                                             >
                                                 📄 PDF
+                                            </button>{" "}
+                                            <button
+                                                onClick={() => handleExportExcel(s.room.name)}
+                                                className={styles.smallExcelButton}
+                                            >
+                                                📥 Excel
                                             </button>
                                         </td>
                                     </tr>
