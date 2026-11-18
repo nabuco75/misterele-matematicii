@@ -1293,111 +1293,155 @@ function AdminDashboard() {
           </p>
         )}
 
-        <div className={styles.buttonContainer}>
-          <button
-            onClick={() => setShowAddSchoolForm((v) => !v)}
-            className={styles.addButton}
-          >
-            {showAddSchoolForm
-              ? "Ascunde formularul"
-              : "Adaugă o școală"}
-          </button>
-
-          <button
-            onClick={toggleStatistics}
-            className={styles.statsButton}
-          >
-            {showStatistics
-              ? "Ascunde situație înscrieri"
-              : "Situație înscrieri"}
-          </button>
-
-          <button
-            onClick={async () => {
-              await fetchRegisteredSchools();
-              setShowRegisteredSchools((v) => !v);
-            }}
-            className={styles.statsButton}
-          >
-            {showRegisteredSchools
-              ? "Ascunde școli înscrise"
-              : "Școli înscrise"}
-          </button>
-
-          <button
-            onClick={async () => {
-              if (!showSchoolsWithoutRegs) await fetchRegisteredSchools();
-              setShowSchoolsWithoutRegs((v) => !v);
-            }}
-            className={styles.statsButton}
-          >
-            {showSchoolsWithoutRegs
-              ? "Ascunde școli fără înscrieri"
-              : "Școli fără înscrieri"}
-          </button>
-
-          <button
-            onClick={exportToExcel}
-            className={styles.exportButton}
-          >
-            Descarcă elevii înscriși
-          </button>
-
-          <button
-            onClick={exportSimplifiedList}
-            className={styles.exportButton}
-          >
-            Descarcă lista simplificată
-          </button>
-
-          <button
-            onClick={exportInstrumatoriToExcel}
-            className={styles.exportButton}
-          >
-            Descarcă profesori îndrumători
-          </button>
-
-          {/* 🌟 NOU: buton pentru lista școlilor participante */}
-          <button
-            onClick={exportParticipatingSchools}
-            className={styles.exportButton}
-          >
-            Descarcă școlile participante
-          </button>
-
-          <button
-            onClick={() => setCurrentView("rooms")}
-            className={styles.addButton}
-          >
-            📋 Repartizare în săli
-          </button>
-
-          <button
-            onClick={() => setCurrentView("grading")}
-            className={styles.addButton}
-          >
-            📝 Notare și rezultate
-          </button>
-
-          <button
-            onClick={() =>
-              document
-                .querySelector(`.${styles.fileInput}`)
-                ?.click()
-            }
-            className={styles.bulkUploadButton}
-          >
-            Încarcă școli din Excel
-          </button>
+        <div className={styles.dash}>
+          {[
+            {
+              title: "Concursul",
+              hero: true,
+              tiles: [
+                {
+                  icon: "🏫",
+                  label: "Repartizare în săli",
+                  sub: "Săli, liste pe uși, coduri",
+                  color: "indigo",
+                  onClick: () => setCurrentView("rooms"),
+                },
+                {
+                  icon: "📝",
+                  label: "Notare și rezultate",
+                  sub: "Note, medii, premii, clasamente",
+                  color: "gold",
+                  onClick: () => setCurrentView("grading"),
+                },
+              ],
+            },
+            {
+              title: "Școli",
+              tiles: [
+                {
+                  icon: showAddSchoolForm ? "✖️" : "➕",
+                  label: showAddSchoolForm ? "Ascunde formularul" : "Adaugă o școală",
+                  sub: "Școală nouă, manual",
+                  color: "teal",
+                  active: showAddSchoolForm,
+                  onClick: () => setShowAddSchoolForm((v) => !v),
+                },
+                {
+                  icon: "📤",
+                  label: "Încarcă școli din Excel",
+                  sub: "Import în masă",
+                  color: "teal",
+                  onClick: () => document.querySelector(`.${styles.fileInput}`)?.click(),
+                },
+                {
+                  icon: "✅",
+                  label: showRegisteredSchools ? "Ascunde școli înscrise" : "Școli înscrise",
+                  sub: "Cine a trimis elevi",
+                  color: "green",
+                  active: showRegisteredSchools,
+                  onClick: async () => {
+                    await fetchRegisteredSchools();
+                    setShowRegisteredSchools((v) => !v);
+                  },
+                },
+                {
+                  icon: "⏳",
+                  label: showSchoolsWithoutRegs ? "Ascunde școli fără înscrieri" : "Școli fără înscrieri",
+                  sub: "Cine încă lipsește",
+                  color: "orange",
+                  active: showSchoolsWithoutRegs,
+                  onClick: async () => {
+                    if (!showSchoolsWithoutRegs) await fetchRegisteredSchools();
+                    setShowSchoolsWithoutRegs((v) => !v);
+                  },
+                },
+              ],
+            },
+            {
+              title: "Înscrieri și liste",
+              tiles: [
+                {
+                  icon: "📊",
+                  label: showStatistics ? "Ascunde situația" : "Situație înscrieri",
+                  sub: "Statistici pe clase și școli",
+                  color: "violet",
+                  active: showStatistics,
+                  onClick: toggleStatistics,
+                },
+                {
+                  icon: "🧑‍🎓",
+                  label: "Elevii înscriși",
+                  sub: "Excel complet",
+                  color: "blue",
+                  download: true,
+                  onClick: exportToExcel,
+                },
+                {
+                  icon: "📋",
+                  label: "Lista simplificată",
+                  sub: "Excel, doar esențialul",
+                  color: "blue",
+                  download: true,
+                  onClick: exportSimplifiedList,
+                },
+                {
+                  icon: "👩‍🏫",
+                  label: "Profesori îndrumători",
+                  sub: "Excel cu profesorii",
+                  color: "blue",
+                  download: true,
+                  onClick: exportInstrumatoriToExcel,
+                },
+                {
+                  icon: "🏛️",
+                  label: "Școlile participante",
+                  sub: "Excel cu școlile",
+                  color: "blue",
+                  download: true,
+                  onClick: exportParticipatingSchools,
+                },
+              ],
+            },
+          ].map((section) => (
+            <section key={section.title} className={styles.dashSection}>
+              <h2 className={styles.dashTitle}>{section.title}</h2>
+              <div className={`${styles.tileGrid} ${section.hero ? styles.tileGridHero : ""}`}>
+                {section.tiles.map((t) => (
+                  <button
+                    key={t.sub}
+                    onClick={t.onClick}
+                    className={`${styles.tile} ${styles[`tile_${t.color}`]} ${
+                      section.hero ? styles.tileHero : ""
+                    } ${t.active ? styles.tileActive : ""}`}
+                  >
+                    <span className={styles.tileIcon}>{t.icon}</span>
+                    <span className={styles.tileText}>
+                      <span className={styles.tileLabel}>{t.label}</span>
+                      <span className={styles.tileSub}>{t.sub}</span>
+                    </span>
+                    {t.download && <span className={styles.tileBadge}>⬇</span>}
+                    {section.hero && <span className={styles.tileArrow}>→</span>}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
 
           {/* Elevii și profesorii îndrumători sunt salvați în aceleași
               înregistrări, deci un singur buton le șterge pe toate. */}
-          <button
-            onClick={() => handleDeleteAllRegistrations("elevi")}
-            className={styles.dangerButton}
-          >
-            🗑️ Șterge toate înscrierile (elevi + îndrumători)
-          </button>
+          <section className={`${styles.dashSection} ${styles.dangerZone}`}>
+            <h2 className={styles.dashTitle}>Zonă periculoasă</h2>
+            <button
+              onClick={() => handleDeleteAllRegistrations("elevi")}
+              className={`${styles.tile} ${styles.tile_red}`}
+            >
+              <span className={styles.tileIcon}>🗑️</span>
+              <span className={styles.tileText}>
+                <span className={styles.tileLabel}>Șterge toate înscrierile</span>
+                <span className={styles.tileSub}>Elevi + îndrumători — nu se poate anula</span>
+              </span>
+            </button>
+          </section>
         </div>
 
         <input

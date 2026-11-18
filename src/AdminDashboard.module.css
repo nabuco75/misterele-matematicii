@@ -608,3 +608,254 @@
   border: 1px solid #ccc;
   border-radius: 6px;
 }
+
+/* ====================== PANOU: PLĂCI ====================== */
+.dash {
+  width: 100%;
+  max-width: 1120px;
+  padding: 0 20px;
+  margin: 10px 0 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+.dashSection {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 22px;
+  padding: 18px 20px 22px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(10, 25, 60, 0.18);
+}
+.dashTitle {
+  margin: 0 0 14px 4px;
+  font-size: 0.85rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 800;
+  text-align: left;
+}
+.tileGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+.tileGridHero {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.tile {
+  --c1: #2dd4bf;
+  --c2: #0f9488;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 84px;
+  padding: 14px 16px 14px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.93);
+  color: #1b2a4a;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 4px 14px rgba(10, 25, 60, 0.15);
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.22s, background 0.22s;
+}
+/* dunga colorată din stânga */
+.tile::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: linear-gradient(180deg, var(--c1), var(--c2));
+}
+/* reflexia care trece peste placă la hover */
+.tile::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  transform: skewX(-20deg);
+  pointer-events: none;
+}
+.tile:hover {
+  transform: translateY(-4px);
+  background: #fff;
+  box-shadow: 0 14px 30px rgba(10, 25, 60, 0.28);
+}
+.tile:hover::after {
+  animation: tileShine 0.75s ease;
+}
+.tile:active {
+  transform: translateY(-1px) scale(0.985);
+}
+.tile:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+@keyframes tileShine {
+  to {
+    left: 130%;
+  }
+}
+
+.tileIcon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
+  font-size: 1.6rem;
+  background: linear-gradient(135deg, var(--c1), var(--c2));
+  box-shadow: 0 6px 14px rgba(10, 25, 60, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.tile:hover .tileIcon {
+  transform: rotate(-8deg) scale(1.1);
+}
+.tileText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.tileLabel {
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.tileSub {
+  font-size: 0.82rem;
+  color: #5b6b86;
+  font-weight: 500;
+}
+.tileBadge {
+  margin-left: auto;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(135deg, var(--c1), var(--c2));
+  opacity: 0.85;
+  transition: transform 0.2s, opacity 0.2s;
+}
+.tile:hover .tileBadge {
+  transform: translateY(3px);
+  opacity: 1;
+}
+
+/* plăcile mari din „Concursul” */
+.tileHero {
+  min-height: 120px;
+  padding: 20px 22px;
+  border: none;
+  color: #fff;
+  background: linear-gradient(135deg, var(--c1), var(--c2));
+  box-shadow: 0 10px 28px rgba(10, 25, 60, 0.3);
+}
+.tileHero:hover {
+  background: linear-gradient(135deg, var(--c1), var(--c2));
+  box-shadow: 0 18px 40px rgba(10, 25, 60, 0.4), 0 0 0 3px rgba(255, 255, 255, 0.6);
+}
+.tileHero::before {
+  display: none;
+}
+.tileHero .tileIcon {
+  width: 68px;
+  height: 68px;
+  font-size: 2.2rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.tileHero .tileLabel {
+  font-size: 1.45rem;
+}
+.tileHero .tileSub {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.95rem;
+}
+.tileArrow {
+  margin-left: auto;
+  font-size: 1.8rem;
+  font-weight: 900;
+  opacity: 0.85;
+  transition: transform 0.25s;
+}
+.tile:hover .tileArrow {
+  transform: translateX(6px);
+}
+
+/* plăcile apăsate (secțiune deschisă) */
+.tileActive,
+.tileActive:hover {
+  background: linear-gradient(135deg, var(--c1), var(--c2));
+  color: #fff;
+}
+.tileActive .tileSub {
+  color: rgba(255, 255, 255, 0.88);
+}
+.tileActive .tileIcon {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* culori */
+.tile_teal { --c1: #2dd4bf; --c2: #0f9488; }
+.tile_green { --c1: #4ade80; --c2: #16a34a; }
+.tile_orange { --c1: #fdba74; --c2: #ea580c; }
+.tile_violet { --c1: #c084fc; --c2: #7c3aed; }
+.tile_blue { --c1: #60a5fa; --c2: #2563eb; }
+.tile_indigo { --c1: #818cf8; --c2: #3730a3; }
+.tile_gold { --c1: #fbbf24; --c2: #c2410c; }
+.tile_red { --c1: #f87171; --c2: #b91c1c; }
+
+.dangerZone {
+  background: rgba(127, 29, 29, 0.18);
+  border: 1px dashed rgba(254, 202, 202, 0.6);
+}
+.dangerZone .tile {
+  max-width: 440px;
+}
+.dangerZone .tile:hover {
+  background: #fff5f5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile,
+  .tile .tileIcon,
+  .tileArrow {
+    transition: none;
+  }
+  .tile:hover::after {
+    animation: none;
+  }
+}
+@media (max-width: 600px) {
+  .dash {
+    padding: 0 12px;
+  }
+  .tileGrid,
+  .tileGridHero {
+    grid-template-columns: 1fr;
+  }
+  .tileHero .tileLabel {
+    font-size: 1.2rem;
+  }
+}
