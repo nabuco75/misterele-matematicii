@@ -28,9 +28,21 @@ export const CLASS_COLORS = {
   "a VI-a": "F2DCDB",
   "a VII-a": "EBF1DE",
 };
-const TITLE_FILL = "F2DCDB";
-const ROOM_FILL = "FCD5B4";
-const HEADER_FILL = "DAEEF3";
+// Listele de pe uși: fond alb, clasa marcată doar printr-o dungă colorată la stânga
+// și textul clasei colorat (culori închise, lizibile și la printare alb-negru).
+const CLASS_ACCENTS = {
+  "a IV-a": { strip: "7030A0", text: "5B237F" },
+  "a V-a": { strip: "2E75B6", text: "1F4E79" },
+  "a VI-a": { strip: "C55A11", text: "843C0C" },
+  "a VII-a": { strip: "548235", text: "375623" },
+};
+const DEFAULT_ACCENT = { strip: "808080", text: "000000" };
+const accentOf = (cls) => CLASS_ACCENTS[cls] || DEFAULT_ACCENT;
+const TITLE_FILL = "FFFFFF";
+const ROOM_FILL = "1F3864";
+const ROOM_TEXT = "FFFFFF";
+const HEADER_FILL = "D6DCE4";
+const ZEBRA_FILL = "F2F2F2";
 
 const escapeHtml = (s) =>
   String(s ?? "")
@@ -81,11 +93,14 @@ const border = {
   left: { style: "thin", color: { rgb: "000000" } },
   right: { style: "thin", color: { rgb: "000000" } },
 };
-const cellStyle = (fill, { bold = false, size = 11, align = "center" } = {}) => ({
-  font: { name: "Calibri", sz: size, bold },
+const cellStyle = (
+  fill,
+  { bold = false, size = 11, align = "center", color = "000000", leftBorder = null } = {}
+) => ({
+  font: { name: "Calibri", sz: size, bold, color: { rgb: color } },
   fill: { patternType: "solid", fgColor: { rgb: fill } },
   alignment: { horizontal: align, vertical: "center", wrapText: true },
-  border,
+  border: leftBorder ? { ...border, left: leftBorder } : border,
 });
 
 // numele foii Excel: max. 31 caractere, fără caractere interzise, unic
@@ -119,7 +134,7 @@ export const exportRoomsExcel = (groups, header, roomName = null) => {
     const headerStyles = [
       cellStyle(TITLE_FILL, { bold: true, size: 13 }),
       cellStyle(TITLE_FILL, { bold: true, size: 11 }),
-      cellStyle(ROOM_FILL, { bold: true, size: 12 }),
+      cellStyle(ROOM_FILL, { bold: true, size: 16, color: ROOM_TEXT }),
       cellStyle(HEADER_FILL, { bold: true }),
     ];
     for (let r = 0; r < headerStyles.length; r++) {
@@ -129,10 +144,17 @@ export const exportRoomsExcel = (groups, header, roomName = null) => {
       }
     }
     students.forEach((s, i) => {
-      const fill = CLASS_COLORS[s.clasa] || "FFFFFF";
+      const fill = i % 2 ? ZEBRA_FILL : "FFFFFF";
+      const accent = accentOf(s.clasa);
       for (let c = 0; c < 5; c++) {
         const ref = XLSX.utils.encode_cell({ r: i + headerStyles.length, c });
-        ws[ref].s = cellStyle(fill);
+        ws[ref].s = cellStyle(fill, {
+          size: 12,
+          align: c === 1 ? "left" : "center",
+          bold: c === 2,
+          color: c === 2 ? accent.text : "000000",
+          leftBorder: c === 0 ? { style: "thick", color: { rgb: accent.strip } } : null,
+        });
       }
     });
 
@@ -157,9 +179,12 @@ const buildRoomsHtml = (groups, header) => {
     .map(({ title, students }) => {
       const rows = students
         .map(
-          (s, i) => `<tr style="background:#${CLASS_COLORS[s.clasa] || "FFFFFF"}">
-<td>${i + 1}</td><td class="name">${escapeHtml(s.nume)}</td><td>${escapeHtml(s.clasa)}</td>
-<td>${escapeHtml(s.scoala)}</td><td>${escapeHtml(s.profesor)}</td></tr>`
+          (s, i) => {
+            const accent = accentOf(s.clasa);
+            return `<tr>
+<td style="border-left:6px solid #${accent.strip}">${i + 1}</td><td class="name">${escapeHtml(s.nume)}</td><td class="cls" style="color:#${accent.text}">${escapeHtml(s.clasa)}</td>
+<td>${escapeHtml(s.scoala)}</td><td>${escapeHtml(s.profesor)}</td></tr>`;
+          }
         )
         .join("");
       return `<section class="page">
@@ -184,13 +209,16 @@ const buildRoomsHtml = (groups, header) => {
 body { font-family: Calibri, "Segoe UI", Arial, sans-serif; margin: 0; color: #000; }
 .page { break-after: page; page-break-after: always; }
 .page:last-child { break-after: auto; page-break-after: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; line-height: 1.15; }
-th, td { border: 1px solid #000; padding: 2px 4px; text-align: center; vertical-align: middle; }
+table { width: 100%; border-collapse: collapse; font-size: 11pt; line-height: 1.2; }
+th, td { border: 1px solid #000; padding: 3px 5px; text-align: center; vertical-align: middle; }
 th.title { background: #${TITLE_FILL}; font-size: 13pt; padding: 6px; }
 .edition { font-size: 11.5pt; margin-top: 3px; }
 .org { font-size: 10pt; font-weight: normal; font-style: italic; margin-top: 2px; }
-th.room { background: #${ROOM_FILL}; font-size: 12pt; padding: 4px; letter-spacing: 0.5px; }
+th.room { background: #${ROOM_FILL}; color: #${ROOM_TEXT}; font-size: 16pt; padding: 6px; letter-spacing: 1px; }
 tr.head th { background: #${HEADER_FILL}; font-size: 10pt; }
+tbody tr:nth-child(even) { background: #${ZEBRA_FILL}; }
+td.name { text-align: left; }
+td.cls { font-weight: bold; }
 td:first-child { width: 7%; } td.name { width: 26%; } td:nth-child(3) { width: 8%; } td:nth-child(4) { width: 35%; }
 tr { break-inside: avoid; page-break-inside: avoid; }
 .total { font-size: 10pt; margin: 6px 2px 0; }
