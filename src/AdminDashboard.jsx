@@ -17,6 +17,7 @@ import * as XLSX from "xlsx";
 import ConfirmModal from "./ConfirmModal.jsx";
 import RoomAllocation from "./RoomAllocation.jsx";
 import AllocationProcess from "./AllocationProcess.jsx";
+import Grading from "./Grading.jsx";
 import ClassForm from "./ClassForm.jsx";
 import styles from "./AdminDashboard.module.css";
 
@@ -1263,7 +1264,12 @@ function AdminDashboard() {
     );
   }
 
-  // 3. VIZUALIZARE DASHBOARD
+  // 3. NOTARE ȘI REZULTATE
+  if (currentView === "grading") {
+    return <Grading onDashboard={() => setCurrentView("dashboard")} />;
+  }
+
+  // 4. VIZUALIZARE DASHBOARD
   return (
     <div>
       <ConfirmModal
@@ -1364,6 +1370,13 @@ function AdminDashboard() {
             className={styles.addButton}
           >
             📋 Repartizare în săli
+          </button>
+
+          <button
+            onClick={() => setCurrentView("grading")}
+            className={styles.addButton}
+          >
+            📝 Notare și rezultate
           </button>
 
           <button

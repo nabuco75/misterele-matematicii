@@ -1,0 +1,649 @@
+// Notare și rezultate: introducerea punctajelor, premii automate, filtre, sortări, exporturi.
+import React, { useEffect, useMemo, useState } from "react";
+import { collection, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { db } from "./firebase";
+import styles from "./Grading.module.css";
+import { CLASS_ORDER } from "./allocation";
+import { loadContestStudents, loadHeader } from "./contestData";
+import {
+  GRADES_COLLECTION,
+  SUBJECTS,
+  AUTO_AWARDS,
+  MANUAL_AWARD,
+  awardRank,
+  buildResults,
+  classRank,
+  compareRanking,
+  formatScore,
+  parseScore,
+} from "./grading";
+import { EXPORT_COLUMNS, exportResultsExcel, printResultsPdf } from "./gradingExport";
+
+const EMPTY_FILTERS = { q: "", clasa: "", scoala: "", profesor: "", sala: "", premiu: "", stare: "" };
+
+// modele de liste gata făcute; se pot ajusta apoi din bifele de coloane
+const PRESETS = [
+  {
+    id: "afisare",
+    label: "📢 Afișare pe coduri (fără nume)",
+    columns: ["nr", "cod", "s1", "s2", "s3", "total", "premiu"],
+    subtitle: "Rezultate",
+    premiu: "",
+  },
+  {
+    id: "borderou",
+    label: "📋 Borderou complet (cod + nume)",
+    columns: ["nr", "cod", "nume", "s1", "s2", "s3", "total", "premiu", "scoala", "profesor"],
+    subtitle: "",
+    premiu: "",
+  },
+  {
+    id: "nume",
+    label: "🧑‍🎓 Rezultate cu nume (fără coduri)",
+    columns: ["nr", "nume", "s1", "s2", "s3", "total", "premiu", "scoala", "profesor"],
+    subtitle: "Rezultate",
+    premiu: "",
+  },
+  {
+    id: "premiati",
+    label: "🏆 Lista premianților",
+    columns: ["nr", "nume", "premiu", "total", "scoala", "profesor"],
+    subtitle: "Lista premianților",
+    premiu: "premiati",
+  },
+];
+
+const codeNumber = (cod) => parseInt(String(cod || "").split("_").pop(), 10) || Infinity;
+
+// sortare după orice coloană; valorile lipsă rămân mereu la final; la egalitate → ordinea de clasament
+const compareBy = (key, dir) => (a, b) => {
+  const sign = dir === "asc" ? 1 : -1;
+  const pick = (r) => {
+    switch (key) {
+      case "clasa":
+        return classRank(r.clasa);
+      case "premiu":
+        return r.premiu ? awardRank(r.premiu) : null;
+      case "cod":
+        return r.cod ? codeNumber(r.cod) : null;
+      case "sala":
+        return r.salaCod || null;
+      default:
+        return r[key] === "" || r[key] === undefined ? null : r[key];
+    }
+  };
+  const va = pick(a);
+  const vb = pick(b);
+  if (va === null && vb === null) return compareRanking(a, b);
+  if (va === null) return 1;
+  if (vb === null) return -1;
+  const diff =
+    typeof va === "number" && typeof vb === "number"
+      ? va - vb
+      : String(va).localeCompare(String(vb), "ro", { sensitivity: "base", numeric: true });
+  return diff * sign || compareRanking(a, b);
+};
+
+const TABLE_COLUMNS = [
+  { key: "loc", label: "Loc", defaultDir: "asc" },
+  { key: "cod", label: "Cod", defaultDir: "asc" },
+  { key: "nume", label: "Nume și prenume", defaultDir: "asc" },
+  { key: "clasa", label: "Clasa", defaultDir: "asc" },
+  ...SUBJECTS.map((s) => ({ key: s.key, label: s.label, defaultDir: "desc", input: true })),
+  { key: "total", label: "Total", defaultDir: "desc" },
+  { key: "premiu", label: "Premiu", defaultDir: "asc" },
+  { key: "mentiune", label: "M", title: "Mențiune simplă (manual)", noSort: true },
+  { key: "absent", label: "Abs.", title: "Absent", noSort: true },
+  { key: "scoala", label: "Școala", defaultDir: "asc" },
+  { key: "profesor", label: "Profesor", defaultDir: "asc" },
+  { key: "sala", label: "Sala", defaultDir: "asc" },
+];
+
+function Grading({ onDashboard }) {
+  const [header] = useState(loadHeader);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [grades, setGrades] = useState({});
+  const [drafts, setDrafts] = useState({});
+  const [cellErrors, setCellErrors] = useState({});
+  const [saveError, setSaveError] = useState(null);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  // implicit în ordinea codurilor: ordinea nu se schimbă în timp ce se introduc notele
+  const [sort, setSort] = useState({ key: "cod", dir: "asc" });
+  const [exportCols, setExportCols] = useState(PRESETS[1].columns);
+  const [byClass, setByClass] = useState(true);
+  const [subtitle, setSubtitle] = useState("");
+  const [presetId, setPresetId] = useState("borderou");
+
+  // elevii (o dată) + notele (în timp real: ce notează alt profesor apare imediat)
+  useEffect(() => {
+    let alive = true;
+    loadContestStudents()
+      .then((data) => {
+        if (!alive) return;
+        setStudents(data.students);
+        if (data.codesError) setLoadError("Codurile elevilor nu au putut fi citite.");
+      })
+      .catch((err) => {
+        console.error(err);
+        if (alive) setLoadError("Elevii nu au putut fi încărcați.");
+      })
+      .finally(() => alive && setLoading(false));
+
+    const unsub = onSnapshot(
+      collection(db, GRADES_COLLECTION),
+      (snap) => {
+        const map = {};
+        snap.forEach((d) => (map[d.id] = d.data()));
+        setGrades(map);
+      },
+      (err) => {
+        console.error(err);
+        setLoadError("Notele nu au putut fi citite.");
+      }
+    );
+    return () => {
+      alive = false;
+      unsub();
+    };
+  }, []);
+
+  const rows = useMemo(() => buildResults(students, grades), [students, grades]);
+
+  const options = useMemo(() => {
+    const uniq = (f) =>
+      [...new Set(rows.map(f).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, "ro", { sensitivity: "base", numeric: true })
+      );
+    return {
+      clase: CLASS_ORDER.filter((c) => rows.some((r) => r.clasa === c)),
+      scoli: uniq((r) => r.scoala),
+      profesori: uniq((r) => r.profesor),
+      sali: uniq((r) => r.salaCod),
+    };
+  }, [rows]);
+
+  const visible = useMemo(() => {
+    const q = filters.q.trim().toLowerCase();
+    const list = rows.filter((r) => {
+      if (q && !`${r.nume} ${r.cod || ""}`.toLowerCase().includes(q)) return false;
+      if (filters.clasa && r.clasa !== filters.clasa) return false;
+      if (filters.scoala && r.scoala !== filters.scoala) return false;
+      if (filters.profesor && r.profesor !== filters.profesor) return false;
+      if (filters.sala && r.salaCod !== filters.sala) return false;
+      if (filters.stare && r.stare !== filters.stare) return false;
+      switch (filters.premiu) {
+        case "":
+          break;
+        case "premiati":
+          if (!r.premiu) return false;
+          break;
+        case "I-III":
+          if (!["I", "II", "III"].includes(r.premiu)) return false;
+          break;
+        case "mentiuni":
+          if (!["M1", "M2", "M3", "M"].includes(r.premiu)) return false;
+          break;
+        case "fara":
+          if (r.premiu || r.stare !== "notat") return false;
+          break;
+        default:
+          if (r.premiu !== filters.premiu) return false;
+      }
+      return true;
+    });
+    return list.sort(sort.key === "clasament" ? compareRanking : compareBy(sort.key, sort.dir));
+  }, [rows, filters, sort]);
+
+  const stats = useMemo(
+    () =>
+      CLASS_ORDER.filter((c) => rows.some((r) => r.clasa === c)).map((c) => {
+        const list = rows.filter((r) => r.clasa === c);
+        return {
+          clasa: c,
+          total: list.length,
+          notati: list.filter((r) => r.stare === "notat").length,
+          absenti: list.filter((r) => r.stare === "absent").length,
+          premii: list.filter((r) => r.premiu).length,
+        };
+      }),
+    [rows]
+  );
+
+  // ====== SALVARE ======
+  const save = async (row, fields) => {
+    try {
+      await setDoc(
+        doc(db, GRADES_COLLECTION, row.cod),
+        { ...fields, nume: row.nume, clasa: row.clasa, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+      setSaveError(null);
+      return true;
+    } catch (err) {
+      console.error("Eroare la salvarea notei:", err);
+      setSaveError(`Nota pentru ${row.cod} nu s-a salvat. Verificați conexiunea și încercați din nou.`);
+      return false;
+    }
+  };
+
+  const cellKey = (row, key) => `${row.cod}|${key}`;
+
+  const commit = async (row, key) => {
+    const k = cellKey(row, key);
+    if (!(k in drafts)) return;
+    const parsed = parseScore(drafts[k]);
+    if (parsed.error) {
+      setCellErrors((prev) => ({ ...prev, [k]: parsed.error }));
+      return;
+    }
+    setCellErrors((prev) => {
+      const next = { ...prev };
+      delete next[k];
+      return next;
+    });
+    if (parsed.value === row[key]) {
+      setDrafts((prev) => {
+        const next = { ...prev };
+        delete next[k];
+        return next;
+      });
+      return;
+    }
+    if (await save(row, { [key]: parsed.value })) {
+      setDrafts((prev) => {
+        const next = { ...prev };
+        delete next[k];
+        return next;
+      });
+    }
+  };
+
+  const onCellKeyDown = (e, row, key, index) => {
+    if (e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      commit(row, key);
+      const next = e.key === "ArrowUp" ? index - 1 : index + 1;
+      document.querySelector(`input[data-row="${next}"][data-col="${key}"]`)?.focus();
+    } else if (e.key === "Escape") {
+      const k = cellKey(row, key);
+      setDrafts((prev) => {
+        const nextDrafts = { ...prev };
+        delete nextDrafts[k];
+        return nextDrafts;
+      });
+      setCellErrors((prev) => {
+        const nextErrors = { ...prev };
+        delete nextErrors[k];
+        return nextErrors;
+      });
+    }
+  };
+
+  // ====== SORTARE / FILTRE / EXPORT ======
+  const toggleSort = (col) => {
+    if (col.noSort) return;
+    setSort((prev) =>
+      prev.key === col.key
+        ? { key: col.key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key: col.key, dir: col.defaultDir || "asc" }
+    );
+  };
+  const sortMark = (key) => (sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : "");
+
+  const setFilter = (field, value) => setFilters((prev) => ({ ...prev, [field]: value }));
+
+  const applyPreset = (p) => {
+    setPresetId(p.id);
+    setExportCols(p.columns);
+    setSubtitle(p.subtitle);
+    setFilter("premiu", p.premiu);
+    setSort({ key: "clasament", dir: "asc" });
+  };
+
+  const toggleExportCol = (key) => {
+    setPresetId("");
+    setExportCols((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const exportLabel = () => {
+    const preset = PRESETS.find((p) => p.id === presetId);
+    const base = subtitle || preset?.subtitle || "Rezultate";
+    return [base, filters.clasa && `clasa ${filters.clasa}`].filter(Boolean).join(" ");
+  };
+
+  const unfinished = visible.filter((r) => r.stare === "nenotat" || r.stare === "incomplet").length;
+
+  const doExport = (kind) => {
+    if (visible.length === 0 || exportCols.length === 0) return;
+    if (
+      unfinished > 0 &&
+      !window.confirm(
+        `${unfinished} elevi din listă nu sunt notați complet (premiile se calculează doar pentru cei notați complet). Exportați oricum?`
+      )
+    ) {
+      return;
+    }
+    const opts = { columns: exportCols, byClass, header, subtitle, fileLabel: exportLabel() };
+    if (kind === "excel") exportResultsExcel(visible, opts);
+    else printResultsPdf(visible, opts);
+  };
+
+  // ====== RENDER ======
+  if (loading) return <div className={styles.loading}>Se încarcă elevii și notele...</div>;
+
+  const filtersActive = Object.values(filters).some(Boolean);
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.topBar}>
+        {onDashboard && (
+          <button onClick={onDashboard} className={styles.backButton}>
+            ← Panou Admin
+          </button>
+        )}
+        <h1 className={styles.title}>📝 Notare și rezultate</h1>
+      </div>
+
+      {loadError && <div className={styles.error}>❌ {loadError}</div>}
+      {saveError && <div className={styles.error}>❌ {saveError}</div>}
+
+      {/* situația pe clase */}
+      <div className={styles.stats}>
+        {stats.map((s) => (
+          <button
+            key={s.clasa}
+            className={`${styles.statCard} ${filters.clasa === s.clasa ? styles.statActive : ""}`}
+            onClick={() => setFilter("clasa", filters.clasa === s.clasa ? "" : s.clasa)}
+            title="Arată doar această clasă"
+          >
+            <div className={styles.statClass}>Clasa {s.clasa}</div>
+            <div>
+              notați <b>{s.notati}</b> / {s.total - s.absenti}
+            </div>
+            <div className={styles.progress}>
+              <div
+                style={{
+                  width: `${s.total - s.absenti ? (s.notati / (s.total - s.absenti)) * 100 : 0}%`,
+                }}
+              />
+            </div>
+            <div className={styles.statSmall}>
+              {s.absenti} absenți · {s.premii} premii
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* filtre */}
+      <div className={styles.panel}>
+        <div className={styles.filters}>
+          <input
+            type="search"
+            placeholder="🔍 Caută nume sau cod..."
+            value={filters.q}
+            onChange={(e) => setFilter("q", e.target.value)}
+            className={styles.search}
+          />
+          <select value={filters.clasa} onChange={(e) => setFilter("clasa", e.target.value)}>
+            <option value="">Toate clasele</option>
+            {options.clase.map((c) => (
+              <option key={c} value={c}>
+                Clasa {c}
+              </option>
+            ))}
+          </select>
+          <select value={filters.premiu} onChange={(e) => setFilter("premiu", e.target.value)}>
+            <option value="">Toate premiile</option>
+            <option value="premiati">Doar premiații (I – M)</option>
+            <option value="I-III">Premiile I, II, III</option>
+            <option value="mentiuni">Doar mențiunile (M1 – M)</option>
+            {[...AUTO_AWARDS, MANUAL_AWARD].map((a) => (
+              <option key={a} value={a}>
+                Doar {a}
+              </option>
+            ))}
+            <option value="fara">Fără premiu</option>
+          </select>
+          <select value={filters.stare} onChange={(e) => setFilter("stare", e.target.value)}>
+            <option value="">Toate stările</option>
+            <option value="notat">Notați complet</option>
+            <option value="incomplet">Notați incomplet</option>
+            <option value="nenotat">Nenotați</option>
+            <option value="absent">Absenți</option>
+            <option value="fara-cod">Fără cod</option>
+          </select>
+          <select value={filters.scoala} onChange={(e) => setFilter("scoala", e.target.value)}>
+            <option value="">Toate școlile</option>
+            {options.scoli.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <select value={filters.profesor} onChange={(e) => setFilter("profesor", e.target.value)}>
+            <option value="">Toți profesorii</option>
+            {options.profesori.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+          {options.sali.length > 0 && (
+            <select value={filters.sala} onChange={(e) => setFilter("sala", e.target.value)}>
+              <option value="">Toate sălile</option>
+              {options.sali.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          )}
+          {filtersActive && (
+            <button className={styles.linkButton} onClick={() => setFilters(EMPTY_FILTERS)}>
+              ✖ Șterge filtrele
+            </button>
+          )}
+        </div>
+        <div className={styles.sortInfo}>
+          {visible.length} elevi afișați · Ordonare:{" "}
+          <b>
+            {sort.key === "clasament"
+              ? "clasament (clasă, total descrescător)"
+              : `${TABLE_COLUMNS.find((c) => c.key === sort.key)?.label} ${sort.dir === "asc" ? "crescător" : "descrescător"}`}
+          </b>
+          {sort.key !== "clasament" && (
+            <button
+              className={styles.linkButton}
+              onClick={() => setSort({ key: "clasament", dir: "asc" })}
+            >
+              🏆 Clasament
+            </button>
+          )}
+          {!(sort.key === "cod" && sort.dir === "asc") && (
+            <button
+              className={styles.linkButton}
+              onClick={() => setSort({ key: "cod", dir: "asc" })}
+              title="Ordinea codurilor nu se schimbă în timp ce introduceți note"
+            >
+              🔢 Ordinea codurilor (pentru notare)
+            </button>
+          )}
+          <span className={styles.hint}>
+            Clic pe capul unei coloane pentru sortare. La note: Enter / ↓ trece la elevul următor, Esc anulează.
+          </span>
+        </div>
+      </div>
+
+      {/* tabelul de notare */}
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              {TABLE_COLUMNS.map((c) => (
+                <th
+                  key={c.key}
+                  onClick={() => toggleSort(c)}
+                  title={c.title || (c.noSort ? "" : "Sortează")}
+                  className={c.noSort ? "" : styles.sortable}
+                >
+                  {c.label}
+                  {sortMark(c.key)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((r, i) => {
+              const canEdit = !!r.cod && !r.absent;
+              const autoAward = AUTO_AWARDS.includes(r.premiu);
+              return (
+                <tr key={r.id} className={r.absent ? styles.absentRow : ""}>
+                  <td>{r.loc ?? ""}</td>
+                  <td className={styles.code}>{r.cod || <span className={styles.muted}>fără cod</span>}</td>
+                  <td className={styles.name}>{r.nume}</td>
+                  <td>{r.clasa}</td>
+                  {SUBJECTS.map(({ key }) => {
+                    const k = cellKey(r, key);
+                    const err = cellErrors[k];
+                    return (
+                      <td key={key} className={styles.scoreCell}>
+                        <input
+                          data-row={i}
+                          data-col={key}
+                          className={`${styles.scoreInput} ${err ? styles.inputError : ""} ${
+                            k in drafts && !err ? styles.inputDirty : ""
+                          }`}
+                          value={k in drafts ? drafts[k] : formatScore(r[key])}
+                          onChange={(e) => setDrafts((prev) => ({ ...prev, [k]: e.target.value }))}
+                          onBlur={() => commit(r, key)}
+                          onKeyDown={(e) => onCellKeyDown(e, r, key, i)}
+                          onFocus={(e) => e.target.select()}
+                          disabled={!canEdit}
+                          inputMode="decimal"
+                          title={err || ""}
+                        />
+                      </td>
+                    );
+                  })}
+                  <td className={styles.total}>
+                    {r.absent ? "absent" : formatScore(r.total)}
+                    {r.stare === "incomplet" && <span className={styles.muted}> (incomplet)</span>}
+                  </td>
+                  <td className={styles.award}>{r.premiu}</td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={r.mentiune}
+                      disabled={!r.cod || r.stare !== "notat" || autoAward}
+                      onChange={(e) => save(r, { mentiune: e.target.checked })}
+                      title={
+                        autoAward
+                          ? `Are deja ${r.premiu}`
+                          : r.stare !== "notat"
+                          ? "Se poate bifa după ce elevul e notat complet"
+                          : "Mențiune simplă (M)"
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={r.absent}
+                      disabled={!r.cod}
+                      onChange={(e) => save(r, { absent: e.target.checked })}
+                      title="Absent"
+                    />
+                  </td>
+                  <td className={styles.small}>{r.scoala}</td>
+                  <td className={styles.small}>{r.profesor}</td>
+                  <td className={styles.small}>{r.salaCod || ""}</td>
+                </tr>
+              );
+            })}
+            {visible.length === 0 && (
+              <tr>
+                <td colSpan={TABLE_COLUMNS.length} className={styles.empty}>
+                  Niciun elev nu corespunde filtrelor.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* export */}
+      <div className={styles.panel}>
+        <h2 className={styles.panelTitle}>📤 Descărcare liste</h2>
+        <p className={styles.hint}>
+          Se descarcă <b>exact ce vedeți în tabel</b>: {visible.length} elevi, cu filtrele și ordinea de
+          acum. Alegeți un model sau bifați coloanele dorite.
+        </p>
+        <div className={styles.presets}>
+          {PRESETS.map((p) => (
+            <button
+              key={p.id}
+              className={`${styles.presetButton} ${presetId === p.id ? styles.presetActive : ""}`}
+              onClick={() => applyPreset(p)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div className={styles.columnsPick}>
+          {EXPORT_COLUMNS.map((c) => (
+            <label key={c.key}>
+              <input
+                type="checkbox"
+                checked={exportCols.includes(c.key)}
+                onChange={() => toggleExportCol(c.key)}
+              />{" "}
+              {c.label}
+            </label>
+          ))}
+        </div>
+        <div className={styles.exportOptions}>
+          <label>
+            <input type="checkbox" checked={byClass} onChange={(e) => setByClass(e.target.checked)} />{" "}
+            Câte o foaie / pagină pentru fiecare clasă
+          </label>
+          <label>
+            Titlu listă:{" "}
+            <input
+              type="text"
+              value={subtitle}
+              onChange={(e) => setSubtitle(e.target.value)}
+              placeholder="ex: Rezultate finale"
+            />
+          </label>
+        </div>
+        {unfinished > 0 && (
+          <p className={styles.warning}>
+            ⚠️ {unfinished} elevi din listă nu sunt încă notați complet.
+          </p>
+        )}
+        <div className={styles.exportButtons}>
+          <button
+            className={styles.excelButton}
+            onClick={() => doExport("excel")}
+            disabled={visible.length === 0 || exportCols.length === 0}
+          >
+            📥 Descarcă Excel
+          </button>
+          <button
+            className={styles.pdfButton}
+            onClick={() => doExport("pdf")}
+            disabled={visible.length === 0 || exportCols.length === 0}
+          >
+            📄 Descarcă PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default Grading;

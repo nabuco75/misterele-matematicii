@@ -18,70 +18,13 @@ import {
     printCodesPdf,
     CODE_PREFIX,
     CLASS_COLORS,
-    DEFAULT_EDITION,
-    DEFAULT_CONTEST_DATE,
 } from "./roomLists";
-
-// antetul listelor (ediția, data) – reținut în browser, ca să nu fie reintrodus la fiecare deschidere
-const HEADER_STORAGE_KEY = "repartizare-antet";
-const loadHeader = () => {
-    try {
-        const saved = JSON.parse(localStorage.getItem(HEADER_STORAGE_KEY));
-        if (saved && typeof saved === "object") {
-            return { edition: DEFAULT_EDITION, date: DEFAULT_CONTEST_DATE, ...saved };
-        }
-    } catch {
-        // fără localStorage → valorile implicite
-    }
-    return { edition: DEFAULT_EDITION, date: DEFAULT_CONTEST_DATE };
-};
-
-// Codurile de anonimizare sunt salvate în colecția `codes` (un document per cod, id = codul).
-// Un cod dat rămâne al elevului pentru totdeauna; elevii noi continuă numerotarea.
-const CODES_COLLECTION = "codes";
-const normName = (s) =>
-    String(s || "")
-        .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .toLowerCase();
-
-// leagă codurile salvate de elevii actuali: întâi după înscriere + nume; dacă într-o înscriere
-// a rămas exact un cod nelegat și exact un elev fără cod, înseamnă că numele a fost corectat
-// între timp → elevul își păstrează codul.
-const attachCodes = (students, codeDocs) => {
-    const byKey = new Map();
-    codeDocs.forEach((c) => byKey.set(`${c.regId}|${normName(c.nume)}`, c));
-    const used = new Set();
-    const result = students.map((s) => {
-        const c = byKey.get(`${s.regId}|${normName(s.nume)}`);
-        if (c && !used.has(c.cod)) {
-            used.add(c.cod);
-            return { ...s, cod: c.cod };
-        }
-        return s;
-    });
-    const freeByReg = {};
-    codeDocs
-        .filter((c) => !used.has(c.cod))
-        .forEach((c) => (freeByReg[c.regId] = freeByReg[c.regId] || []).push(c));
-    const renamed = [];
-    const withoutByReg = {};
-    result.forEach((s, i) => {
-        if (!s.cod) (withoutByReg[s.regId] = withoutByReg[s.regId] || []).push(i);
-    });
-    Object.entries(withoutByReg).forEach(([regId, idxs]) => {
-        const free = freeByReg[regId] || [];
-        if (idxs.length === 1 && free.length === 1) {
-            result[idxs[0]] = { ...result[idxs[0]], cod: free[0].cod };
-            used.add(free[0].cod);
-            renamed.push({ cod: free[0].cod, nume: result[idxs[0]].nume });
-        }
-    });
-    const orphans = codeDocs.filter((c) => !used.has(c.cod));
-    return { students: result, renamed, orphans };
-};
+import {
+    CODES_COLLECTION,
+    loadContestStudents,
+    loadHeader,
+    saveHeader,
+} from "./contestData";
 
 function AllocationProcess({ onBack, onDashboard }) {
     const [header, setHeader] = useState(loadHeader);
@@ -105,11 +48,7 @@ function AllocationProcess({ onBack, onDashboard }) {
     const updateHeader = (field, value) => {
         setHeader((prev) => {
             const next = { ...prev, [field]: value };
-            try {
-                localStorage.setItem(HEADER_STORAGE_KEY, JSON.stringify(next));
-            } catch {
-                // nu se poate salva → rămâne doar pentru sesiunea curentă
-            }
+            saveHeader(next);
             return next;
         });
     };
@@ -124,88 +63,19 @@ function AllocationProcess({ onBack, onDashboard }) {
         try {
             setLoading(true);
 
-            // Școli
-            const schoolsSnap = await getDocs(collection(db, "schools"));
-            const schoolsMap = {};
-            schoolsSnap.forEach((doc) => {
-                schoolsMap[doc.id] = doc.data().name || "Școală Necunoscută";
-            });
-
-            // Elevi
-            const regsSnap = await getDocs(collection(db, "registration"));
-            const studentsData = [];
-            const stats = CLASS_ORDER.reduce(
-                (acc, cls) => ({ ...acc, [cls]: 0 }),
-                {}
-            );
-
-            regsSnap.forEach((doc) => {
-                const data = doc.data();
-                const studentsArr = Array.isArray(data.students)
-                    ? data.students
-                    : [];
-                const studentClass = data.class ? data.class.trim() : "";
-                const schoolName =
-                    schoolsMap[data.schoolId] || "Școală Necunoscută";
-
-                studentsArr.forEach((student) => {
-                    const nume =
-                        typeof student === "string"
-                            ? student
-                            : student?.nume || "";
-                    if (nume) {
-                        studentsData.push({
-                            nume,
-                            clasa: studentClass,
-                            scoala: schoolName,
-                            profesor: data.profesorIndrumatorEmail || "",
-                            id: `${doc.id}-${nume}`,
-                            regId: doc.id,
-                        });
-
-                        if (stats[studentClass] !== undefined) {
-                            stats[studentClass]++;
-                        }
-                    }
-                });
-            });
-
-            // sortare globală (clasă + nume) – utilă și pentru export
-            studentsData.sort((a, b) => {
-                const classAIndex = CLASS_ORDER.indexOf(a.clasa);
-                const classBIndex = CLASS_ORDER.indexOf(b.clasa);
-
-                if (classAIndex !== classBIndex)
-                    return classAIndex - classBIndex;
-
-                return a.nume.localeCompare(b.nume, "ro", {
-                    sensitivity: "base",
-                });
-            });
-
-            // Coduri de anonimizare deja date
-            let codeDocs = [];
-            try {
-                const codesSnap = await getDocs(collection(db, CODES_COLLECTION));
-                codeDocs = codesSnap.docs.map((d) => ({ cod: d.id, ...d.data() }));
-            } catch (err) {
-                console.error("Eroare la citirea codurilor:", err);
+            // Elevi (cu codurile de anonimizare deja date)
+            const data = await loadContestStudents();
+            if (data.codesError) {
                 showMessage("error", "❌ Codurile de anonimizare nu au putut fi citite.");
             }
-            setLastCodeN(codeDocs.reduce((m, c) => Math.max(m, c.n || 0), 0));
-            const attached = attachCodes(studentsData, codeDocs);
-            setOrphanCodes(attached.orphans);
-            if (attached.renamed.length > 0) {
-                // numele corectate se actualizează și în borderoul salvat
-                const batch = writeBatch(db);
-                attached.renamed.forEach(({ cod, nume }) =>
-                    batch.update(doc(db, CODES_COLLECTION, cod), { nume })
-                );
-                await batch.commit();
-            }
-
-            setStudents(attached.students);
-            setStudentStats({ ...stats, total: studentsData.length });
+            setLastCodeN(data.lastCodeN);
+            setOrphanCodes(data.orphans);
+            setStudents(data.students);
+            const stats = CLASS_ORDER.reduce((acc, cls) => ({ ...acc, [cls]: 0 }), {});
+            data.students.forEach((s) => {
+                if (stats[s.clasa] !== undefined) stats[s.clasa]++;
+            });
+            setStudentStats({ ...stats, total: data.students.length });
 
             // Săli
             const roomsSnap = await getDocs(collection(db, "rooms"));

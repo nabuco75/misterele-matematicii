@@ -1,0 +1,362 @@
+/* Notare și rezultate – fond deschis, contrast bun pentru lucru îndelungat */
+.page {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+  color: #1a1a1a;
+}
+
+.loading {
+  color: #ecf0f1;
+  text-align: center;
+  font-size: 1.3rem;
+  margin-top: 40px;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.title {
+  font-size: 2rem;
+  margin: 0;
+  color: var(--text-color-light, #fff);
+  text-shadow: 1px 1px 6px rgba(0, 0, 0, 0.3);
+}
+
+.backButton {
+  background-color: #95a5a6;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: bold;
+}
+.backButton:hover {
+  background-color: #7f8c8d;
+}
+
+.error {
+  background: #f8d7da;
+  color: #842029;
+  border: 1px solid #f5c2c7;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-weight: bold;
+}
+
+.warning {
+  color: #8a4b08;
+  font-weight: bold;
+  margin: 8px 0;
+}
+
+/* situația pe clase */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.statCard {
+  background: #fff;
+  color: #1a1a1a;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: 10px 14px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.95rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.statCard:hover {
+  border-color: #9bb0d0;
+}
+.statActive {
+  border-color: #1f3864;
+}
+.statClass {
+  font-weight: bold;
+  font-size: 1.05rem;
+  margin-bottom: 4px;
+}
+.statSmall {
+  font-size: 0.85rem;
+  color: #555;
+  margin-top: 4px;
+}
+.progress {
+  height: 6px;
+  background: #e5e5e5;
+  border-radius: 3px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.progress div {
+  height: 100%;
+  background: #2e7d32;
+}
+
+/* panouri */
+.panel {
+  background: #fff;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.panelTitle {
+  font-size: 1.3rem;
+  margin: 0 0 6px;
+  color: #1a1a1a;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.filters select,
+.filters input,
+.exportOptions input[type="text"] {
+  padding: 7px 10px;
+  border: 1px solid #b5b5b5;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: #fff;
+  color: #1a1a1a;
+  max-width: 280px;
+}
+.search {
+  min-width: 220px;
+}
+
+.sortInfo {
+  margin-top: 10px;
+  font-size: 0.95rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.hint {
+  color: #555;
+  font-size: 0.88rem;
+}
+
+.linkButton {
+  background: none;
+  border: 1px solid #1f3864;
+  color: #1f3864;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.linkButton:hover {
+  background: #eef2f8;
+}
+
+/* tabel */
+.tableWrap {
+  background: #fff;
+  border-radius: 10px;
+  overflow: auto;
+  max-height: 70vh;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  color: #1a1a1a;
+}
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #1f3864;
+  color: #fff;
+  padding: 8px 6px;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.sortable:hover {
+  background: #2c4a80;
+}
+.table td {
+  border-bottom: 1px solid #e3e3e3;
+  padding: 4px 6px;
+  text-align: center;
+  vertical-align: middle;
+}
+.table tbody tr:nth-child(even) {
+  background: #f6f6f6;
+}
+.table tbody tr:hover {
+  background: #fff8dc;
+}
+.absentRow td {
+  color: #888;
+}
+.code {
+  font-family: Consolas, "Courier New", monospace;
+  font-weight: bold;
+  white-space: nowrap;
+}
+.name {
+  text-align: left !important;
+  font-weight: 600;
+}
+.small {
+  font-size: 0.85rem;
+}
+.muted {
+  color: #888;
+  font-weight: normal;
+  font-size: 0.85em;
+}
+.total {
+  font-weight: bold;
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+.award {
+  font-weight: bold;
+  color: #1f3864;
+}
+.empty {
+  padding: 24px !important;
+  color: #666;
+}
+
+.scoreCell {
+  padding: 2px 4px !important;
+}
+.scoreInput {
+  width: 58px;
+  padding: 5px 4px;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  border: 1px solid #b5b5b5;
+  border-radius: 5px;
+  background: #fff;
+  color: #1a1a1a;
+}
+.scoreInput:focus {
+  outline: 2px solid #1f3864;
+  border-color: #1f3864;
+}
+.scoreInput:disabled {
+  background: #eee;
+  color: #999;
+}
+.inputDirty {
+  background: #fff3cd;
+}
+.inputError {
+  border-color: #c0392b;
+  background: #fdecea;
+}
+
+/* export */
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.presetButton {
+  background: #eef2f8;
+  color: #1f3864;
+  border: 1px solid #9bb0d0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.presetButton:hover {
+  background: #dde6f3;
+}
+.presetActive {
+  background: #1f3864;
+  color: #fff;
+  border-color: #1f3864;
+}
+.columnsPick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 8px 0;
+  font-size: 0.95rem;
+}
+.columnsPick label,
+.exportOptions label {
+  cursor: pointer;
+  white-space: nowrap;
+}
+.exportOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  align-items: center;
+  margin: 8px 0;
+}
+.exportButtons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.excelButton,
+.pdfButton {
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 1.05rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+.excelButton {
+  background: #1e7b45;
+}
+.excelButton:hover {
+  background: #17633a;
+}
+.pdfButton {
+  background: #b03a2e;
+}
+.pdfButton:hover {
+  background: #922f25;
+}
+.excelButton:disabled,
+.pdfButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .title {
+    font-size: 1.5rem;
+  }
+  .search {
+    min-width: 0;
+    width: 100%;
+  }
+}

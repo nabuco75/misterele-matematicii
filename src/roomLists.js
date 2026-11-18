@@ -10,7 +10,7 @@ export const DEFAULT_EDITION = "a XX-a";
 export const DEFAULT_CONTEST_DATE = "21 noiembrie 2026";
 
 // „Ediția a XX-a - 21 noiembrie 2026”
-const editionLine = ({ edition, date } = {}) =>
+export const editionLine = ({ edition, date } = {}) =>
   [edition && `Ediția ${edition}`, date].filter(Boolean).join(" - ");
 
 const COLUMNS = [
@@ -44,7 +44,7 @@ const ROOM_TEXT = "FFFFFF";
 const HEADER_FILL = "D6DCE4";
 const ZEBRA_FILL = "F2F2F2";
 
-const escapeHtml = (s) =>
+export const escapeHtml = (s) =>
   String(s ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -350,7 +350,7 @@ ${pages}
 export const printCodesPdf = (groups, header, fileLabel = "Coduri_anonimizare") =>
   openPrintWindow(buildCodesHtml(groups, header), fileLabel);
 
-const openPrintWindow = (html, fileLabel) => {
+export const openPrintWindow = (html, fileLabel) => {
   const win = window.open("", "_blank");
   if (win) {
     win.document.write(html);
