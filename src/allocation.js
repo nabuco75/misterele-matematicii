@@ -90,6 +90,87 @@ const planByHalves = (classes, groups, rooms) => {
   return null;
 };
 
+// sălile nu ajung pentru exact 2 clase peste tot → primele săli rămân cu 2 clase (jumătăți pline),
+// iar ultima sală (sau ultimele) devine „mozaic” cu elevii rămași din toate clasele
+const planWithMosaic = (classes, groups, rooms) => {
+  const usableRooms = rooms.filter((r) => seatsOf(r) > 0);
+  for (let m = 1; m < usableRooms.length; m++) {
+    const R = usableRooms.length - m;
+    const slots = halfSlots(usableRooms, R);
+    const avgHalf = slots.reduce((s, x) => s + x.cap, 0) / slots.length;
+    const big = classes[0];
+
+    // fiecare clasă primește atâtea jumătăți câte poate umple complet
+    const k = {};
+    classes.forEach((cls) => {
+      k[cls] = Math.floor(groups[cls].length / avgHalf);
+    });
+    k[big] = Math.min(k[big], R); // clasa cea mai mare nu poate sta cu ea însăși
+    let S = classes.reduce((s, cls) => s + k[cls], 0);
+    while (S > 2 * R) {
+      const cls = classes.find((c) => k[c] > 0 && c !== big) || big;
+      k[cls]--;
+      S--;
+    }
+    // jumătățile rămase libere → clasele cu cei mai mulți elevi neacoperiți
+    while (S < 2 * R) {
+      const cls = [...classes]
+        .filter((c) => c !== big || k[c] < R)
+        .sort((a, b) => (groups[b].length - k[b] * avgHalf) - (groups[a].length - k[a] * avgHalf))[0];
+      if (!cls || groups[cls].length - k[cls] * avgHalf <= 0) break;
+      k[cls]++;
+      S++;
+    }
+
+    // umplem jumătățile în ordine; ce nu încape rămâne pentru sala mozaic
+    const plan = [];
+    const leftover = {};
+    let cursor = 0;
+    classes.forEach((cls) => {
+      let rest = groups[cls].length;
+      slots.slice(cursor, cursor + k[cls]).forEach((slot) => {
+        const n = Math.min(slot.cap, rest);
+        if (n > 0) plan.push({ cls, room: slot.room, count: n });
+        rest -= n;
+      });
+      cursor += k[cls];
+      leftover[cls] = rest;
+    });
+
+    // sălile mozaic: elevii rămași, clasele alternând (prima jumătate / a doua jumătate)
+    const mosaicRooms = usableRooms.slice(R);
+    const restTotal = classes.reduce((s, cls) => s + leftover[cls], 0);
+    const mosaicSeats = mosaicRooms.reduce((s, r) => s + seatsOf(r), 0);
+    // nu încap toți: mai facem o sală mozaic (doar dacă locurile, în total, ajung pentru toți elevii)
+    const totalStudents = classes.reduce((s, cls) => s + groups[cls].length, 0);
+    const totalSeats = usableRooms.reduce((s, r) => s + seatsOf(r), 0);
+    if (restTotal > mosaicSeats && totalStudents <= totalSeats && m < usableRooms.length - 1) continue;
+
+    const sequence = classes.flatMap((cls) => Array(leftover[cls]).fill(cls));
+    let left = sequence.length;
+    const counts = mosaicRooms.map((room) => {
+      const n = Math.min(seatsOf(room), left);
+      left -= n;
+      return n;
+    });
+    let c1 = 0;
+    let c2 = counts.reduce((s, n) => s + Math.ceil(n / 2), 0);
+    counts.forEach((n, j) => {
+      const first = Math.ceil(n / 2);
+      const inRoom = [...sequence.slice(c1, c1 + first), ...sequence.slice(c2, c2 + n - first)];
+      c1 += first;
+      c2 += n - first;
+      const perCls = {};
+      inRoom.forEach((cls) => {
+        perCls[cls] = (perCls[cls] || 0) + 1;
+      });
+      Object.entries(perCls).forEach(([cls, count]) => plan.push({ cls, room: R + j, count }));
+    });
+    return { plan, rooms: usableRooms, mosaicFrom: R };
+  }
+  return null;
+};
+
 export function allocateByClassPairs(students, rooms) {
   // grupare pe clase, păstrând ordinea alfabetică primită
   const groups = {};
@@ -101,7 +182,10 @@ export function allocateByClassPairs(students, rooms) {
   );
 
   const byRoom = rooms.map(() => []);
-  const result = planByHalves(classes, groups, rooms);
+  const result = planByHalves(classes, groups, rooms) || planWithMosaic(classes, groups, rooms);
+  const mosaicRooms = new Set(
+    result && result.mosaicFrom !== undefined ? result.rooms.slice(result.mosaicFrom) : []
+  );
 
   if (result) {
     // elevii unei clase se împart alfabetic în ordinea sălilor (Sala 6, 7, 8 ...)
@@ -153,7 +237,13 @@ export function allocateByClassPairs(students, rooms) {
       perClass[student.clasa] = (perClass[student.clasa] || 0) + 1;
       data.push({ ...student, sala: room.name, etaj: room.floor || "", loc_in_sala: idx + 1 });
     });
-    roomSummaries.push({ room, seats: seatsOf(room), count: placed.length, perClass });
+    roomSummaries.push({
+      room,
+      seats: seatsOf(room),
+      count: placed.length,
+      perClass,
+      mosaic: mosaicRooms.has(room) || Object.keys(perClass).length > 2,
+    });
   });
 
   return {
@@ -161,6 +251,5 @@ export function allocateByClassPairs(students, rooms) {
     roomSummaries,
     allocated: data.length,
     unallocated: students.length - data.length,
-    twoClassesPerRoom: Boolean(result),
   };
 }

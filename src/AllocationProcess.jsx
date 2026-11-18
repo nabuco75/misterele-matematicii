@@ -340,6 +340,9 @@ function AllocationProcess({ onBack }) {
                                                     {s.perClass[c]} × {c}
                                                 </span>
                                             ))}
+                                            {s.mosaic && (
+                                                <span className={styles.classChip}>🧩 mozaic</span>
+                                            )}
                                         </td>
                                         <td>
                                             <button
