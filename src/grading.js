@@ -16,11 +16,18 @@ export const SUBJECTS = [
 ];
 export const MAX_PER_SUBJECT = 10;
 
-// premiile automate, în ordinea punctajelor distincte (cea mai mare notă = I, a doua = II ...)
-export const AUTO_AWARDS = ["I", "II", "III", "M1", "M2", "M3"];
-// mențiunea simplă se bifează manual
-export const MANUAL_AWARD = "M";
-const AWARD_RANK = Object.fromEntries([...AUTO_AWARDS, MANUAL_AWARD].map((a, i) => [a, i + 1]));
+// premiile se aleg manual, din listă (se salvează în câmpul `premiu` al notei)
+export const AWARDS = [
+  { value: "I", label: "🥇 I" },
+  { value: "II", label: "🥈 II" },
+  { value: "III", label: "🥉 III" },
+  { value: "M1", label: "🎖️ M1" },
+  { value: "M2", label: "🎖️ M2" },
+  { value: "M3", label: "🎖️ M3" },
+  { value: "M", label: "🎖️ M" },
+];
+const AWARD_VALUES = AWARDS.map((a) => a.value);
+const AWARD_RANK = Object.fromEntries(AWARD_VALUES.map((a, i) => [a, i + 1]));
 export const awardRank = (a) => AWARD_RANK[a] || 99;
 
 // „8,5” sau „8.5” → 8.5; gol → null; altceva → eroare
@@ -39,12 +46,9 @@ export const formatScore = (v) =>
 
 const isNum = (v) => typeof v === "number" && !Number.isNaN(v);
 
-// Combină elevii cu notele și calculează totalul, starea și premiul.
+// Combină elevii cu notele și calculează totalul, media, starea și locul în clasă.
 //   stare: „nenotat” (nicio notă), „incomplet” (lipsesc subiecte), „notat”, „absent”
-// Premiile se dau pe fiecare clasă, după punctajele distincte (egalitate = același premiu):
-//   primul punctaj → I, al doilea → II, al treilea → III, apoi M1, M2, M3.
-//   După M3, mențiunea simplă M se dă doar elevilor bifați manual.
-//   Se calculează doar dintre elevii notați complet și prezenți.
+// Premiul nu se calculează: e cel ales manual din listă.
 export const buildResults = (students, gradesByCode) => {
   const rows = students.map((s) => {
     // notele puse pe nume (înainte de coduri) + cele puse pe cod
@@ -69,27 +73,21 @@ export const buildResults = (students, gradesByCode) => {
       total,
       media,
       absent,
-      mentiune: !!g.mentiune,
       stare,
-      premiu: "",
+      premiu: !absent && AWARD_VALUES.includes(g.premiu) ? g.premiu : "",
       loc: null,
     };
   });
 
-  // premii pe clase
+  // locul în clasament, pe clase
   const byClass = {};
   rows.forEach((r) => {
     if (r.stare === "notat") (byClass[r.clasa] = byClass[r.clasa] || []).push(r);
   });
   Object.values(byClass).forEach((list) => {
-    const distinct = [...new Set(list.map((r) => r.total))].sort((a, b) => b - a);
-    const place = new Map(distinct.map((t, i) => [t, i]));
     list.forEach((r) => {
-      const i = place.get(r.total);
       // locul în clasament (cu egalitate: 1, 2, 2, 4 ...)
       r.loc = list.filter((o) => o.total > r.total).length + 1;
-      if (i < AUTO_AWARDS.length) r.premiu = AUTO_AWARDS[i];
-      else if (r.mentiune) r.premiu = MANUAL_AWARD;
     });
   });
 

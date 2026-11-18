@@ -8,8 +8,7 @@ import { loadContestStudents, loadHeader } from "./contestData";
 import {
   GRADES_COLLECTION,
   SUBJECTS,
-  AUTO_AWARDS,
-  MANUAL_AWARD,
+  AWARDS,
   awardRank,
   buildResults,
   classRank,
@@ -97,7 +96,6 @@ const TABLE_COLUMNS = [
   { key: "total", label: "Total", defaultDir: "desc" },
   { key: "media", label: "Media", defaultDir: "desc" },
   { key: "premiu", label: "Premiu", defaultDir: "asc" },
-  { key: "mentiune", label: "M", title: "Mențiune simplă (manual)", noSort: true },
   { key: "absent", label: "Abs.", title: "Absent", noSort: true },
   { key: "scoala", label: "Școala", defaultDir: "asc" },
   { key: "profesor", label: "Profesor", defaultDir: "asc" },
@@ -193,7 +191,7 @@ function Grading({ onDashboard }) {
           if (!["M1", "M2", "M3", "M"].includes(r.premiu)) return false;
           break;
         case "fara":
-          if (r.premiu || r.stare !== "notat") return false;
+          if (r.premiu || r.absent) return false;
           break;
         default:
           if (r.premiu !== filters.premiu) return false;
@@ -408,9 +406,9 @@ function Grading({ onDashboard }) {
             <option value="premiati">Doar premiații (I – M)</option>
             <option value="I-III">Premiile I, II, III</option>
             <option value="mentiuni">Doar mențiunile (M1 – M)</option>
-            {[...AUTO_AWARDS, MANUAL_AWARD].map((a) => (
-              <option key={a} value={a}>
-                Doar {a}
+            {AWARDS.map((a) => (
+              <option key={a.value} value={a.value}>
+                Doar {a.label}
               </option>
             ))}
             <option value="fara">Fără premiu</option>
@@ -506,7 +504,6 @@ function Grading({ onDashboard }) {
           <tbody>
             {visible.map((r, i) => {
               const canEdit = !r.absent;
-              const autoAward = AUTO_AWARDS.includes(r.premiu);
               return (
                 <tr key={r.id} className={r.absent ? styles.absentRow : ""}>
                   <td>{r.loc ?? ""}</td>
@@ -541,21 +538,21 @@ function Grading({ onDashboard }) {
                     {r.stare === "incomplet" && <span className={styles.muted}> (incomplet)</span>}
                   </td>
                   <td>{r.absent ? "" : formatScore(r.media)}</td>
-                  <td className={styles.award}>{r.premiu}</td>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={r.mentiune}
-                      disabled={r.stare !== "notat" || autoAward}
-                      onChange={(e) => save(r, { mentiune: e.target.checked })}
-                      title={
-                        autoAward
-                          ? `Are deja ${r.premiu}`
-                          : r.stare !== "notat"
-                          ? "Se poate bifa după ce elevul e notat complet"
-                          : "Mențiune simplă (M)"
-                      }
-                    />
+                  <td className={styles.award}>
+                    <select
+                      className={styles.awardSelect}
+                      value={r.premiu}
+                      disabled={r.absent}
+                      onChange={(e) => save(r, { premiu: e.target.value })}
+                      title="Premiul (se alege manual)"
+                    >
+                      <option value="">—</option>
+                      {AWARDS.map((a) => (
+                        <option key={a.value} value={a.value}>
+                          {a.label}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td>
                     <input
