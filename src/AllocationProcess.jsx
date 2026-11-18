@@ -62,9 +62,9 @@ function AllocationProcess({ onBack, onDashboard }) {
         });
     };
 
-    const showMessage = (type, text) => {
+    const showMessage = (type, text, ms = 5000) => {
         setMessage({ type, text });
-        setTimeout(() => setMessage(null), 5000);
+        setTimeout(() => setMessage(null), ms);
     };
 
     // ====== ÎNCĂRCARE DATE ======
@@ -276,12 +276,15 @@ function AllocationProcess({ onBack, onDashboard }) {
             return;
         }
         const where = result.placedNew.map(([sala, n]) => `${n} în ${sala}`).join(", ");
-        showMessage(
-            result.overflow ? "warning" : "success",
+        const placedMsg =
             `✅ ${result.newcomers} elevi noi așezați (${where}); ceilalți au rămas pe loc.` +
-                (result.overflow ? ` ⚠️ ${result.overflow} peste numărul de locuri — adăugați scaune sau o sală.` : "") +
-                " Apăsați acum „Dă coduri elevilor noi”."
-        );
+            (result.overflow ? ` ⚠️ ${result.overflow} peste numărul de locuri — adăugați scaune sau o sală.` : "");
+        // dacă anonimizarea e deja în lucru (există coduri), elevii noi primesc cod imediat
+        if (studentsWithCode > 0) {
+            await handleGenerateCodes(result.data, { ask: false, intro: placedMsg });
+        } else {
+            showMessage(result.overflow ? "warning" : "success", placedMsg);
+        }
     };
 
     // ====== ANONIMIZARE (coduri MMVS_01 ...) ======
@@ -290,11 +293,14 @@ function AllocationProcess({ onBack, onDashboard }) {
         ? allocationResult.filter((s) => !s.cod).length
         : students.filter((s) => !s.cod).length;
 
-    const handleGenerateCodes = async () => {
-        if (!allocationResult || allocationResult.length === 0 || withoutCode === 0) return;
+    const handleGenerateCodes = async (allocArg, { ask = true, intro = "" } = {}) => {
+        const base = Array.isArray(allocArg) ? allocArg : allocationResult;
+        const missing = base ? base.filter((s) => !s.cod).length : 0;
+        if (!base || base.length === 0 || missing === 0) return;
         if (
+            ask &&
             !window.confirm(
-                `Se vor da coduri definitive pentru ${withoutCode} elevi, începând cu ${CODE_PREFIX}_${String(lastCodeN + 1).padStart(2, "0")}.\n` +
+                `Se vor da coduri definitive pentru ${missing} elevi, începând cu ${CODE_PREFIX}_${String(lastCodeN + 1).padStart(2, "0")}.\n` +
                     "Odată date, codurile nu se mai schimbă. Continuați?"
             )
         ) {
@@ -305,7 +311,7 @@ function AllocationProcess({ onBack, onDashboard }) {
             // recitim ultimul cod din baza de date, ca să nu dăm de două ori același număr
             const codesSnap = await getDocs(collection(db, CODES_COLLECTION));
             const lastN = codesSnap.docs.reduce((m, d) => Math.max(m, d.data().n || 0), 0);
-            const { allocation, added } = assignNewCodes(allocationResult, rooms, lastN);
+            const { allocation, added } = assignNewCodes(base, rooms, lastN);
 
             for (let i = 0; i < added.length; i += 400) {
                 const batch = writeBatch(db);
@@ -330,11 +336,17 @@ function AllocationProcess({ onBack, onDashboard }) {
             setLastCodeN(lastN + added.length);
             showMessage(
                 "success",
-                `✅ ${added.length} coduri noi salvate (${added[0]?.cod} … ${added[added.length - 1]?.cod}).`
+                `${intro ? `${intro} ` : ""}🔐 ${added.length} coduri noi: ${added
+                    .map((s) => `${s.cod} – ${s.nume} (${s.sala})`)
+                    .join(", ")}. Descărcați biletele și borderoul din nou.`,
+                20000
             );
         } catch (err) {
             console.error("Eroare la salvarea codurilor:", err);
-            showMessage("error", "❌ Codurile nu au putut fi salvate. Nu s-a schimbat nimic.");
+            showMessage(
+                "error",
+                `${intro ? `${intro} ` : ""}❌ Codurile nu au putut fi salvate. Apăsați „Dă coduri elevilor noi”.`
+            );
         } finally {
             setSavingCodes(false);
         }
