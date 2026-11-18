@@ -271,6 +271,30 @@ function Grading({ onDashboard }) {
       commit(row, key);
       const next = e.key === "ArrowUp" ? index - 1 : index + 1;
       document.querySelector(`input[data-row="${next}"][data-col="${key}"]`)?.focus();
+    } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      // ← / → trec la subiectul vecin, dar doar când cursorul e la capătul textului
+      // (sau tot textul e selectat), ca să se poată corecta și în interiorul notei
+      const { selectionStart, selectionEnd, value } = e.target;
+      const right = e.key === "ArrowRight";
+      if (right ? selectionEnd !== value.length : selectionStart !== 0) return;
+      const col = SUBJECTS.findIndex((s) => s.key === key);
+      let nextCol = col + (right ? 1 : -1);
+      let nextRow = index;
+      // după Sub. III → Sub. I la elevul următor; înainte de Sub. I → Sub. III la elevul anterior
+      if (nextCol >= SUBJECTS.length) {
+        nextCol = 0;
+        nextRow = index + 1;
+      } else if (nextCol < 0) {
+        nextCol = SUBJECTS.length - 1;
+        nextRow = index - 1;
+      }
+      const target = document.querySelector(
+        `input[data-row="${nextRow}"][data-col="${SUBJECTS[nextCol].key}"]`
+      );
+      if (!target) return;
+      e.preventDefault();
+      commit(row, key);
+      target.focus();
     } else if (e.key === "Escape") {
       const k = cellKey(row, key);
       setDrafts((prev) => {
@@ -478,7 +502,7 @@ function Grading({ onDashboard }) {
             </button>
           )}
           <span className={styles.hint}>
-            Clic pe capul unei coloane pentru sortare. La note: Enter / ↓ trece la elevul următor, Esc anulează.
+            Clic pe capul unei coloane pentru sortare. La note: ← / → trec la subiectul vecin, Enter / ↓ la elevul următor, Esc anulează.
           </span>
         </div>
       </div>
