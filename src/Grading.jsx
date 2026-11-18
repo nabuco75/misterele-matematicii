@@ -33,14 +33,14 @@ const PRESETS = [
   {
     id: "borderou",
     label: "📋 Borderou complet (cod + nume)",
-    columns: ["nr", "cod", "nume", "s1", "s2", "s3", "total", "premiu", "scoala", "profesor"],
+    columns: ["nr", "cod", "nume", "s1", "s2", "s3", "total", "media", "premiu", "scoala", "profesor"],
     subtitle: "",
     premiu: "",
   },
   {
     id: "nume",
     label: "🧑‍🎓 Rezultate cu nume (fără coduri)",
-    columns: ["nr", "nume", "s1", "s2", "s3", "total", "premiu", "scoala", "profesor"],
+    columns: ["nr", "nume", "s1", "s2", "s3", "total", "media", "premiu", "scoala", "profesor"],
     subtitle: "Rezultate",
     premiu: "",
   },
@@ -74,7 +74,11 @@ const compareBy = (key, dir) => (a, b) => {
   };
   const va = pick(a);
   const vb = pick(b);
-  if (va === null && vb === null) return compareRanking(a, b);
+  // fără coduri: ordine fixă (clasă, nume), ca rândurile să nu se mute în timp ce se notează
+  if (va === null && vb === null)
+    return key === "cod"
+      ? classRank(a.clasa) - classRank(b.clasa) || a.nume.localeCompare(b.nume, "ro", { sensitivity: "base" })
+      : compareRanking(a, b);
   if (va === null) return 1;
   if (vb === null) return -1;
   const diff =
@@ -91,6 +95,7 @@ const TABLE_COLUMNS = [
   { key: "clasa", label: "Clasa", defaultDir: "asc" },
   ...SUBJECTS.map((s) => ({ key: s.key, label: s.label, defaultDir: "desc", input: true })),
   { key: "total", label: "Total", defaultDir: "desc" },
+  { key: "media", label: "Media", defaultDir: "desc" },
   { key: "premiu", label: "Premiu", defaultDir: "asc" },
   { key: "mentiune", label: "M", title: "Mențiune simplă (manual)", noSort: true },
   { key: "absent", label: "Abs.", title: "Absent", noSort: true },
@@ -172,7 +177,9 @@ function Grading({ onDashboard }) {
       if (filters.scoala && r.scoala !== filters.scoala) return false;
       if (filters.profesor && r.profesor !== filters.profesor) return false;
       if (filters.sala && r.salaCod !== filters.sala) return false;
-      if (filters.stare && r.stare !== filters.stare) return false;
+      if (filters.stare === "fara-cod") {
+        if (r.cod) return false;
+      } else if (filters.stare && r.stare !== filters.stare) return false;
       switch (filters.premiu) {
         case "":
           break;
@@ -215,7 +222,7 @@ function Grading({ onDashboard }) {
   const save = async (row, fields) => {
     try {
       await setDoc(
-        doc(db, GRADES_COLLECTION, row.cod),
+        doc(db, GRADES_COLLECTION, row.gradeId),
         { ...fields, nume: row.nume, clasa: row.clasa, updatedAt: serverTimestamp() },
         { merge: true }
       );
@@ -223,12 +230,12 @@ function Grading({ onDashboard }) {
       return true;
     } catch (err) {
       console.error("Eroare la salvarea notei:", err);
-      setSaveError(`Nota pentru ${row.cod} nu s-a salvat. Verificați conexiunea și încercați din nou.`);
+      setSaveError(`Nota pentru ${row.cod || row.nume} nu s-a salvat. Verificați conexiunea și încercați din nou.`);
       return false;
     }
   };
 
-  const cellKey = (row, key) => `${row.cod}|${key}`;
+  const cellKey = (row, key) => `${row.gradeId}|${key}`;
 
   const commit = async (row, key) => {
     const k = cellKey(row, key);
@@ -350,13 +357,6 @@ function Grading({ onDashboard }) {
 
       {loadError && <div className={styles.error}>❌ {loadError}</div>}
       {saveError && <div className={styles.error}>❌ {saveError}</div>}
-      {!loading && rows.some((r) => !r.cod) && (
-        <div className={styles.warning}>
-          ⚠️ {rows.every((r) => !r.cod) ? "Niciun elev nu are" : `${rows.filter((r) => !r.cod).length} elevi nu au`} încă
-          cod de anonimizare, iar notele se pot introduce doar pe coduri. Mergeți la Panou Admin → 📋 Repartizare în
-          săli → „Generează coduri anonimizare”, apoi reveniți aici.
-        </div>
-      )}
 
       {/* situația pe clase */}
       <div className={styles.stats}>
@@ -505,7 +505,7 @@ function Grading({ onDashboard }) {
           </thead>
           <tbody>
             {visible.map((r, i) => {
-              const canEdit = !!r.cod && !r.absent;
+              const canEdit = !r.absent;
               const autoAward = AUTO_AWARDS.includes(r.premiu);
               return (
                 <tr key={r.id} className={r.absent ? styles.absentRow : ""}>
@@ -540,12 +540,13 @@ function Grading({ onDashboard }) {
                     {r.absent ? "absent" : formatScore(r.total)}
                     {r.stare === "incomplet" && <span className={styles.muted}> (incomplet)</span>}
                   </td>
+                  <td>{r.absent ? "" : formatScore(r.media)}</td>
                   <td className={styles.award}>{r.premiu}</td>
                   <td>
                     <input
                       type="checkbox"
                       checked={r.mentiune}
-                      disabled={!r.cod || r.stare !== "notat" || autoAward}
+                      disabled={r.stare !== "notat" || autoAward}
                       onChange={(e) => save(r, { mentiune: e.target.checked })}
                       title={
                         autoAward
@@ -560,7 +561,6 @@ function Grading({ onDashboard }) {
                     <input
                       type="checkbox"
                       checked={r.absent}
-                      disabled={!r.cod}
                       onChange={(e) => save(r, { absent: e.target.checked })}
                       title="Absent"
                     />

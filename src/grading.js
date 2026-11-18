@@ -1,8 +1,13 @@
 // Notare: punctaje pe subiecte, total, premii.
 import { CLASS_ORDER } from "./allocation";
+import { normName } from "./contestData";
 
-// Notele se salvează în colecția `grades`, un document per elev, cu id = codul elevului (MMVS_01 ...).
+// Notele se salvează în colecția `grades`, un document per elev: id = codul elevului (MMVS_01 ...)
+// dacă are cod, altfel o cheie din înscriere + nume (se poate nota și fără coduri de anonimizare).
 export const GRADES_COLLECTION = "grades";
+
+export const nameGradeId = (s) => `elev_${s.regId}_${normName(s.nume).replace(/\//g, "-")}`;
+export const gradeId = (s) => s.cod || nameGradeId(s);
 
 export const SUBJECTS = [
   { key: "s1", label: "Sub. I" },
@@ -35,20 +40,20 @@ export const formatScore = (v) =>
 const isNum = (v) => typeof v === "number" && !Number.isNaN(v);
 
 // Combină elevii cu notele și calculează totalul, starea și premiul.
-//   stare: „nenotat” (nicio notă), „incomplet” (lipsesc subiecte), „notat”, „absent”, „fara-cod”
+//   stare: „nenotat” (nicio notă), „incomplet” (lipsesc subiecte), „notat”, „absent”
 // Premiile se dau pe fiecare clasă, după punctajele distincte (egalitate = același premiu):
 //   primul punctaj → I, al doilea → II, al treilea → III, apoi M1, M2, M3.
 //   După M3, mențiunea simplă M se dă doar elevilor bifați manual.
 //   Se calculează doar dintre elevii notați complet și prezenți.
 export const buildResults = (students, gradesByCode) => {
   const rows = students.map((s) => {
-    const g = (s.cod && gradesByCode[s.cod]) || {};
+    // notele puse pe nume (înainte de coduri) + cele puse pe cod
+    const g = { ...(gradesByCode[nameGradeId(s)] || {}), ...((s.cod && gradesByCode[s.cod]) || {}) };
     const scores = Object.fromEntries(SUBJECTS.map(({ key }) => [key, isNum(g[key]) ? g[key] : null]));
     const filled = SUBJECTS.filter(({ key }) => scores[key] !== null).length;
     const absent = !!g.absent;
     let stare;
-    if (!s.cod) stare = "fara-cod";
-    else if (absent) stare = "absent";
+    if (absent) stare = "absent";
     else if (filled === 0) stare = "nenotat";
     else if (filled < SUBJECTS.length) stare = "incomplet";
     else stare = "notat";
@@ -56,10 +61,13 @@ export const buildResults = (students, gradesByCode) => {
       filled > 0 && !absent
         ? Math.round(SUBJECTS.reduce((sum, { key }) => sum + (scores[key] || 0), 0) * 100) / 100
         : null;
+    const media = filled === SUBJECTS.length && !absent ? Math.round((total / SUBJECTS.length) * 100) / 100 : null;
     return {
       ...s,
       ...scores,
+      gradeId: gradeId(s),
       total,
+      media,
       absent,
       mentiune: !!g.mentiune,
       stare,
