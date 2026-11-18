@@ -796,3 +796,58 @@
   color: #6b778c;
   font-size: 0.9rem;
 }
+
+/* bara de descărcare: 4 liste, fiecare cu Excel / PDF */
+.dlBar {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+.dlCard {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 14px;
+  border-radius: 999px;
+  background: #f6f8fb;
+  border: 1px solid #dde5f2;
+  cursor: default;
+}
+.dlTitle {
+  font-weight: 700;
+  color: #1f3864;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.dlExcel,
+.dlPdf {
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.88rem;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+}
+.dlExcel {
+  background: #1e7b45;
+}
+.dlPdf {
+  background: #b03a2e;
+}
+.dlExcel:hover,
+.dlPdf:hover {
+  filter: brightness(1.12);
+}
+.dlExcel:active,
+.dlPdf:active {
+  transform: scale(0.96);
+}
+.dlHint {
+  margin: 8px 0 0;
+  font-size: 0.88rem;
+  color: #6b778c;
+}
