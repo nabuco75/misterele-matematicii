@@ -500,3 +500,25 @@
 .smallExcelButton:hover {
   background-color: #229954;
 }
+
+.newStudentsButton {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  padding: 18px 40px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 1.3rem;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 20px rgba(217, 119, 6, 0.4);
+}
+.newStudentsButton:hover {
+  filter: brightness(1.08);
+  transform: translateY(-3px);
+}
+.newStudentsButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}

@@ -8,7 +8,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import styles from "./AllocationProcess.module.css";
-import { allocateByClassPairs, CLASS_ORDER, sortRooms } from "./allocation";
+import { allocateByClassPairs, allocateKeepingCodes, CLASS_ORDER, sortRooms } from "./allocation";
 import {
     exportRoomsExcel,
     groupByRoom,
@@ -95,6 +95,16 @@ function AllocationProcess({ onBack, onDashboard }) {
 
     // ====== GENEREAZĂ REPARTIZARE ======
     const handleGenerateAllocation = async () => {
+        if (
+            students.some((s) => s.cod) &&
+            !window.confirm(
+                "Elevii au deja coduri. O repartizare nouă îi poate muta în alte săli decât cele de pe listele deja printate.\n\n" +
+                    "Pentru elevi veniți ulterior folosiți butonul „Repartizează elevii noi”, care îi lasă pe ceilalți pe loc.\n\n" +
+                    "Refaceți totuși toată repartizarea?"
+            )
+        ) {
+            return;
+        }
         setLoading(true);
 
         const totalSeats = rooms.reduce(
@@ -177,6 +187,28 @@ function AllocationProcess({ onBack, onDashboard }) {
             groups,
             header,
             roomName ? `Lista_${roomName.replace(/\s+/g, "_")}` : "Repartizare_pe_Sali"
+        );
+    };
+
+    // ====== ELEVI NOI: ceilalți rămân în sala lor, noii merg în ultima sală ======
+    const studentsWithCode = students.filter((s) => s.cod).length;
+    const newStudents = students.length - studentsWithCode;
+
+    const handleKeepAllocation = () => {
+        if (rooms.length === 0) return;
+        const result = allocateKeepingCodes(students, rooms);
+        setAllocationResult(result.data);
+        setRoomSummaries(result.roomSummaries);
+        if (result.newcomers === 0) {
+            showMessage("success", "✅ Repartizarea salvată: fiecare elev în sala în care a primit codul.");
+            return;
+        }
+        const where = result.placedNew.map(([sala, n]) => `${n} în ${sala}`).join(", ");
+        showMessage(
+            result.overflow ? "warning" : "success",
+            `✅ ${result.newcomers} elevi noi așezați (${where}); ceilalți au rămas pe loc.` +
+                (result.overflow ? ` ⚠️ ${result.overflow} peste numărul de locuri — adăugați scaune sau o sală.` : "") +
+                " Apăsați acum „Dă coduri elevilor noi”."
         );
     };
 
@@ -376,6 +408,19 @@ function AllocationProcess({ onBack, onDashboard }) {
                 >
                     🎲 Generează Repartizare Inteligentă
                 </button>
+
+                {studentsWithCode > 0 && (
+                    <button
+                        onClick={handleKeepAllocation}
+                        className={styles.newStudentsButton}
+                        disabled={rooms.length === 0 || loading}
+                        title="Elevii care au cod rămân în sala lor; cei fără cod se pun pe locurile libere, începând cu ultima sală"
+                    >
+                        {newStudents > 0
+                            ? `➕ Repartizează elevii noi (${newStudents}) în ultima sală`
+                            : "📂 Repartizarea salvată (fiecare în sala lui)"}
+                    </button>
+                )}
 
                 {allocationResult && (
                     <button

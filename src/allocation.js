@@ -190,3 +190,74 @@ export function allocateByClassPairs(students, rooms) {
     unallocated: students.length - data.length,
   };
 }
+
+// Repartizare „păstrată”: elevii care au deja cod rămân în sala în care au primit codul,
+// iar elevii noi (fără cod) se pun pe locurile libere, începând cu ultima sală folosită,
+// apoi sălile de după ea, apoi (dacă tot nu ajung locurile) sălile dinainte, de la coadă.
+// Dacă nu mai e niciun loc liber, cei rămași intră tot în ultima sală (peste capacitate).
+export function allocateKeepingCodes(students, rooms) {
+  const byRoom = new Map(rooms.map((r) => [r.name, []]));
+  const newcomers = [];
+  students.forEach((s) => {
+    if (s.cod && s.salaCod && byRoom.has(s.salaCod)) byRoom.get(s.salaCod).push(s);
+    else newcomers.push(s);
+  });
+
+  const lastUsed = rooms.reduce((last, r, i) => (byRoom.get(r.name).length > 0 ? i : last), 0);
+  const order = [
+    ...rooms.slice(lastUsed),
+    ...rooms.slice(0, lastUsed).reverse(),
+  ];
+  const placedNew = new Map(); // sala → elevii noi puși acolo
+  let k = 0;
+  for (const room of order) {
+    while (k < newcomers.length && byRoom.get(room.name).length < seatsOf(room)) {
+      byRoom.get(room.name).push(newcomers[k]);
+      placedNew.set(room.name, (placedNew.get(room.name) || 0) + 1);
+      k++;
+    }
+  }
+  let overflow = 0;
+  if (k < newcomers.length && rooms.length > 0) {
+    const target = rooms[lastUsed].name;
+    while (k < newcomers.length) {
+      byRoom.get(target).push(newcomers[k++]);
+      placedNew.set(target, (placedNew.get(target) || 0) + 1);
+      overflow++;
+    }
+  }
+
+  const data = [];
+  const roomSummaries = [];
+  rooms.forEach((room) => {
+    const placed = byRoom.get(room.name);
+    if (placed.length === 0) return;
+    placed.sort(
+      (x, y) =>
+        classRank(x.clasa) - classRank(y.clasa) ||
+        x.nume.localeCompare(y.nume, "ro", { sensitivity: "base" })
+    );
+    const perClass = {};
+    placed.forEach((student, idx) => {
+      perClass[student.clasa] = (perClass[student.clasa] || 0) + 1;
+      data.push({ ...student, sala: room.name, etaj: room.floor || "", loc_in_sala: idx + 1 });
+    });
+    roomSummaries.push({
+      room,
+      seats: seatsOf(room),
+      count: placed.length,
+      perClass,
+      mosaic: Object.keys(perClass).length > 2,
+    });
+  });
+
+  return {
+    data,
+    roomSummaries,
+    allocated: data.length,
+    unallocated: 0,
+    newcomers: newcomers.length,
+    overflow,
+    placedNew: [...placedNew.entries()],
+  };
+}
