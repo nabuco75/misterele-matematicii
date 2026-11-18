@@ -47,6 +47,10 @@ function AdminDashboard() {
   const [showRegisteredSchools, setShowRegisteredSchools] =
     useState(false);
   const [registeredSchools, setRegisteredSchools] = useState([]);
+  // școlile din listă care nu au niciun elev înscris
+  const [showSchoolsWithoutRegs, setShowSchoolsWithoutRegs] =
+    useState(false);
+  const [schoolsWithoutRegs, setSchoolsWithoutRegs] = useState([]);
   const [loadingRegs, setLoadingRegs] = useState(false);
 
   // —— Bulk upload
@@ -217,7 +221,8 @@ function AdminDashboard() {
           // Actualizare date
           fetchSchools();
           if (showStatistics) fetchStatistics();
-          if (showRegisteredSchools) fetchRegisteredSchools();
+          if (showRegisteredSchools || showSchoolsWithoutRegs)
+            fetchRegisteredSchools();
         } catch (err) {
           console.error("Eroare la ștergerea școlii/elevilor:", err);
           showSuccessMessage("Eroare la ștergerea școlii!");
@@ -337,12 +342,52 @@ function AdminDashboard() {
         .filter((s) => s.count > 0)
         .sort((a, b) => b.count - a.count);
 
+      const withoutRegs = Object.values(schoolMap)
+        .filter((s) => s.count === 0)
+        .sort(
+          (a, b) =>
+            a.county.localeCompare(b.county, "ro", { sensitivity: "base" }) ||
+            a.locality.localeCompare(b.locality, "ro", {
+              sensitivity: "base",
+            }) ||
+            a.name.localeCompare(b.name, "ro", { sensitivity: "base" })
+        );
+
       setRegisteredSchools(list);
+      setSchoolsWithoutRegs(withoutRegs);
     } catch (e) {
       console.error("Eroare la încărcarea școlilor înscrise:", e);
     } finally {
       setLoadingRegs(false);
     }
+  };
+
+  // ====== EXPORT ȘCOLI FĂRĂ ÎNSCRIERI ======
+  const exportSchoolsWithoutRegs = () => {
+    const excelData = [
+      {
+        nrCrt: "Nr. crt",
+        scoala: "Școala",
+        localitate: "Localitate",
+        judet: "Județ",
+      },
+      ...schoolsWithoutRegs.map((s, idx) => ({
+        nrCrt: idx + 1,
+        scoala: s.name,
+        localitate: s.locality,
+        judet: s.county,
+      })),
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(excelData, { skipHeader: true });
+    ws["!cols"] = [{ wch: 8 }, { wch: 45 }, { wch: 25 }, { wch: 15 }];
+    ws["!autofilter"] = {
+      ref: XLSX.utils.encode_range(XLSX.utils.decode_range(ws["!ref"])),
+    };
+    ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+    XLSX.utils.book_append_sheet(wb, ws, "Școli fără înscrieri");
+    XLSX.writeFile(wb, "scoli_fara_inscrieri.xlsx");
   };
 
   // ====== EXPORT SIMPLIFICAT ======
@@ -1064,7 +1109,8 @@ function AdminDashboard() {
           showSuccessMessage(config.success(regsSnap.size));
 
           if (showStatistics) fetchStatistics();
-          if (showRegisteredSchools) fetchRegisteredSchools();
+          if (showRegisteredSchools || showSchoolsWithoutRegs)
+            fetchRegisteredSchools();
         } catch (err) {
           console.error(`Eroare la ștergerea ${type}:`, err);
           showSuccessMessage(config.error);
@@ -1148,6 +1194,18 @@ function AdminDashboard() {
             {showRegisteredSchools
               ? "Ascunde școli înscrise"
               : "Școli înscrise"}
+          </button>
+
+          <button
+            onClick={async () => {
+              if (!showSchoolsWithoutRegs) await fetchRegisteredSchools();
+              setShowSchoolsWithoutRegs((v) => !v);
+            }}
+            className={styles.statsButton}
+          >
+            {showSchoolsWithoutRegs
+              ? "Ascunde școli fără înscrieri"
+              : "Școli fără înscrieri"}
           </button>
 
           <button
@@ -1345,6 +1403,49 @@ function AdminDashboard() {
                   ))}
                 </tbody>
               </table>
+            )}
+          </div>
+        )}
+
+        {showSchoolsWithoutRegs && (
+          <div className={styles.registeredSchoolsContainer}>
+            <h2>
+              Școli fără niciun elev înscris
+              {!loadingRegs && ` (${schoolsWithoutRegs.length})`}
+            </h2>
+            {loadingRegs ? (
+              <p>Se încarcă...</p>
+            ) : schoolsWithoutRegs.length === 0 ? (
+              <p>Toate școlile din listă au cel puțin un elev înscris.</p>
+            ) : (
+              <>
+                <button
+                  onClick={exportSchoolsWithoutRegs}
+                  className={styles.exportButton}
+                >
+                  Descarcă lista în Excel
+                </button>
+                <table className={styles.schoolTable}>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Școala</th>
+                      <th>Localitate</th>
+                      <th>Județ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schoolsWithoutRegs.map((s, i) => (
+                      <tr key={s.id}>
+                        <td>{i + 1}</td>
+                        <td>{s.name}</td>
+                        <td>{s.locality}</td>
+                        <td>{s.county}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
             )}
           </div>
         )}
