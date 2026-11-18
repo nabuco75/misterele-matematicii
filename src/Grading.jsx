@@ -373,8 +373,18 @@ function Grading({ onDashboard }) {
 
   const unfinished = visible.filter((r) => r.stare === "nenotat" || r.stare === "incomplet").length;
 
-  const doExport = (kind) => {
-    if (visible.length === 0 || exportCols.length === 0) return;
+  // descărcare rapidă pentru afișare / printare: cu coduri (fără nume) sau cu nume (fără coduri)
+  const QUICK_LISTS = {
+    coduri: { columns: ["nr", "cod", "s1", "s2", "s3", "media", "premiu"], label: "Rezultate pe coduri" },
+    nume: {
+      columns: ["nr", "nume", "s1", "s2", "s3", "media", "premiu", "scoala", "profesor"],
+      label: "Rezultate",
+    },
+  };
+
+  const doExport = (kind, quick) => {
+    const columns = quick ? QUICK_LISTS[quick].columns : exportCols;
+    if (visible.length === 0 || columns.length === 0) return;
     if (
       unfinished > 0 &&
       !window.confirm(
@@ -383,7 +393,10 @@ function Grading({ onDashboard }) {
     ) {
       return;
     }
-    const opts = { columns: exportCols, byClass, header, subtitle, fileLabel: exportLabel() };
+    const fileLabel = quick
+      ? [subtitle || QUICK_LISTS[quick].label, filters.clasa && `clasa ${filters.clasa}`].filter(Boolean).join(" ")
+      : exportLabel();
+    const opts = { columns, byClass, header, subtitle: subtitle || "Rezultate", fileLabel };
     if (kind === "excel") exportResultsExcel(visible, opts);
     else printResultsPdf(visible, opts);
   };
@@ -519,24 +532,31 @@ function Grading({ onDashboard }) {
               </button>
             ))}
           </div>
-          <div className={styles.quickExport}>
-            <button
-              className={styles.quickExcel}
-              onClick={() => doExport("excel")}
-              disabled={visible.length === 0 || exportCols.length === 0}
-              title="Descarcă exact lista afișată, în ordinea de acum"
-            >
-              📥 Excel
-            </button>
-            <button
-              className={styles.quickPdf}
-              onClick={() => doExport("pdf")}
-              disabled={visible.length === 0 || exportCols.length === 0}
-              title="Descarcă exact lista afișată, în ordinea de acum"
-            >
-              📄 PDF
-            </button>
-          </div>
+        </div>
+        <div className={styles.quickBar}>
+          <span className={styles.sortLabel}>Descarcă pentru afișare / printare:</span>
+          {[
+            { id: "coduri", title: "🔢 Cu coduri", hint: "fără nume – pentru afișat la avizier" },
+            { id: "nume", title: "🧑‍🎓 Fără coduri", hint: "cu numele elevilor, școala și profesorul" },
+          ].map((q) => (
+            <div key={q.id} className={styles.quickCard} title={q.hint}>
+              <span className={styles.quickTitle}>{q.title}</span>
+              <button
+                className={styles.quickExcel}
+                onClick={() => doExport("excel", q.id)}
+                disabled={visible.length === 0}
+              >
+                📥 Excel
+              </button>
+              <button
+                className={styles.quickPdf}
+                onClick={() => doExport("pdf", q.id)}
+                disabled={visible.length === 0}
+              >
+                📄 PDF
+              </button>
+            </div>
+          ))}
         </div>
         <div className={styles.sortInfo}>
           <span>

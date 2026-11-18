@@ -459,3 +459,25 @@
     padding: 7px 12px;
   }
 }
+
+/* descărcare rapidă cu / fără coduri */
+.quickBar {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.quickCard {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f6f8fb;
+  border: 1px solid #dde5f2;
+  border-radius: 999px;
+  padding: 4px 6px 4px 14px;
+}
+.quickTitle {
+  font-weight: 600;
+  color: #1f3864;
+}
