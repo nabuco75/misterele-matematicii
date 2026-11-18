@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "./firebase"; // Asigură-te că exportul db este corect
 import styles from "./RoomAllocation.module.css";
+import { sortRooms } from "./allocation";
 
 // Săli pre-configurate cu dimensiunea matriceală (rânduri x coloane)
 const DEFAULT_ROOMS = [
@@ -51,9 +52,8 @@ function RoomAllocation({ onNextStep }) {
                 await initializeDefaultRooms();
             } else {
                 const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-                // Asigură-te că numeric: true e folosit pentru sortarea Sala 1, Sala 2, ... Sala 10
-                list.sort((a, b) => a.name.localeCompare(b.name, "ro", { numeric: true }));
-                setRooms(list);
+                // ordinea repartizării: de la parter, apoi etajele; pe etaj Sala 1, Sala 2, ... Sala 10
+                setRooms(sortRooms(list));
             }
         } catch (err) {
             console.error("Eroare la încărcarea sălilor:", err);
@@ -74,8 +74,7 @@ function RoomAllocation({ onNextStep }) {
             // Reîncarcă sălile
             const snap = await getDocs(collection(db, "rooms"));
             const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            list.sort((a, b) => a.name.localeCompare(b.name, "ro", { numeric: true }));
-            setRooms(list);
+            setRooms(sortRooms(list));
             
             showMessage("success", "✅ Săli pre-configurate încărcate automat!");
         } catch (err) {

@@ -13,6 +13,35 @@
 export const CLASS_ORDER = ["a IV-a", "a V-a", "a VI-a", "a VII-a"];
 const MAX_SHIFT_RATIO = 0.2; // cât se poate abate o sală de la „jumătate-jumătate” (20% din locuri)
 
+// ordinea etajelor: Parter, Etaj I (1), Etaj II (2) ...; etajul necunoscut la final
+const ROMAN = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6 };
+export const floorRank = (floor) => {
+  const f = String(floor || "").trim().toUpperCase();
+  if (!f || f === "NESPECIFICAT") return 99;
+  if (f.startsWith("PARTER") || f === "P") return 0;
+  if (f.startsWith("DEMISOL") || f.startsWith("SUBSOL")) return -1;
+  const arabic = f.match(/\d+/);
+  if (arabic) return parseInt(arabic[0], 10);
+  const roman = f.match(/\b(I{1,3}|IV|V|VI)\b/);
+  if (roman) return ROMAN[roman[1]];
+  return 98;
+};
+
+// numărul din numele sălii („Sala 10” → 10); sălile fără număr vin după cele numerotate
+const roomNumber = (name) => {
+  const m = String(name || "").match(/\d+/);
+  return m ? parseInt(m[0], 10) : Infinity;
+};
+
+// sălile în ordinea repartizării: pe etaje (de la parter), apoi după număr (Sala 1, Sala 2, ... Sala 10)
+export const sortRooms = (rooms) =>
+  [...rooms].sort(
+    (a, b) =>
+      floorRank(a.floor) - floorRank(b.floor) ||
+      roomNumber(a.name) - roomNumber(b.name) ||
+      String(a.name).localeCompare(String(b.name), "ro", { numeric: true })
+  );
+
 const classRank = (cls) => {
   const i = CLASS_ORDER.indexOf(cls);
   return i === -1 ? CLASS_ORDER.length : i;

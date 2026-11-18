@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
 import styles from "./AllocationProcess.module.css";
-import { allocateByClassPairs, CLASS_ORDER } from "./allocation";
+import { allocateByClassPairs, CLASS_ORDER, sortRooms } from "./allocation";
 import {
     exportRoomsExcel,
     groupByRoom,
@@ -131,10 +131,8 @@ function AllocationProcess({ onBack }) {
                 id: d.id,
                 ...d.data(),
             }));
-            roomsData.sort((a, b) =>
-                a.name.localeCompare(b.name, "ro", { numeric: true })
-            );
-            setRooms(roomsData);
+            // repartizarea începe de la parter, apoi etajele în ordine; pe etaj după numărul sălii
+            setRooms(sortRooms(roomsData));
         } catch (err) {
             console.error("Eroare la încărcarea datelor:", err);
             showMessage("error", "❌ Eroare la încărcarea datelor!");
