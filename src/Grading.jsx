@@ -356,10 +356,10 @@ function Grading({ onDashboard }) {
     {
       id: "avizier",
       icon: "📢",
-      title: "Avizier",
+      title: "Avizier – cu coduri",
       hint: "Cod, note, medie, premiu – fără nume (anonim), pentru afișat la avizier",
       columns: ["nr", "cod", "s1", "s2", "s3", "media", "premiu"],
-      subtitle: "Rezultate",
+      subtitle: "Rezultate – cu nume",
     },
     {
       id: "rezultate",
@@ -372,7 +372,7 @@ function Grading({ onDashboard }) {
     {
       id: "borderou",
       icon: "📋",
-      title: "Borderou",
+      title: "Borderou – cod + nume",
       hint: "Cod + nume + note, medie, premiu, școală, profesor, sală – pentru comisie",
       columns: ["nr", "cod", "nume", "s1", "s2", "s3", "media", "premiu", "scoala", "profesor", "sala"],
       subtitle: "Borderou",
