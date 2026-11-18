@@ -369,3 +369,93 @@
     width: 100%;
   }
 }
+
+/* bara de ordonare */
+.sortBar {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.sortLabel {
+  font-weight: bold;
+  color: #1f3864;
+}
+.sortGroup {
+  display: inline-flex;
+  flex-wrap: wrap;
+  background: #eef2f8;
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+}
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: #1f3864;
+  font-weight: 600;
+  font-size: 0.98rem;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.sortButton:hover {
+  background: #dde5f2;
+}
+.sortActive,
+.sortActive:hover {
+  background: #1f3864;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(31, 56, 100, 0.35);
+}
+.sortIcon {
+  font-size: 1.1rem;
+}
+.quickExport {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.quickExcel,
+.quickPdf {
+  border: none;
+  color: #fff;
+  font-weight: bold;
+  font-size: 0.95rem;
+  padding: 9px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+}
+.quickExcel {
+  background: #1e7b45;
+}
+.quickPdf {
+  background: #b03a2e;
+}
+.quickExcel:hover,
+.quickPdf:hover {
+  filter: brightness(1.1);
+}
+.quickExcel:active,
+.quickPdf:active {
+  transform: scale(0.97);
+}
+.quickExcel:disabled,
+.quickPdf:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (max-width: 700px) {
+  .quickExport {
+    margin-left: 0;
+  }
+  .sortButton {
+    padding: 7px 12px;
+  }
+}

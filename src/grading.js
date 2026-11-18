@@ -21,10 +21,10 @@ export const AWARDS = [
   { value: "I", label: "🥇 I" },
   { value: "II", label: "🥈 II" },
   { value: "III", label: "🥉 III" },
-  { value: "M1", label: "🎖️ M1" },
+  { value: "M1", label: "🏅 M1" },
   { value: "M2", label: "🎖️ M2" },
-  { value: "M3", label: "🎖️ M3" },
-  { value: "M", label: "🎖️ M" },
+  { value: "M3", label: "🎗️ M3" },
+  { value: "M", label: "⭐ M" },
 ];
 const AWARD_VALUES = AWARDS.map((a) => a.value);
 const AWARD_RANK = Object.fromEntries(AWARD_VALUES.map((a, i) => [a, i + 1]));

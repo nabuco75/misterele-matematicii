@@ -65,6 +65,8 @@ const compareBy = (key, dir) => (a, b) => {
         return r.premiu ? awardRank(r.premiu) : null;
       case "cod":
         return r.cod ? codeNumber(r.cod) : null;
+      case "nume":
+        return r.nume;
       case "sala":
         return r.salaCod || null;
       default:
@@ -86,6 +88,31 @@ const compareBy = (key, dir) => (a, b) => {
       : String(va).localeCompare(String(vb), "ro", { sensitivity: "base", numeric: true });
   return diff * sign || compareRanking(a, b);
 };
+
+// butoanele mari de ordonare
+const SORT_MODES = [
+  {
+    id: "medie",
+    icon: "🏆",
+    label: "După medie",
+    title: "Pe fiecare clasă, de la media cea mai mare la cea mai mică",
+    sort: { key: "clasament", dir: "asc" },
+  },
+  {
+    id: "alfabetic",
+    icon: "🔤",
+    label: "Alfabetic",
+    title: "După nume, A → Z, indiferent de notă",
+    sort: { key: "nume", dir: "asc" },
+  },
+  {
+    id: "notare",
+    icon: "✏️",
+    label: "Pentru notare",
+    title: "Ordine fixă (cod / clasă + nume): rândurile nu se mută în timp ce introduceți note",
+    sort: { key: "cod", dir: "asc" },
+  },
+];
 
 const TABLE_COLUMNS = [
   { key: "loc", label: "Loc", defaultDir: "asc" },
@@ -152,6 +179,7 @@ function Grading({ onDashboard }) {
   }, []);
 
   const rows = useMemo(() => buildResults(students, grades), [students, grades]);
+  const sortModeId = SORT_MODES.find((m) => m.sort.key === sort.key && m.sort.dir === sort.dir)?.id || null;
 
   const options = useMemo(() => {
     const uniq = (f) =>
@@ -350,7 +378,7 @@ function Grading({ onDashboard }) {
     if (
       unfinished > 0 &&
       !window.confirm(
-        `${unfinished} elevi din listă nu sunt notați complet (premiile se calculează doar pentru cei notați complet). Exportați oricum?`
+        `${unfinished} elevi din listă nu sunt notați complet (media apare doar la cei notați complet). Exportați oricum?`
       )
     ) {
       return;
@@ -476,32 +504,54 @@ function Grading({ onDashboard }) {
             </button>
           )}
         </div>
+        <div className={styles.sortBar}>
+          <span className={styles.sortLabel}>Ordonează:</span>
+          <div className={styles.sortGroup}>
+            {SORT_MODES.map((m) => (
+              <button
+                key={m.id}
+                className={`${styles.sortButton} ${sortModeId === m.id ? styles.sortActive : ""}`}
+                onClick={() => setSort(m.sort)}
+                title={m.title}
+              >
+                <span className={styles.sortIcon}>{m.icon}</span>
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <div className={styles.quickExport}>
+            <button
+              className={styles.quickExcel}
+              onClick={() => doExport("excel")}
+              disabled={visible.length === 0 || exportCols.length === 0}
+              title="Descarcă exact lista afișată, în ordinea de acum"
+            >
+              📥 Excel
+            </button>
+            <button
+              className={styles.quickPdf}
+              onClick={() => doExport("pdf")}
+              disabled={visible.length === 0 || exportCols.length === 0}
+              title="Descarcă exact lista afișată, în ordinea de acum"
+            >
+              📄 PDF
+            </button>
+          </div>
+        </div>
         <div className={styles.sortInfo}>
-          {visible.length} elevi afișați · Ordonare:{" "}
-          <b>
-            {sort.key === "clasament"
-              ? "clasament (clasă, media descrescător)"
-              : `${TABLE_COLUMNS.find((c) => c.key === sort.key)?.label} ${sort.dir === "asc" ? "crescător" : "descrescător"}`}
-          </b>
-          {sort.key !== "clasament" && (
-            <button
-              className={styles.linkButton}
-              onClick={() => setSort({ key: "clasament", dir: "asc" })}
-            >
-              🏆 Clasament
-            </button>
-          )}
-          {!(sort.key === "cod" && sort.dir === "asc") && (
-            <button
-              className={styles.linkButton}
-              onClick={() => setSort({ key: "cod", dir: "asc" })}
-              title="Ordinea codurilor nu se schimbă în timp ce introduceți note"
-            >
-              🔢 Ordinea codurilor (pentru notare)
-            </button>
-          )}
+          <span>
+            {visible.length} elevi afișați
+            {!sortModeId && (
+              <>
+                {" "}
+                · ordonați după <b>{TABLE_COLUMNS.find((c) => c.key === sort.key)?.label}</b>{" "}
+                {sort.dir === "asc" ? "↑" : "↓"}
+              </>
+            )}
+          </span>
           <span className={styles.hint}>
-            Clic pe capul unei coloane pentru sortare. La note: ← / → trec la subiectul vecin, Enter / ↓ la elevul următor, Esc anulează.
+            Fiecare rând se mută întreg (elev, note, medie, premiu). Poți sorta și cu clic pe capul unei coloane.
+            La note: ← / → subiectul vecin, Enter / ↓ elevul următor, Esc anulează.
           </span>
         </div>
       </div>
