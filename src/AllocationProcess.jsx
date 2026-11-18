@@ -488,6 +488,70 @@ function AllocationProcess({ onBack, onDashboard }) {
             {allocationResult && roomSummaries.length > 0 && (
                 <div className={styles.previewContainer}>
                     <h2 className={styles.subtitle}>🏫 Situația pe săli</h2>
+                    {(() => {
+                        const usedNames = new Set(roomSummaries.map((s) => s.room.name));
+                        const emptyRooms = rooms.filter((r) => !usedNames.has(r.name));
+                        const last = roomSummaries[roomSummaries.length - 1];
+                        const lastFree = last.seats - last.count;
+                        const placed = roomSummaries.reduce((sum, s) => sum + s.count, 0);
+                        const freeUsed = roomSummaries.reduce((sum, s) => sum + Math.max(0, s.seats - s.count), 0);
+                        const freeEmpty = emptyRooms.reduce((sum, r) => sum + (parseInt(r.seats) || 0), 0);
+                        const over = roomSummaries.filter((s) => s.count > s.seats);
+                        const roomLabel = (r) => `${r.name}${r.floor ? ` (${r.floor})` : ""}`;
+                        return (
+                            <div className={styles.allocStats}>
+                                <div className={styles.allocStat}>
+                                    <span className={styles.allocStatIcon}>🧑‍🎓</span>
+                                    <span className={styles.allocStatValue}>{placed}</span>
+                                    <span className={styles.allocStatLabel}>elevi repartizați</span>
+                                </div>
+                                <div className={styles.allocStat}>
+                                    <span className={styles.allocStatIcon}>🚪</span>
+                                    <span className={styles.allocStatValue}>{roomSummaries.length}</span>
+                                    <span className={styles.allocStatLabel}>
+                                        {roomSummaries.length === 1 ? "sală folosită" : "săli folosite"}
+                                    </span>
+                                </div>
+                                <div
+                                    className={`${styles.allocStat} ${
+                                        lastFree > 0 ? styles.allocStatOk : lastFree < 0 ? styles.allocStatBad : ""
+                                    }`}
+                                >
+                                    <span className={styles.allocStatIcon}>🏁</span>
+                                    <span className={styles.allocStatValue}>
+                                        {lastFree > 0 ? `${lastFree} libere` : lastFree < 0 ? `${-lastFree} peste` : "plină"}
+                                    </span>
+                                    <span className={styles.allocStatLabel}>
+                                        ultima sală: <b>{roomLabel(last.room)}</b> ({last.count} / {last.seats})
+                                    </span>
+                                </div>
+                                <div className={styles.allocStat}>
+                                    <span className={styles.allocStatIcon}>🪑</span>
+                                    <span className={styles.allocStatValue}>{emptyRooms.length}</span>
+                                    <span className={styles.allocStatLabel}>
+                                        {emptyRooms.length === 1 ? "sală liberă" : "săli libere"}
+                                        {emptyRooms.length > 0 && ` (${freeEmpty} locuri)`}
+                                    </span>
+                                </div>
+                                <p className={styles.allocStatText}>
+                                    Elevii au fost repartizați în <b>{roomSummaries.length}</b>{" "}
+                                    {roomSummaries.length === 1 ? "sală" : "săli"}.{" "}
+                                    {lastFree > 0
+                                        ? `Ultima sală (${roomLabel(last.room)}) mai are ${lastFree} ${lastFree === 1 ? "loc liber" : "locuri libere"}.`
+                                        : lastFree === 0
+                                        ? `Ultima sală (${roomLabel(last.room)}) este plină.`
+                                        : `Ultima sală (${roomLabel(last.room)}) are ${-lastFree} elevi peste numărul de locuri.`}{" "}
+                                    {emptyRooms.length > 0
+                                        ? `Mai ${emptyRooms.length === 1 ? "este liberă o sală" : `sunt ${emptyRooms.length} săli libere`}: ${emptyRooms.map(roomLabel).join(", ")}.`
+                                        : "Nu mai este nicio sală liberă."}{" "}
+                                    În total mai sunt <b>{freeUsed + freeEmpty}</b> locuri libere
+                                    {freeUsed > 0 && ` (${freeUsed} în sălile folosite)`}.
+                                    {over.length > 0 &&
+                                        ` ⚠️ Peste capacitate: ${over.map((s) => `${s.room.name} (${s.count}/${s.seats})`).join(", ")}.`}
+                                </p>
+                            </div>
+                        );
+                    })()}
                     <div className={styles.resultsTableWrapper}>
                         <table className={styles.resultsTable}>
                             <thead>

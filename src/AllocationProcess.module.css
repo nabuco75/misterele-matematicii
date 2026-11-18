@@ -522,3 +522,60 @@
   cursor: not-allowed;
   transform: none;
 }
+
+/* statistica repartizării */
+.allocStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.allocStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 12px;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #f4f7fc, #e8eef8);
+  border: 1px solid #d8e1ef;
+  text-align: center;
+}
+.allocStatIcon {
+  font-size: 1.8rem;
+}
+.allocStatValue {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #1f3864;
+  line-height: 1.1;
+}
+.allocStatLabel {
+  font-size: 0.9rem;
+  color: #4a5a75;
+}
+.allocStatOk {
+  background: linear-gradient(160deg, #ecfdf3, #d1fadf);
+  border-color: #a6e9c0;
+}
+.allocStatOk .allocStatValue {
+  color: #157f3c;
+}
+.allocStatBad {
+  background: linear-gradient(160deg, #fff1f1, #fde0e0);
+  border-color: #f5b5b5;
+}
+.allocStatBad .allocStatValue {
+  color: #b42318;
+}
+.allocStatText {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #fffbea;
+  border: 1px solid #f3e1a0;
+  color: #3d3a2a;
+  font-size: 1rem;
+  line-height: 1.5;
+}
