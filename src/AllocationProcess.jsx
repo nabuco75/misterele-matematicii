@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import {
+    collection,
+    doc,
+    getDocs,
+    serverTimestamp,
+    writeBatch,
+} from "firebase/firestore";
 import { db } from "./firebase";
 import styles from "./AllocationProcess.module.css";
 import { allocateByClassPairs, CLASS_ORDER, sortRooms } from "./allocation";
@@ -7,7 +13,7 @@ import {
     exportRoomsExcel,
     groupByRoom,
     printRoomsPdf,
-    assignCodes,
+    assignNewCodes,
     exportCodesExcel,
     printCodesPdf,
     CODE_PREFIX,
@@ -30,6 +36,53 @@ const loadHeader = () => {
     return { edition: DEFAULT_EDITION, date: DEFAULT_CONTEST_DATE };
 };
 
+// Codurile de anonimizare sunt salvate în colecția `codes` (un document per cod, id = codul).
+// Un cod dat rămâne al elevului pentru totdeauna; elevii noi continuă numerotarea.
+const CODES_COLLECTION = "codes";
+const normName = (s) =>
+    String(s || "")
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+
+// leagă codurile salvate de elevii actuali: întâi după înscriere + nume; dacă într-o înscriere
+// a rămas exact un cod nelegat și exact un elev fără cod, înseamnă că numele a fost corectat
+// între timp → elevul își păstrează codul.
+const attachCodes = (students, codeDocs) => {
+    const byKey = new Map();
+    codeDocs.forEach((c) => byKey.set(`${c.regId}|${normName(c.nume)}`, c));
+    const used = new Set();
+    const result = students.map((s) => {
+        const c = byKey.get(`${s.regId}|${normName(s.nume)}`);
+        if (c && !used.has(c.cod)) {
+            used.add(c.cod);
+            return { ...s, cod: c.cod };
+        }
+        return s;
+    });
+    const freeByReg = {};
+    codeDocs
+        .filter((c) => !used.has(c.cod))
+        .forEach((c) => (freeByReg[c.regId] = freeByReg[c.regId] || []).push(c));
+    const renamed = [];
+    const withoutByReg = {};
+    result.forEach((s, i) => {
+        if (!s.cod) (withoutByReg[s.regId] = withoutByReg[s.regId] || []).push(i);
+    });
+    Object.entries(withoutByReg).forEach(([regId, idxs]) => {
+        const free = freeByReg[regId] || [];
+        if (idxs.length === 1 && free.length === 1) {
+            result[idxs[0]] = { ...result[idxs[0]], cod: free[0].cod };
+            used.add(free[0].cod);
+            renamed.push({ cod: free[0].cod, nume: result[idxs[0]].nume });
+        }
+    });
+    const orphans = codeDocs.filter((c) => !used.has(c.cod));
+    return { students: result, renamed, orphans };
+};
+
 function AllocationProcess({ onBack, onDashboard }) {
     const [header, setHeader] = useState(loadHeader);
     const [loading, setLoading] = useState(true);
@@ -38,6 +91,9 @@ function AllocationProcess({ onBack, onDashboard }) {
     const [allocationResult, setAllocationResult] = useState(null);
     const [roomSummaries, setRoomSummaries] = useState([]);
     const [message, setMessage] = useState(null);
+    const [lastCodeN, setLastCodeN] = useState(0);
+    const [orphanCodes, setOrphanCodes] = useState([]);
+    const [savingCodes, setSavingCodes] = useState(false);
     const [studentStats, setStudentStats] = useState(
         CLASS_ORDER.reduce((acc, cls) => ({ ...acc, [cls]: 0 }), { total: 0 })
     );
@@ -104,6 +160,7 @@ function AllocationProcess({ onBack, onDashboard }) {
                             scoala: schoolName,
                             profesor: data.profesorIndrumatorEmail || "",
                             id: `${doc.id}-${nume}`,
+                            regId: doc.id,
                         });
 
                         if (stats[studentClass] !== undefined) {
@@ -126,7 +183,28 @@ function AllocationProcess({ onBack, onDashboard }) {
                 });
             });
 
-            setStudents(studentsData);
+            // Coduri de anonimizare deja date
+            let codeDocs = [];
+            try {
+                const codesSnap = await getDocs(collection(db, CODES_COLLECTION));
+                codeDocs = codesSnap.docs.map((d) => ({ cod: d.id, ...d.data() }));
+            } catch (err) {
+                console.error("Eroare la citirea codurilor:", err);
+                showMessage("error", "❌ Codurile de anonimizare nu au putut fi citite.");
+            }
+            setLastCodeN(codeDocs.reduce((m, c) => Math.max(m, c.n || 0), 0));
+            const attached = attachCodes(studentsData, codeDocs);
+            setOrphanCodes(attached.orphans);
+            if (attached.renamed.length > 0) {
+                // numele corectate se actualizează și în borderoul salvat
+                const batch = writeBatch(db);
+                attached.renamed.forEach(({ cod, nume }) =>
+                    batch.update(doc(db, CODES_COLLECTION, cod), { nume })
+                );
+                await batch.commit();
+            }
+
+            setStudents(attached.students);
             setStudentStats({ ...stats, total: studentsData.length });
 
             // Săli
@@ -233,21 +311,66 @@ function AllocationProcess({ onBack, onDashboard }) {
     };
 
     // ====== ANONIMIZARE (coduri MMVS_01 ...) ======
-    const hasCodes = !!allocationResult?.[0]?.cod;
+    const hasCodes = !!allocationResult?.some((s) => s.cod);
+    const withoutCode = allocationResult
+        ? allocationResult.filter((s) => !s.cod).length
+        : students.filter((s) => !s.cod).length;
 
-    const handleGenerateCodes = () => {
-        if (!allocationResult || allocationResult.length === 0) return;
-        setAllocationResult(assignCodes(allocationResult, rooms));
-        showMessage(
-            "success",
-            `✅ Coduri generate: ${CODE_PREFIX}_01 … pentru toți cei ${allocationResult.length} elevi. Descărcați borderoul și bilețelele.`
-        );
+    const handleGenerateCodes = async () => {
+        if (!allocationResult || allocationResult.length === 0 || withoutCode === 0) return;
+        if (
+            !window.confirm(
+                `Se vor da coduri definitive pentru ${withoutCode} elevi, începând cu ${CODE_PREFIX}_${String(lastCodeN + 1).padStart(2, "0")}.\n` +
+                    "Odată date, codurile nu se mai schimbă. Continuați?"
+            )
+        ) {
+            return;
+        }
+        setSavingCodes(true);
+        try {
+            // recitim ultimul cod din baza de date, ca să nu dăm de două ori același număr
+            const codesSnap = await getDocs(collection(db, CODES_COLLECTION));
+            const lastN = codesSnap.docs.reduce((m, d) => Math.max(m, d.data().n || 0), 0);
+            const { allocation, added } = assignNewCodes(allocationResult, rooms, lastN);
+
+            for (let i = 0; i < added.length; i += 400) {
+                const batch = writeBatch(db);
+                added.slice(i, i + 400).forEach((s) =>
+                    batch.set(doc(db, CODES_COLLECTION, s.cod), {
+                        n: s.n,
+                        regId: s.regId,
+                        nume: s.nume,
+                        clasa: s.clasa,
+                        scoala: s.scoala,
+                        profesor: s.profesor,
+                        salaLaAtribuire: s.sala || "",
+                        createdAt: serverTimestamp(),
+                    })
+                );
+                await batch.commit();
+            }
+
+            const codeById = new Map(allocation.map((s) => [s.id, s.cod]));
+            setAllocationResult(allocation);
+            setStudents((prev) => prev.map((s) => (codeById.get(s.id) ? { ...s, cod: codeById.get(s.id) } : s)));
+            setLastCodeN(lastN + added.length);
+            showMessage(
+                "success",
+                `✅ ${added.length} coduri noi salvate (${added[0]?.cod} … ${added[added.length - 1]?.cod}).`
+            );
+        } catch (err) {
+            console.error("Eroare la salvarea codurilor:", err);
+            showMessage("error", "❌ Codurile nu au putut fi salvate. Nu s-a schimbat nimic.");
+        } finally {
+            setSavingCodes(false);
+        }
     };
 
     const handleCodesPdf = (roomName) => {
-        const groups = groupByRoom(allocationResult, rooms).filter(
-            (g) => !roomName || g.room.name === roomName
-        );
+        const groups = groupByRoom(allocationResult, rooms)
+            .filter((g) => !roomName || g.room.name === roomName)
+            .map((g) => ({ ...g, students: g.students.filter((s) => s.cod) }))
+            .filter((g) => g.students.length > 0);
         printCodesPdf(
             groups,
             header,
@@ -406,12 +529,29 @@ function AllocationProcess({ onBack, onDashboard }) {
                     <button
                         onClick={handleGenerateCodes}
                         className={styles.codesButton}
-                        title="Fiecare elev primește un cod, începând cu Sala 1, elevul 1"
+                        disabled={withoutCode === 0 || savingCodes}
+                        title="Elevii fără cod primesc coduri definitive, în ordinea sălilor; cei care au deja cod îl păstrează"
                     >
-                        🔐 {hasCodes ? "Coduri generate" : "Generează coduri anonimizare"}
+                        🔐{" "}
+                        {savingCodes
+                            ? "Se salvează codurile..."
+                            : withoutCode === 0
+                            ? "Toți elevii au cod"
+                            : hasCodes
+                            ? `Dă coduri elevilor noi (${withoutCode})`
+                            : "Generează coduri anonimizare"}
                     </button>
                 )}
             </div>
+
+            {orphanCodes.length > 0 && (
+                <div className={styles.warningMessage}>
+                    ⚠️ {orphanCodes.length} coduri date anterior nu mai au elev corespunzător (înscriere
+                    ștearsă sau elev scos):{" "}
+                    {orphanCodes.map((c) => `${c.cod} (${c.nume})`).join(", ")}. Codurile acestea nu se
+                    refolosesc.
+                </div>
+            )}
 
             {hasCodes && (
                 <div className={styles.actionButtonsContainer}>

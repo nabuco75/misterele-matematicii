@@ -239,20 +239,35 @@ export const printRoomsPdf = (groups, header, fileLabel = "Repartizare_pe_Sali")
 export const CODE_PREFIX = "MMVS";
 const formatCode = (n) => `${CODE_PREFIX}_${String(n).padStart(2, "0")}`;
 
-// Codurile se dau în ordinea listelor de pe uși: Sala 1 elevul 1, 2, ..., apoi sala următoare.
-// Aceeași repartizare dă mereu aceleași coduri.
-export const assignCodes = (allocation, rooms) => {
+// Codurile sunt definitive: elevii care au deja cod îl păstrează. Doar elevii fără cod primesc
+// coduri noi, în ordinea listelor de pe uși (Sala 1 elevul 1, 2, ..., apoi sala următoare),
+// continuând numerotarea de la ultimul cod dat (lastN).
+// Întoarce repartizarea cu coduri și lista codurilor noi (de salvat în baza de date).
+export const assignNewCodes = (allocation, rooms, lastN) => {
   const codes = new Map();
-  let n = 0;
+  const added = [];
+  let n = lastN;
   groupByRoom(allocation, rooms).forEach(({ students }) =>
-    students.forEach((s) => codes.set(s, formatCode(++n)))
+    students.forEach((s) => {
+      if (s.cod) return;
+      const cod = formatCode(++n);
+      codes.set(s, cod);
+      added.push({ ...s, cod, n });
+    })
   );
-  return allocation.map((item) => ({ ...item, cod: codes.get(item) || "" }));
+  return {
+    allocation: allocation.map((item) => (codes.has(item) ? { ...item, cod: codes.get(item) } : item)),
+    added,
+  };
 };
 
 // borderoul cu toate codurile (pentru comisie, la decodificare)
 export const exportCodesExcel = (allocation, rooms, header) => {
-  const rows = groupByRoom(allocation, rooms).flatMap(({ students }) => students);
+  const codeNumber = (cod) => parseInt(cod.slice(CODE_PREFIX.length + 1), 10) || 0;
+  const rows = groupByRoom(allocation, rooms)
+    .flatMap(({ students }) => students)
+    .filter((s) => s.cod)
+    .sort((a, b) => codeNumber(a.cod) - codeNumber(b.cod));
   const data = [
     [CONTEST_TITLE, "", "", "", "", ""],
     [`${editionLine(header)} - Borderou coduri`, "", "", "", "", ""],
