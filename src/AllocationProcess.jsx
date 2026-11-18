@@ -15,7 +15,7 @@ import {
     CLASS_ORDER,
     sortRooms,
 } from "./allocation";
-import { loadAllocation, saveAllocation } from "./allocationStore";
+import { formatWhen, loadAllocation, saveAllocation, saveLastNewCodes } from "./allocationStore";
 import { AllocationLogCard, AllocationStatsView } from "./AllocationLog";
 import {
     exportRoomsExcel,
@@ -334,6 +334,12 @@ function AllocationProcess({ onBack, onDashboard }) {
             setAllocationResult(allocation);
             setStudents((prev) => prev.map((s) => (codeById.get(s.id) ? { ...s, cod: codeById.get(s.id) } : s)));
             setLastCodeN(lastN + added.length);
+            try {
+                const lastNewCodes = await saveLastNewCodes(added.map((s) => s.cod));
+                setSaved((prev) => (prev ? { ...prev, lastNewCodes } : prev));
+            } catch (err) {
+                console.error("Eroare la salvarea listei de coduri noi:", err);
+            }
             showMessage(
                 "success",
                 `${intro ? `${intro} ` : ""}🔐 ${added.length} coduri noi: ${added
@@ -362,6 +368,15 @@ function AllocationProcess({ onBack, onDashboard }) {
             header,
             roomName ? `Coduri_${roomName.replace(/\s+/g, "_")}` : "Coduri_anonimizare"
         );
+    };
+
+    // biletele doar pentru ultimele coduri date (elevii noi)
+    const lastNewCodes = saved?.lastNewCodes?.codes || [];
+    const newCodeSet = new Set(lastNewCodes);
+    const newCodeStudents = (allocationResult || []).filter((s) => s.cod && newCodeSet.has(s.cod));
+    const handleNewCodesPdf = () => {
+        const groups = groupByRoom(newCodeStudents, rooms);
+        printCodesPdf(groups, header, `Coduri_elevi_noi_${lastNewCodes[0]}-${lastNewCodes[lastNewCodes.length - 1]}`);
     };
 
     // ====== RENDER ======
@@ -565,6 +580,21 @@ function AllocationProcess({ onBack, onDashboard }) {
                     >
                         ✂️ Bilețele cu coduri – toate sălile (PDF)
                     </button>
+                    {newCodeStudents.length > 0 && (
+                        <button
+                            onClick={handleNewCodesPdf}
+                            className={styles.newStudentsButton}
+                            title={`Codurile date pe ${formatWhen(saved.lastNewCodes.at)}: ${newCodeStudents
+                                .map((s) => `${s.cod} – ${s.nume}`)
+                                .join(", ")}`}
+                        >
+                            ✂️ Bilețele doar pentru elevii noi ({newCodeStudents.length}:{" "}
+                            {newCodeStudents.length === 1
+                                ? newCodeStudents[0].cod
+                                : `${lastNewCodes[0]} … ${lastNewCodes[lastNewCodes.length - 1]}`}
+                            )
+                        </button>
+                    )}
                     <button
                         onClick={() => exportCodesExcel(allocationResult, rooms, header)}
                         className={styles.exportButton}

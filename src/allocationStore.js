@@ -22,7 +22,15 @@ export const loadAllocation = async () => {
     assignments: new Map((data.assignments || []).map((a) => [a.id, a.sala])),
     last: data.history?.[0] || null,
     history: data.history || [],
+    lastNewCodes: data.lastNewCodes || null,
   };
+};
+
+// ultimele coduri date (pentru biletele „doar elevii noi”)
+export const saveLastNewCodes = async (codes) => {
+  const lastNewCodes = { at: new Date().toISOString(), codes };
+  await setDoc(allocationDoc(), { lastNewCodes }, { merge: true });
+  return lastNewCodes;
 };
 
 export const saveAllocation = async ({ data, roomSummaries, rooms, type, added = 0, previous }) => {
@@ -33,14 +41,19 @@ export const saveAllocation = async ({ data, roomSummaries, rooms, type, added =
     ...allocationStats(roomSummaries, rooms),
   };
   const history = [entry, ...(previous?.history || [])].slice(0, HISTORY_LIMIT);
-  await setDoc(allocationDoc(), {
-    assignments: data.map((s) => ({ id: s.id, sala: s.sala })),
-    history,
-  });
+  await setDoc(
+    allocationDoc(),
+    {
+      assignments: data.map((s) => ({ id: s.id, sala: s.sala })),
+      history,
+    },
+    { merge: true }
+  );
   return {
     assignments: new Map(data.map((s) => [s.id, s.sala])),
     last: entry,
     history,
+    lastNewCodes: previous?.lastNewCodes || null,
   };
 };
 
