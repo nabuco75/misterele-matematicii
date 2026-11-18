@@ -2,17 +2,15 @@ import React, { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
 import styles from "./AllocationProcess.module.css";
-import * as FileSaver from "file-saver";
-import * as XLSX from "xlsx";
-
-const CLASS_ORDER = ["a IV-a", "a V-a", "a VI-a", "a VII-a"];
-const DEFAULT_COLS = 7;
+import { allocateByClassPairs, CLASS_ORDER } from "./allocation";
+import { exportRoomsExcel, groupByRoom, printRoomsPdf, CLASS_COLORS } from "./roomLists";
 
 function AllocationProcess({ onBack }) {
     const [loading, setLoading] = useState(true);
     const [students, setStudents] = useState([]);
     const [rooms, setRooms] = useState([]);
     const [allocationResult, setAllocationResult] = useState(null);
+    const [roomSummaries, setRoomSummaries] = useState([]);
     const [message, setMessage] = useState(null);
     const [studentStats, setStudentStats] = useState(
         CLASS_ORDER.reduce((acc, cls) => ({ ...acc, [cls]: 0 }), { total: 0 })
@@ -111,212 +109,6 @@ function AllocationProcess({ onBack }) {
         }
     };
 
-    // ====== HELPERI PENTRU LOGICA DE AȘEZARE ======
-
-    // generăm structura cu săli, matrice și poziții „șarpe”
-    const buildRoomStates = () => {
-        const roomStates = [];
-
-        for (const room of rooms) {
-            const totalRoomSeats = parseInt(room.seats) || 0;
-            const cols = parseInt(room.cols) || DEFAULT_COLS;
-            const rows =
-                parseInt(room.rows) || Math.ceil(totalRoomSeats / cols);
-
-            const matrix = {};
-            const positions = [];
-
-            for (let r = 1; r <= rows; r++) {
-                matrix[r] = {};
-                const isOddRow = r % 2 !== 0;
-
-                if (isOddRow) {
-                    for (let c = 1; c <= cols; c++) {
-                        positions.push([r, c]);
-                    }
-                } else {
-                    for (let c = cols; c >= 1; c--) {
-                        positions.push([r, c]);
-                    }
-                }
-            }
-
-            const validPositions = positions.slice(0, totalRoomSeats);
-
-            roomStates.push({
-                room,
-                rows,
-                cols,
-                matrix,
-                positions: validPositions,
-            });
-        }
-
-        return roomStates;
-    };
-
-    // verificare strictă (lateral + vertical)
-    const isValidPlacementStrict = (matrix, row, col, studentClass, cols) => {
-        const isOddRow = row % 2 !== 0;
-
-        // lateral în „șarpe”
-        if (isOddRow && col > 1) {
-            if (matrix[row]?.[col - 1] === studentClass) return false;
-        } else if (!isOddRow && col < cols) {
-            if (matrix[row]?.[col + 1] === studentClass) return false;
-        }
-
-        // deasupra
-        if (row > 1) {
-            if (matrix[row - 1]?.[col] === studentClass) return false;
-        }
-
-        return true;
-    };
-
-    // verificare relaxată (doar lateral)
-    const isValidPlacementLoose = (matrix, row, col, studentClass, cols) => {
-        const isOddRow = row % 2 !== 0;
-
-        if (isOddRow && col > 1) {
-            if (matrix[row]?.[col - 1] === studentClass) return false;
-        } else if (!isOddRow && col < cols) {
-            if (matrix[row]?.[col + 1] === studentClass) return false;
-        }
-
-        return true;
-    };
-
-    // algoritm global: parcurge TOATE locurile din toate sălile
-    const runGlobalAllocation = () => {
-        const roomStates = buildRoomStates();
-
-        // pool-uri pe clase – păstrăm ordinea alfabetică în interiorul fiecărei clase
-        const classPools = {};
-        const remainingByClass = {};
-
-        CLASS_ORDER.forEach((cls) => {
-            const arr = students.filter((s) => s.clasa === cls);
-            classPools[cls] = arr;
-            remainingByClass[cls] = arr.length;
-        });
-
-        const totalStudents = students.length;
-        const allPositions = [];
-        const roomAllocatedCount = {};
-        const distributedData = [];
-
-        // listă globală cu (sala, r, c)
-        roomStates.forEach((state) => {
-            state.positions.forEach(([r, c]) => {
-                allPositions.push({ state, r, c });
-            });
-        });
-
-        const totalSeats = allPositions.length;
-
-        const getRemainingTotal = () =>
-            CLASS_ORDER.reduce(
-                (sum, cls) => sum + (remainingByClass[cls] || 0),
-                0
-            );
-
-        const placeStudent = (student, cls, state, r, c) => {
-            const { room, matrix } = state;
-            matrix[r][c] = cls;
-
-            roomAllocatedCount[room.name] =
-                (roomAllocatedCount[room.name] || 0) + 1;
-
-            distributedData.push({
-                ...student,
-                sala: room.name,
-                rand: r,
-                loc: c,
-                loc_in_sala: roomAllocatedCount[room.name],
-            });
-
-            remainingByClass[cls]--;
-        };
-
-        // ====== FAZA 1 – STRICTĂ ======
-        for (const { state, r, c } of allPositions) {
-            if (getRemainingTotal() === 0) break;
-            const { matrix, cols } = state;
-            if (matrix[r][c]) continue;
-
-            let placed = false;
-
-            // ordinea claselor: cele cu mai mulți elevi rămași primele
-            const classesByNeed = [...CLASS_ORDER].sort(
-                (a, b) => (remainingByClass[b] || 0) - (remainingByClass[a] || 0)
-            );
-
-            for (const cls of classesByNeed) {
-                if (!remainingByClass[cls]) continue;
-
-                if (!isValidPlacementStrict(matrix, r, c, cls, cols))
-                    continue;
-
-                const student = classPools[cls].shift();
-                if (!student) continue;
-
-                placeStudent(student, cls, state, r, c);
-                placed = true;
-                break;
-            }
-
-            // dacă nu am reușit cu reguli stricte, locul rămâne liber pentru faza 2
-        }
-
-        // ====== FAZA 2 – RELAXATĂ (doar lateral) ======
-        if (getRemainingTotal() > 0) {
-            for (const { state, r, c } of allPositions) {
-                if (getRemainingTotal() === 0) break;
-                const { matrix, cols } = state;
-                if (matrix[r][c]) continue;
-
-                let placed = false;
-
-                for (const cls of CLASS_ORDER) {
-                    if (!remainingByClass[cls]) continue;
-
-                    if (!isValidPlacementLoose(matrix, r, c, cls, cols))
-                        continue;
-
-                    const student = classPools[cls].shift();
-                    if (!student) continue;
-
-                    placeStudent(student, cls, state, r, c);
-                    placed = true;
-                    break;
-                }
-            }
-        }
-
-        // ====== FAZA 3 – FALLBACK TOTAL: nu lăsăm copii pe dinafară dacă sunt locuri ======
-        if (getRemainingTotal() > 0 && totalSeats >= totalStudents) {
-            for (const { state, r, c } of allPositions) {
-                if (getRemainingTotal() === 0) break;
-                const { matrix } = state;
-                if (matrix[r][c]) continue;
-
-                const cls = CLASS_ORDER.find((cl) => remainingByClass[cl] > 0);
-                if (!cls) break;
-
-                const student = classPools[cls].shift();
-                if (!student) break;
-
-                placeStudent(student, cls, state, r, c);
-            }
-        }
-
-        const unallocated = getRemainingTotal();
-        const allocated = totalStudents - unallocated;
-
-        return { data: distributedData, allocated, unallocated };
-    };
-
     // ====== GENEREAZĂ REPARTIZARE ======
     const handleGenerateAllocation = async () => {
         setLoading(true);
@@ -352,9 +144,10 @@ function AllocationProcess({ onBack }) {
         }
 
         try {
-            const result = runGlobalAllocation();
+            const result = allocateByClassPairs(students, rooms);
 
             setAllocationResult(result.data);
+            setRoomSummaries(result.roomSummaries);
 
             if (result.unallocated === 0) {
                 showMessage(
@@ -375,66 +168,25 @@ function AllocationProcess({ onBack }) {
         }
     };
 
-    // ====== EXPORT EXCEL (fără rand/loc, sortare pe clasă + nume) ======
+    // ====== EXPORT LISTE PE SĂLI (Excel + PDF, cu antet) ======
     const handleExportExcel = () => {
         if (!allocationResult || allocationResult.length === 0) {
             showMessage("warning", "Nu există date de repartizare pentru export!");
             return;
         }
-
-        const groupedByRoom = allocationResult.reduce((acc, item) => {
-            const sala = item.sala;
-            if (!acc[sala]) acc[sala] = [];
-            acc[sala].push(item);
-            return acc;
-        }, {});
-
-        const workbook = XLSX.utils.book_new();
-        const roomNames = Object.keys(groupedByRoom).sort((a, b) =>
-            a.localeCompare(b, undefined, { numeric: true })
-        );
-
-        roomNames.forEach((sala) => {
-            let studentsInRoom = groupedByRoom[sala];
-
-            // sortare după CLASĂ (în ordinea CLASS_ORDER) + NUME
-            studentsInRoom.sort((a, b) => {
-                const classAIndex = CLASS_ORDER.indexOf(a.clasa);
-                const classBIndex = CLASS_ORDER.indexOf(b.clasa);
-
-                if (classAIndex !== classBIndex)
-                    return classAIndex - classBIndex;
-
-                return a.nume.localeCompare(b.nume, "ro", {
-                    sensitivity: "base",
-                });
-            });
-
-            const sheetData = studentsInRoom.map((item, index) => ({
-                "Nr. Crt.": index + 1,
-                "Numele și Prenumele elevului": item.nume,
-                Clasa: item.clasa,
-                "Numele Școlii Participante": item.scoala,
-                "Profesor îndrumător": item.profesor,
-            }));
-
-            const ws = XLSX.utils.json_to_sheet(sheetData);
-            XLSX.utils.book_append_sheet(workbook, ws, sala);
-        });
-
-        const excelBuffer = XLSX.write(workbook, {
-            bookType: "xlsx",
-            type: "array",
-        });
-        const data = new Blob([excelBuffer], {
-            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8",
-        });
-        FileSaver.saveAs(
-            data,
-            `Repartizare_pe_Sali_${new Date().toISOString().slice(0, 10)}.xlsx`
-        );
-
+        exportRoomsExcel(groupByRoom(allocationResult, rooms));
         showMessage("success", "✅ Exportul Excel a fost finalizat!");
+    };
+
+    const handleExportPdf = (roomName) => {
+        if (!allocationResult || allocationResult.length === 0) {
+            showMessage("warning", "Nu există date de repartizare pentru export!");
+            return;
+        }
+        const groups = groupByRoom(allocationResult, rooms).filter(
+            (g) => !roomName || g.room.name === roomName
+        );
+        printRoomsPdf(groups, roomName ? `Lista_${roomName.replace(/s+/g, "_")}` : "Repartizare_pe_Sali");
     };
 
     // ====== RENDER ======
@@ -544,7 +296,66 @@ function AllocationProcess({ onBack }) {
                         📥 Descarcă Excel ({allocationResult.length} elevi)
                     </button>
                 )}
+
+                {allocationResult && (
+                    <button
+                        onClick={() => handleExportPdf()}
+                        className={styles.pdfButton}
+                    >
+                        📄 Liste pentru uși (PDF)
+                    </button>
+                )}
             </div>
+
+            {allocationResult && roomSummaries.length > 0 && (
+                <div className={styles.previewContainer}>
+                    <h2 className={styles.subtitle}>🏫 Situația pe săli</h2>
+                    <div className={styles.resultsTableWrapper}>
+                        <table className={styles.resultsTable}>
+                            <thead>
+                                <tr>
+                                    <th>Sală</th>
+                                    <th>Ocupare</th>
+                                    <th>Clase</th>
+                                    <th>Listă</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {roomSummaries.map((s) => (
+                                    <tr key={s.room.id || s.room.name}>
+                                        <td style={{ fontWeight: "bold" }}>
+                                            {s.room.name}
+                                            {s.room.floor ? ` (${s.room.floor})` : ""}
+                                        </td>
+                                        <td>
+                                            {s.count} / {s.seats}
+                                        </td>
+                                        <td>
+                                            {CLASS_ORDER.filter((c) => s.perClass[c]).map((c) => (
+                                                <span
+                                                    key={c}
+                                                    className={styles.classChip}
+                                                    style={{ background: `#${CLASS_COLORS[c]}` }}
+                                                >
+                                                    {s.perClass[c]} × {c}
+                                                </span>
+                                            ))}
+                                        </td>
+                                        <td>
+                                            <button
+                                                onClick={() => handleExportPdf(s.room.name)}
+                                                className={styles.smallPdfButton}
+                                            >
+                                                📄 PDF
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {allocationResult && (
                 <div className={styles.previewContainer}>

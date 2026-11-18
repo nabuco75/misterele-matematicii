@@ -343,3 +343,66 @@
 .resultsTableWrapper::-webkit-scrollbar-thumb:hover {
   background: #95a5a6;
 }
+/* Repartizare pe săli: buton PDF, situația pe săli */
+.warningMessage {
+  color: #b45309;
+  font-weight: bold;
+  margin: 15px 0;
+  background-color: #fff7ed;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #fcd34d;
+  text-align: center;
+  max-width: 800px;
+  width: 100%;
+  font-size: 1.1rem;
+}
+
+.pdfButton {
+  background-color: #c0392b;
+  color: white;
+  padding: 18px 40px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 1.3rem;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 20px rgba(192, 57, 43, 0.4);
+}
+
+.pdfButton:hover {
+  background-color: #a93226;
+  transform: translateY(-3px);
+}
+
+.smallPdfButton {
+  background-color: #c0392b;
+  color: white;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.smallPdfButton:hover {
+  background-color: #a93226;
+}
+
+.classChip {
+  display: inline-block;
+  padding: 3px 10px;
+  margin: 2px 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  color: #2c3e50;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .pdfButton {
+    width: 100%;
+  }
+}
