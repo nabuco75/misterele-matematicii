@@ -40,6 +40,13 @@ export const parseScore = (raw) => {
   return { value: Math.round(value * 100) / 100 };
 };
 
+// media mereu cu 2 zecimale: 8 → „8,00”, 7.6667 → „7,67”
+export const formatMedia = (v) =>
+  typeof v === "number" && !Number.isNaN(v) ? v.toFixed(2).replace(".", ",") : "";
+
+// treapta mediei, pentru culoare: ≥ 9, ≥ 7, ≥ 5, sub 5
+export const mediaTier = (v) => (v >= 9 ? "top" : v >= 7 ? "good" : v >= 5 ? "mid" : "low");
+
 // 8.5 → „8,5”
 export const formatScore = (v) =>
   v === null || v === undefined || v === "" ? "" : String(v).replace(".", ",");

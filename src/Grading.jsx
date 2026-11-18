@@ -1,6 +1,6 @@
 // Notare și rezultate: introducerea punctajelor, premii automate, filtre, sortări, exporturi.
 import React, { useEffect, useMemo, useState } from "react";
-import { collection, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, doc, onSnapshot, serverTimestamp, setDoc, writeBatch } from "firebase/firestore";
 import { db } from "./firebase";
 import styles from "./Grading.module.css";
 import { CLASS_ORDER } from "./allocation";
@@ -14,6 +14,8 @@ import {
   classRank,
   compareRanking,
   formatScore,
+  formatMedia,
+  mediaTier,
   parseScore,
 } from "./grading";
 import { EXPORT_COLUMNS, exportResultsExcel, printResultsPdf } from "./gradingExport";
@@ -242,6 +244,40 @@ function Grading({ onDashboard }) {
       }),
     [rows]
   );
+
+  // ====== ȘTERGERE TOATE NOTELE ======
+  const [deleting, setDeleting] = useState(false);
+  const gradedCount = Object.keys(grades).length;
+  const deleteAllGrades = async () => {
+    if (gradedCount === 0) return;
+    const answer = window.prompt(
+      `Se vor șterge DEFINITIV toate notele (${gradedCount} elevi), cu medii, premii și absenți.\n` +
+        "Nu se poate anula.\n\nScrieți STERGE ca să confirmați:"
+    );
+    if (answer === null) return;
+    if (answer.trim().toUpperCase().replace("Ș", "S") !== "STERGE") {
+      window.alert("Nu ați scris STERGE. Nu s-a șters nimic.");
+      return;
+    }
+    setDeleting(true);
+    try {
+      const ids = Object.keys(grades);
+      for (let i = 0; i < ids.length; i += 400) {
+        const batch = writeBatch(db);
+        ids.slice(i, i + 400).forEach((id) => batch.delete(doc(db, GRADES_COLLECTION, id)));
+        await batch.commit();
+      }
+      setDrafts({});
+      setCellErrors({});
+      setSaveError(null);
+      window.alert(`✅ Au fost șterse notele a ${ids.length} elevi.`);
+    } catch (err) {
+      console.error("Eroare la ștergerea notelor:", err);
+      setSaveError("Notele nu au putut fi șterse. Verificați conexiunea și încercați din nou.");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // ====== SALVARE ======
   const save = async (row, fields) => {
@@ -627,8 +663,23 @@ function Grading({ onDashboard }) {
                     );
                   })}
                   <td className={styles.total}>
-                    {r.absent ? "absent" : formatScore(r.media)}
-                    {r.stare === "incomplet" && <span className={styles.muted}>incomplet</span>}
+                    {r.absent ? (
+                      <span className={styles.mediaAbsent}>absent</span>
+                    ) : r.media !== null ? (
+                      <span
+                        className={`${styles.mediaPill} ${styles[`media_${mediaTier(r.media)}`]}`}
+                        style={{ "--p": `${Math.min(100, r.media * 10)}%` }}
+                        title={`Media ${formatMedia(r.media)} (din ${SUBJECTS.length} subiecte)`}
+                      >
+                        {formatMedia(r.media)}
+                      </span>
+                    ) : r.stare === "incomplet" ? (
+                      <span className={styles.mediaPending} title="Lipsesc note la unele subiecte">
+                        incomplet
+                      </span>
+                    ) : (
+                      <span className={styles.mediaEmpty}>—</span>
+                    )}
                   </td>
                   <td className={styles.award}>
                     <select
@@ -737,6 +788,20 @@ function Grading({ onDashboard }) {
             📄 Descarcă PDF
           </button>
         </div>
+      </div>
+
+      {/* ștergerea tuturor notelor */}
+      <div className={styles.dangerPanel}>
+        <div>
+          <h2 className={styles.dangerTitle}>🧹 Pornește notarea de la zero</h2>
+          <p className={styles.dangerText}>
+            Șterge <b>toate notele</b> ({gradedCount} {gradedCount === 1 ? "elev notat" : "elevi notați"}), deci și
+            mediile, premiile și bifele de absent. Elevii, codurile și repartizarea rămân neatinse.
+          </p>
+        </div>
+        <button className={styles.dangerButton} onClick={deleteAllGrades} disabled={deleting || gradedCount === 0}>
+          {deleting ? "Se șterge..." : "🗑️ Șterge toate notele"}
+        </button>
       </div>
     </div>
   );

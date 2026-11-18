@@ -2,7 +2,7 @@
 import XLSX from "xlsx-js-style";
 import * as FileSaver from "file-saver";
 import { CONTEST_TITLE, ORGANIZER, editionLine, escapeHtml, openPrintWindow } from "./roomLists";
-import { SUBJECTS, formatScore, classRank } from "./grading";
+import { SUBJECTS, formatScore, formatMedia, classRank } from "./grading";
 
 // toate coloanele posibile; `numeric` → celulă număr în Excel (se poate sorta/calcula)
 export const EXPORT_COLUMNS = [
@@ -85,12 +85,15 @@ export const exportResultsExcel = (rows, { columns, byClass, header, subtitle, f
         if (r === 0) ws[ref].s = style({ bold: true, size: 13 });
         else if (r === 1) ws[ref].s = style({ fill: "D9D9D9", bold: true, size: 12 });
         else if (r === 2) ws[ref].s = style({ fill: "D6DCE4", bold: true });
-        else
+        else {
           ws[ref].s = style({
             fill: (r - 3) % 2 ? "F2F2F2" : "FFFFFF",
             bold: !!col.bold,
             left: !!col.left,
           });
+          // media cu 2 zecimale în Excel (rămâne număr, se poate sorta / calcula)
+          if (col.key === "media" && ws[ref].t === "n") ws[ref].z = "0.00";
+        }
       })
     );
 
@@ -114,7 +117,8 @@ export const exportResultsExcel = (rows, { columns, byClass, header, subtitle, f
 export const printResultsPdf = (rows, { columns, byClass, header, subtitle, fileLabel }) => {
   const cols = EXPORT_COLUMNS.filter((c) => columns.includes(c.key));
   const landscape = cols.length >= 9;
-  const fmt = (v) => (typeof v === "number" ? formatScore(v) : escapeHtml(v));
+  const fmt = (v, key) =>
+    typeof v === "number" ? (key === "media" ? formatMedia(v) : formatScore(v)) : escapeHtml(v);
 
   const pages = splitGroups(rows, byClass)
     .map(
@@ -134,7 +138,8 @@ ${editionLine(header) ? `<div class="edition">${escapeHtml(editionLine(header))}
               .map(
                 (c) =>
                   `<td class="${[c.bold && "b", c.left && "l"].filter(Boolean).join(" ")}">${fmt(
-                    cellValue(r, c.key, i)
+                    cellValue(r, c.key, i),
+                    c.key
                   )}</td>`
               )
               .join("")}</tr>`
