@@ -25,28 +25,28 @@ const PRESETS = [
   {
     id: "afisare",
     label: "📢 Afișare pe coduri (fără nume)",
-    columns: ["nr", "cod", "s1", "s2", "s3", "total", "premiu"],
+    columns: ["nr", "cod", "s1", "s2", "s3", "media", "premiu"],
     subtitle: "Rezultate",
     premiu: "",
   },
   {
     id: "borderou",
     label: "📋 Borderou complet (cod + nume)",
-    columns: ["nr", "cod", "nume", "s1", "s2", "s3", "total", "media", "premiu", "scoala", "profesor"],
+    columns: ["nr", "cod", "nume", "s1", "s2", "s3", "media", "premiu", "scoala", "profesor"],
     subtitle: "",
     premiu: "",
   },
   {
     id: "nume",
     label: "🧑‍🎓 Rezultate cu nume (fără coduri)",
-    columns: ["nr", "nume", "s1", "s2", "s3", "total", "media", "premiu", "scoala", "profesor"],
+    columns: ["nr", "nume", "s1", "s2", "s3", "media", "premiu", "scoala", "profesor"],
     subtitle: "Rezultate",
     premiu: "",
   },
   {
     id: "premiati",
     label: "🏆 Lista premianților",
-    columns: ["nr", "nume", "premiu", "total", "scoala", "profesor"],
+    columns: ["nr", "nume", "premiu", "media", "scoala", "profesor"],
     subtitle: "Lista premianților",
     premiu: "premiati",
   },
@@ -93,7 +93,6 @@ const TABLE_COLUMNS = [
   { key: "nume", label: "Nume și prenume", defaultDir: "asc" },
   { key: "clasa", label: "Clasa", defaultDir: "asc" },
   ...SUBJECTS.map((s) => ({ key: s.key, label: s.label, defaultDir: "desc", input: true })),
-  { key: "total", label: "Total", defaultDir: "desc" },
   { key: "media", label: "Media", defaultDir: "desc" },
   { key: "premiu", label: "Premiu", defaultDir: "asc" },
   { key: "absent", label: "Abs.", title: "Absent", noSort: true },
@@ -481,7 +480,7 @@ function Grading({ onDashboard }) {
           {visible.length} elevi afișați · Ordonare:{" "}
           <b>
             {sort.key === "clasament"
-              ? "clasament (clasă, total descrescător)"
+              ? "clasament (clasă, media descrescător)"
               : `${TABLE_COLUMNS.find((c) => c.key === sort.key)?.label} ${sort.dir === "asc" ? "crescător" : "descrescător"}`}
           </b>
           {sort.key !== "clasament" && (
@@ -558,10 +557,9 @@ function Grading({ onDashboard }) {
                     );
                   })}
                   <td className={styles.total}>
-                    {r.absent ? "absent" : formatScore(r.total)}
-                    {r.stare === "incomplet" && <span className={styles.muted}> (incomplet)</span>}
+                    {r.absent ? "absent" : formatScore(r.media)}
+                    {r.stare === "incomplet" && <span className={styles.muted}>incomplet</span>}
                   </td>
-                  <td>{r.absent ? "" : formatScore(r.media)}</td>
                   <td className={styles.award}>
                     <select
                       className={styles.awardSelect}

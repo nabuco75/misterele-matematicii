@@ -12,8 +12,7 @@ export const EXPORT_COLUMNS = [
   { key: "nume", label: "Numele și prenumele", wch: 30, left: true },
   { key: "clasa", label: "Clasa", wch: 9 },
   ...SUBJECTS.map((s) => ({ key: s.key, label: s.label, wch: 8, numeric: true })),
-  { key: "total", label: "TOTAL", wch: 9, numeric: true, bold: true },
-  { key: "media", label: "Media", wch: 8, numeric: true },
+  { key: "media", label: "Media", wch: 9, numeric: true, bold: true },
   { key: "premiu", label: "Premiul", wch: 9, bold: true },
   { key: "scoala", label: "Numele școlii participante", wch: 40 },
   { key: "profesor", label: "Profesor îndrumător", wch: 28 },
@@ -23,8 +22,7 @@ export const EXPORT_COLUMNS = [
 const cellValue = (row, key, index) => {
   if (key === "nr") return index + 1;
   if (key === "sala") return row.salaCod || "";
-  if (key === "total") return row.absent ? "absent" : row.total;
-  if (key === "media") return row.absent ? "" : row.media;
+  if (key === "media") return row.absent ? "absent" : row.media;
   if (row.absent && SUBJECTS.some((s) => s.key === key)) return "";
   return row[key] ?? "";
 };
