@@ -19,7 +19,7 @@ const DEFAULT_ROOMS = [
     { name: "Sala 19", floor: "Etaj II", seats: 5, rows: 3, cols: 2 }, // Ex: foarte mic
 ];
 
-function RoomAllocation({ onNextStep }) {
+function RoomAllocation({ onNextStep, onCancel }) {
     const [rooms, setRooms] = useState([]);
     const [showAddRoomForm, setShowAddRoomForm] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -190,6 +190,11 @@ function RoomAllocation({ onNextStep }) {
             )}
 
             <div className={styles.buttonContainer}>
+                {onCancel && (
+                    <button onClick={onCancel} className={styles.dashboardButton}>
+                        ← Panou Admin
+                    </button>
+                )}
                 <button
                     onClick={() => {
                         if (showAddRoomForm && !isEditing) {

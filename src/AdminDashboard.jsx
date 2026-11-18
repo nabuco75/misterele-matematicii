@@ -1,5 +1,6 @@
 // AdminDashboard.jsx
 import React, { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   collection,
   getDocs,
@@ -24,6 +25,12 @@ function AdminDashboard() {
   // 1. STARE NAVIGARE
   // 'dashboard' | 'rooms' | 'allocation'
   const [currentView, setCurrentView] = useState("dashboard");
+  const location = useLocation();
+
+  // butonul „Admin Dashboard” din bara de sus readuce panoul principal din orice ecran
+  useEffect(() => {
+    if (location.state?.backToDashboard) setCurrentView("dashboard");
+  }, [location.state]);
   // ------------------------------------------------------------------
 
   // —— Școli / selecție / form școală
@@ -1137,7 +1144,10 @@ function AdminDashboard() {
   // 2. VIZUALIZARE PROCES REPARTIZARE
   if (currentView === "allocation") {
     return (
-      <AllocationProcess onBack={() => setCurrentView("rooms")} />
+      <AllocationProcess
+        onBack={() => setCurrentView("rooms")}
+        onDashboard={() => setCurrentView("dashboard")}
+      />
     );
   }
 

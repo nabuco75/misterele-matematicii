@@ -24,7 +24,8 @@ function NavBar() {
   };
 
   const handleAdminDashboardClick = () => {
-    navigate("/admin");
+    // și de pe /admin (din Săli sau Repartizare) ne întoarce la panoul principal
+    navigate("/admin", { state: { backToDashboard: Date.now() } });
     setIsMenuOpen(false);
   };
 
@@ -60,7 +61,7 @@ function NavBar() {
           Acasă
         </button>
 
-        {currentUser && location.pathname !== "/admin" && (
+        {currentUser && (
           <button onClick={handleAdminDashboardClick} className={styles.navButton}>
             Admin Dashboard
           </button>

@@ -26,7 +26,7 @@ const loadHeader = () => {
     return { edition: DEFAULT_EDITION, date: DEFAULT_CONTEST_DATE };
 };
 
-function AllocationProcess({ onBack }) {
+function AllocationProcess({ onBack, onDashboard }) {
     const [header, setHeader] = useState(loadHeader);
     const [loading, setLoading] = useState(true);
     const [students, setStudents] = useState([]);
@@ -261,6 +261,11 @@ function AllocationProcess({ onBack }) {
             )}
 
             <div className={styles.buttonContainer}>
+                {onDashboard && (
+                    <button onClick={onDashboard} className={styles.backButton}>
+                        ← Panou Admin
+                    </button>
+                )}
                 <button onClick={onBack} className={styles.backButton}>
                     ← Înapoi la Configurare Săli
                 </button>
