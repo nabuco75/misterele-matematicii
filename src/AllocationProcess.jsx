@@ -7,6 +7,10 @@ import {
     exportRoomsExcel,
     groupByRoom,
     printRoomsPdf,
+    assignCodes,
+    exportCodesExcel,
+    printCodesPdf,
+    CODE_PREFIX,
     CLASS_COLORS,
     DEFAULT_EDITION,
     DEFAULT_CONTEST_DATE,
@@ -228,6 +232,29 @@ function AllocationProcess({ onBack, onDashboard }) {
         );
     };
 
+    // ====== ANONIMIZARE (coduri MMVS_01 ...) ======
+    const hasCodes = !!allocationResult?.[0]?.cod;
+
+    const handleGenerateCodes = () => {
+        if (!allocationResult || allocationResult.length === 0) return;
+        setAllocationResult(assignCodes(allocationResult, rooms));
+        showMessage(
+            "success",
+            `✅ Coduri generate: ${CODE_PREFIX}_01 … pentru toți cei ${allocationResult.length} elevi. Descărcați borderoul și bilețelele.`
+        );
+    };
+
+    const handleCodesPdf = (roomName) => {
+        const groups = groupByRoom(allocationResult, rooms).filter(
+            (g) => !roomName || g.room.name === roomName
+        );
+        printCodesPdf(
+            groups,
+            header,
+            roomName ? `Coduri_${roomName.replace(/\s+/g, "_")}` : "Coduri_anonimizare"
+        );
+    };
+
     // ====== RENDER ======
     if (loading) {
         return <div className={styles.loading}>Se încarcă datele...</div>;
@@ -374,7 +401,34 @@ function AllocationProcess({ onBack, onDashboard }) {
                         📄 Liste pentru uși (PDF)
                     </button>
                 )}
+
+                {allocationResult && (
+                    <button
+                        onClick={handleGenerateCodes}
+                        className={styles.codesButton}
+                        title="Fiecare elev primește un cod, începând cu Sala 1, elevul 1"
+                    >
+                        🔐 {hasCodes ? "Coduri generate" : "Generează coduri anonimizare"}
+                    </button>
+                )}
             </div>
+
+            {hasCodes && (
+                <div className={styles.actionButtonsContainer}>
+                    <button
+                        onClick={() => handleCodesPdf()}
+                        className={styles.codesButton}
+                    >
+                        ✂️ Bilețele cu coduri – toate sălile (PDF)
+                    </button>
+                    <button
+                        onClick={() => exportCodesExcel(allocationResult, rooms, header)}
+                        className={styles.exportButton}
+                    >
+                        📥 Borderou coduri (Excel)
+                    </button>
+                </div>
+            )}
 
             {allocationResult && roomSummaries.length > 0 && (
                 <div className={styles.previewContainer}>
@@ -426,6 +480,17 @@ function AllocationProcess({ onBack, onDashboard }) {
                                             >
                                                 📥 Excel
                                             </button>
+                                            {hasCodes && (
+                                                <>
+                                                    {" "}
+                                                    <button
+                                                        onClick={() => handleCodesPdf(s.room.name)}
+                                                        className={styles.smallCodesButton}
+                                                    >
+                                                        ✂️ Coduri
+                                                    </button>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
@@ -451,6 +516,7 @@ function AllocationProcess({ onBack, onDashboard }) {
                                     <th>Școala</th>
                                     <th>Profesor</th>
                                     <th>Sală</th>
+                                    {hasCodes && <th>Cod</th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -469,6 +535,11 @@ function AllocationProcess({ onBack, onDashboard }) {
                                         >
                                             {item.sala}
                                         </td>
+                                        {hasCodes && (
+                                            <td style={{ fontWeight: "bold", fontFamily: "monospace" }}>
+                                                {item.cod}
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>

@@ -232,8 +232,110 @@ ${pages}
 </body></html>`;
 };
 
-export const printRoomsPdf = (groups, header, fileLabel = "Repartizare_pe_Sali") => {
-  const html = buildRoomsHtml(groups, header);
+export const printRoomsPdf = (groups, header, fileLabel = "Repartizare_pe_Sali") =>
+  openPrintWindow(buildRoomsHtml(groups, header), fileLabel);
+
+// ====== ANONIMIZARE: coduri MMVS_01, MMVS_02 ... ======
+export const CODE_PREFIX = "MMVS";
+const formatCode = (n) => `${CODE_PREFIX}_${String(n).padStart(2, "0")}`;
+
+// Codurile se dau în ordinea listelor de pe uși: Sala 1 elevul 1, 2, ..., apoi sala următoare.
+// Aceeași repartizare dă mereu aceleași coduri.
+export const assignCodes = (allocation, rooms) => {
+  const codes = new Map();
+  let n = 0;
+  groupByRoom(allocation, rooms).forEach(({ students }) =>
+    students.forEach((s) => codes.set(s, formatCode(++n)))
+  );
+  return allocation.map((item) => ({ ...item, cod: codes.get(item) || "" }));
+};
+
+// borderoul cu toate codurile (pentru comisie, la decodificare)
+export const exportCodesExcel = (allocation, rooms, header) => {
+  const rows = groupByRoom(allocation, rooms).flatMap(({ students }) => students);
+  const data = [
+    [CONTEST_TITLE, "", "", "", "", ""],
+    [`${editionLine(header)} - Borderou coduri`, "", "", "", "", ""],
+    ["Cod", "Numele și Prenumele elevului", "Clasa", "Sala", "Numele Școlii Participante", "Profesor îndrumător"],
+    ...rows.map((s) => [s.cod, s.nume, s.clasa, s.sala, s.scoala, s.profesor]),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws["!merges"] = [0, 1].map((r) => ({ s: { r, c: 0 }, e: { r, c: 5 } }));
+  ws["!cols"] = [{ wch: 12 }, { wch: 32 }, { wch: 9 }, { wch: 12 }, { wch: 42 }, { wch: 30 }];
+  data.forEach((row, r) =>
+    row.forEach((_, c) => {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      ws[ref].s = cellStyle(r === 2 ? HEADER_FILL : "FFFFFF", {
+        bold: r < 3 || c === 0,
+        size: r === 0 ? 13 : 11,
+        align: r > 2 && c === 1 ? "left" : "center",
+      });
+    })
+  );
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, ws, "Coduri");
+  const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  FileSaver.saveAs(
+    new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8",
+    }),
+    `Borderou_coduri_${new Date().toISOString().slice(0, 10)}.xlsx`
+  );
+};
+
+// bilețele de decupat: pe fiecare sală, câte un bilețel pe elev (nume, clasă, sală, cod)
+const buildCodesHtml = (groups, header) => {
+  const edition = editionLine(header);
+  const pages = groups
+    .map(
+      ({ title, students }) => `<section class="page">
+<h2>${escapeHtml(title)} <span>— coduri de anonimizare (${students.length} elevi)</span></h2>
+<div class="slips">${students
+        .map(
+          (s) => `<div class="slip">
+<div class="top">Misterele Matematicii${edition ? ` · ${escapeHtml(edition)}` : ""}</div>
+<div class="name">${escapeHtml(s.nume)}</div>
+<div class="meta">Clasa ${escapeHtml(s.clasa)} · ${escapeHtml(title)}</div>
+<div class="code">${escapeHtml(s.cod)}</div>
+</div>`
+        )
+        .join("")}</div>
+</section>`
+    )
+    .join("");
+
+  return `<!doctype html><html lang="ro"><head><meta charset="utf-8">
+<title>Coduri anonimizare${edition ? ` - ${escapeHtml(edition)}` : ""}</title>
+<style>
+@page { size: A4 portrait; margin: 10mm; }
+* { box-sizing: border-box; }
+body { font-family: Calibri, "Segoe UI", Arial, sans-serif; margin: 0; color: #000; }
+.page { break-after: page; page-break-after: always; }
+.page:last-child { break-after: auto; page-break-after: auto; }
+h2 { font-size: 14pt; margin: 0 0 6px; }
+h2 span { font-size: 10pt; font-weight: normal; }
+.slips { display: grid; grid-template-columns: 1fr 1fr; }
+.slip { border: 1px dashed #000; margin: -0.5px; padding: 8px 10px; text-align: center;
+  break-inside: avoid; page-break-inside: avoid; }
+.top { font-size: 8.5pt; }
+.name { font-size: 13pt; font-weight: bold; margin-top: 4px; }
+.meta { font-size: 10pt; margin-top: 2px; }
+.code { display: inline-block; font-family: Consolas, "Courier New", monospace; font-size: 20pt;
+  font-weight: bold; letter-spacing: 1px; border: 2px solid #000; padding: 2px 12px; margin-top: 6px; }
+.toolbar { position: sticky; top: 0; background: #2c3e50; color: #fff; padding: 10px; text-align: center; font-family: Arial, sans-serif; margin-bottom: 10px; }
+.toolbar button { font-size: 15px; padding: 8px 18px; margin-left: 10px; cursor: pointer; }
+@media print { .toolbar { display: none; } }
+</style></head><body>
+<div class="toolbar">Bilețele se decupează pe liniile punctate. La „Destinație” alegeți <b>Salvează ca PDF</b> (sau imprimanta).
+<button onclick="window.print()">🖨️ Printează / Salvează ca PDF</button></div>
+${pages}
+</body></html>`;
+};
+
+export const printCodesPdf = (groups, header, fileLabel = "Coduri_anonimizare") =>
+  openPrintWindow(buildCodesHtml(groups, header), fileLabel);
+
+const openPrintWindow = (html, fileLabel) => {
   const win = window.open("", "_blank");
   if (win) {
     win.document.write(html);
