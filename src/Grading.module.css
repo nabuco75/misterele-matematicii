@@ -558,3 +558,241 @@
   cursor: not-allowed;
   transform: none;
 }
+
+/* ====== descărcare liste: în 3 pași ====== */
+.exLead {
+  margin: 0 0 18px;
+  color: #3a4660;
+  line-height: 1.5;
+}
+.exContext {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #eef2f8;
+  color: #1f3864;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.exStep {
+  padding: 16px 0 18px;
+  border-top: 1px solid #e6ebf2;
+}
+.exStepHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.exNum {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #1f3864;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+.exStepTitle {
+  font-weight: 800;
+  font-size: 1.08rem;
+  color: #1f3864;
+}
+.exStepHint {
+  color: #6b778c;
+  font-size: 0.9rem;
+}
+.exCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+.exCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 2px solid #dde4ee;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.exCard:hover {
+  border-color: #9fb3d1;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(31, 56, 100, 0.1);
+}
+.exCardActive,
+.exCardActive:hover {
+  border-color: #1f3864;
+  background: #f4f7fc;
+  box-shadow: 0 0 0 3px rgba(31, 56, 100, 0.12);
+}
+.exCardIcon {
+  font-size: 1.5rem;
+}
+.exCardTitle {
+  font-weight: 800;
+  color: #1f3864;
+  font-size: 1rem;
+}
+.exCardDesc {
+  color: #5b6b86;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+.exCheck {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #1f3864;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+.exNote {
+  margin: 10px 0 0;
+  font-size: 0.88rem;
+  color: #6b778c;
+  font-style: italic;
+}
+.exChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.exChip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #cfd8e5;
+  background: #fff;
+  color: #6b778c;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.exChip:hover {
+  border-color: #1f3864;
+  color: #1f3864;
+}
+.exChipOn {
+  background: #1f3864;
+  border-color: #1f3864;
+  color: #fff;
+}
+.exChipOn:hover {
+  color: #fff;
+  filter: brightness(1.15);
+}
+.exPreview {
+  margin-top: 14px;
+  border: 1px solid #dde4ee;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.exPreviewLabel {
+  padding: 6px 12px;
+  background: #f6f8fb;
+  color: #6b778c;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid #dde4ee;
+}
+.exPreviewScroll {
+  overflow-x: auto;
+}
+.exPreview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.exPreview th,
+.exPreview td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #eef1f6;
+  text-align: center;
+  white-space: nowrap;
+}
+.exPreview th {
+  background: #d6dce4;
+  color: #1b2a4a;
+  font-weight: 700;
+}
+.exPreview tbody tr:last-child td {
+  border-bottom: none;
+}
+.exOptions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 18px 28px;
+  margin-bottom: 14px;
+}
+.exField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #3a4660;
+}
+.exField input {
+  width: 280px;
+  max-width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #cfd8e5;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+.exToggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.exToggle input {
+  width: 18px;
+  height: 18px;
+}
+.exToggle span {
+  display: flex;
+  flex-direction: column;
+  color: #1f3864;
+}
+.exToggle small {
+  color: #6b778c;
+  font-weight: 400;
+}
+.exWarn {
+  margin: 0 0 12px;
+  color: #8a4b08;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.exButtons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.exSummary {
+  color: #6b778c;
+  font-size: 0.9rem;
+}

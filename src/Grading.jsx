@@ -26,33 +26,50 @@ const EMPTY_FILTERS = { q: "", clasa: "", scoala: "", profesor: "", sala: "", pr
 const PRESETS = [
   {
     id: "afisare",
-    label: "📢 Afișare pe coduri (fără nume)",
+    icon: "📢",
+    title: "Pentru avizier",
+    desc: "Doar coduri, note, medie și premiu. Fără nume – anonim.",
     columns: ["nr", "cod", "s1", "s2", "s3", "media", "premiu"],
     subtitle: "Rezultate",
     premiu: "",
   },
   {
     id: "borderou",
-    label: "📋 Borderou complet (cod + nume)",
+    icon: "📋",
+    title: "Borderou complet",
+    desc: "Cod + nume + note, medie, premiu, școală, profesor. Pentru comisie.",
     columns: ["nr", "cod", "nume", "s1", "s2", "s3", "media", "premiu", "scoala", "profesor"],
-    subtitle: "",
+    subtitle: "Borderou",
     premiu: "",
   },
   {
     id: "nume",
-    label: "🧑‍🎓 Rezultate cu nume (fără coduri)",
+    icon: "🧑‍🎓",
+    title: "Rezultate cu nume",
+    desc: "Nume, note, medie, premiu, școală, profesor. Fără coduri.",
     columns: ["nr", "nume", "s1", "s2", "s3", "media", "premiu", "scoala", "profesor"],
     subtitle: "Rezultate",
     premiu: "",
   },
   {
     id: "premiati",
-    label: "🏆 Lista premianților",
+    icon: "🏆",
+    title: "Lista premianților",
+    desc: "Doar elevii cu premiu (I – M), cu școala și profesorul. Pentru diplome.",
     columns: ["nr", "nume", "premiu", "media", "scoala", "profesor"],
     subtitle: "Lista premianților",
     premiu: "premiati",
   },
 ];
+
+// valoarea unei celule în previzualizarea listei de descărcat
+const previewCell = (r, key, i) => {
+  if (key === "nr") return i + 1;
+  if (key === "media") return r.absent ? "absent" : formatMedia(r.media);
+  if (key === "sala") return r.salaCod || "";
+  if (["s1", "s2", "s3"].includes(key)) return r.absent ? "" : formatScore(r[key]);
+  return r[key] ?? "";
+};
 
 const codeNumber = (cod) => parseInt(String(cod || "").split("_").pop(), 10) || Infinity;
 
@@ -724,68 +741,140 @@ function Grading({ onDashboard }) {
       {/* export */}
       <div className={styles.panel}>
         <h2 className={styles.panelTitle}>📤 Descărcare liste</h2>
-        <p className={styles.hint}>
-          Se descarcă <b>exact ce vedeți în tabel</b>: {visible.length} elevi, cu filtrele și ordinea de
-          acum. Alegeți un model sau bifați coloanele dorite.
+        <p className={styles.exLead}>
+          Faceți o listă în 3 pași. Lista conține <b>elevii afișați acum în tabel</b>, în aceeași ordine:{" "}
+          <span className={styles.exContext}>
+            {visible.length} elevi · {filters.clasa ? `clasa ${filters.clasa}` : "toate clasele"}
+            {Object.entries(filters).some(([k, v]) => k !== "clasa" && v) ? " + alte filtre" : ""} ·{" "}
+            {sortModeId
+              ? SORT_MODES.find((m) => m.id === sortModeId).label.toLowerCase()
+              : `după ${TABLE_COLUMNS.find((c) => c.key === sort.key)?.label}`}
+          </span>
         </p>
-        <div className={styles.presets}>
-          {PRESETS.map((p) => (
-            <button
-              key={p.id}
-              className={`${styles.presetButton} ${presetId === p.id ? styles.presetActive : ""}`}
-              onClick={() => applyPreset(p)}
-            >
-              {p.label}
-            </button>
-          ))}
+
+        {/* PASUL 1 */}
+        <div className={styles.exStep}>
+          <div className={styles.exStepHead}>
+            <span className={styles.exNum}>1</span>
+            <span className={styles.exStepTitle}>Ce fel de listă?</span>
+          </div>
+          <div className={styles.exCards}>
+            {PRESETS.map((p) => (
+              <button
+                key={p.id}
+                className={`${styles.exCard} ${presetId === p.id ? styles.exCardActive : ""}`}
+                onClick={() => applyPreset(p)}
+              >
+                <span className={styles.exCardIcon}>{p.icon}</span>
+                <span className={styles.exCardTitle}>{p.title}</span>
+                <span className={styles.exCardDesc}>{p.desc}</span>
+                {presetId === p.id && <span className={styles.exCheck}>✓</span>}
+              </button>
+            ))}
+          </div>
+          {!presetId && <p className={styles.exNote}>Listă personalizată: ați schimbat coloanele de mai jos.</p>}
         </div>
-        <div className={styles.columnsPick}>
-          {EXPORT_COLUMNS.map((c) => (
-            <label key={c.key}>
+
+        {/* PASUL 2 */}
+        <div className={styles.exStep}>
+          <div className={styles.exStepHead}>
+            <span className={styles.exNum}>2</span>
+            <span className={styles.exStepTitle}>Ce coloane apar?</span>
+            <span className={styles.exStepHint}>Clic pe o coloană ca s-o adăugați sau s-o scoateți.</span>
+          </div>
+          <div className={styles.exChips}>
+            {EXPORT_COLUMNS.map((c) => {
+              const on = exportCols.includes(c.key);
+              return (
+                <button
+                  key={c.key}
+                  className={`${styles.exChip} ${on ? styles.exChipOn : ""}`}
+                  onClick={() => toggleExportCol(c.key)}
+                >
+                  {on ? "✓ " : "+ "}
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* previzualizare */}
+          {exportCols.length > 0 && (
+            <div className={styles.exPreview}>
+              <div className={styles.exPreviewLabel}>Previzualizare (primele rânduri)</div>
+              <div className={styles.exPreviewScroll}>
+                <table>
+                  <thead>
+                    <tr>
+                      {EXPORT_COLUMNS.filter((c) => exportCols.includes(c.key)).map((c) => (
+                        <th key={c.key}>{c.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.slice(0, 3).map((r, i) => (
+                      <tr key={r.id}>
+                        {EXPORT_COLUMNS.filter((c) => exportCols.includes(c.key)).map((c) => (
+                          <td key={c.key}>{previewCell(r, c.key, i)}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* PASUL 3 */}
+        <div className={styles.exStep}>
+          <div className={styles.exStepHead}>
+            <span className={styles.exNum}>3</span>
+            <span className={styles.exStepTitle}>Titlu și descărcare</span>
+          </div>
+          <div className={styles.exOptions}>
+            <label className={styles.exField}>
+              <span>Titlul scris pe listă</span>
               <input
-                type="checkbox"
-                checked={exportCols.includes(c.key)}
-                onChange={() => toggleExportCol(c.key)}
-              />{" "}
-              {c.label}
+                type="text"
+                value={subtitle}
+                onChange={(e) => setSubtitle(e.target.value)}
+                placeholder="ex: Rezultate finale"
+              />
             </label>
-          ))}
-        </div>
-        <div className={styles.exportOptions}>
-          <label>
-            <input type="checkbox" checked={byClass} onChange={(e) => setByClass(e.target.checked)} />{" "}
-            Câte o foaie / pagină pentru fiecare clasă
-          </label>
-          <label>
-            Titlu listă:{" "}
-            <input
-              type="text"
-              value={subtitle}
-              onChange={(e) => setSubtitle(e.target.value)}
-              placeholder="ex: Rezultate finale"
-            />
-          </label>
-        </div>
-        {unfinished > 0 && (
-          <p className={styles.warning}>
-            ⚠️ {unfinished} elevi din listă nu sunt încă notați complet.
-          </p>
-        )}
-        <div className={styles.exportButtons}>
-          <button
-            className={styles.excelButton}
-            onClick={() => doExport("excel")}
-            disabled={visible.length === 0 || exportCols.length === 0}
-          >
-            📥 Descarcă Excel
-          </button>
-          <button
-            className={styles.pdfButton}
-            onClick={() => doExport("pdf")}
-            disabled={visible.length === 0 || exportCols.length === 0}
-          >
-            📄 Descarcă PDF
-          </button>
+            <label className={styles.exToggle}>
+              <input type="checkbox" checked={byClass} onChange={(e) => setByClass(e.target.checked)} />
+              <span>
+                <b>Fiecare clasă separat</b>
+                <small>o foaie Excel / o pagină PDF pentru fiecare clasă</small>
+              </span>
+            </label>
+          </div>
+          {unfinished > 0 && (
+            <p className={styles.exWarn}>
+              ⚠️ {unfinished} {unfinished === 1 ? "elev din listă nu este notat" : "elevi din listă nu sunt notați"}{" "}
+              complet; vor apărea fără medie.
+            </p>
+          )}
+          <div className={styles.exButtons}>
+            <button
+              className={styles.excelButton}
+              onClick={() => doExport("excel")}
+              disabled={visible.length === 0 || exportCols.length === 0}
+            >
+              📥 Descarcă Excel
+            </button>
+            <button
+              className={styles.pdfButton}
+              onClick={() => doExport("pdf")}
+              disabled={visible.length === 0 || exportCols.length === 0}
+            >
+              📄 Descarcă PDF
+            </button>
+            <span className={styles.exSummary}>
+              {visible.length} elevi · {exportCols.length} coloane
+            </span>
+          </div>
         </div>
       </div>
 
