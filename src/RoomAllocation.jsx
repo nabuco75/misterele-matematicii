@@ -3,6 +3,9 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase
 import { db } from "./firebase"; // Asigură-te că exportul db este corect
 import styles from "./RoomAllocation.module.css";
 import { sortRooms } from "./allocation";
+import { loadAllocation } from "./allocationStore";
+import { loadContestStudents } from "./contestData";
+import { AllocationLogCard } from "./AllocationLog";
 
 // Săli pre-configurate cu dimensiunea matriceală (rânduri x coloane)
 const DEFAULT_ROOMS = [
@@ -34,6 +37,30 @@ function RoomAllocation({ onNextStep, onCancel }) {
 
     useEffect(() => {
         loadRooms();
+    }, []);
+
+    // jurnalul repartizării + câți elevi s-au înscris după ea
+    const [savedAlloc, setSavedAlloc] = useState(undefined);
+    const [newSinceAlloc, setNewSinceAlloc] = useState(0);
+    useEffect(() => {
+        let alive = true;
+        Promise.all([loadAllocation(), loadContestStudents()])
+            .then(([saved, data]) => {
+                if (!alive) return;
+                setSavedAlloc(saved);
+                if (saved) {
+                    setNewSinceAlloc(
+                        data.students.filter((s) => !saved.assignments.get(s.id) && !(s.cod && s.salaCod)).length
+                    );
+                }
+            })
+            .catch((err) => {
+                console.error("Eroare la citirea jurnalului repartizării:", err);
+                if (alive) setSavedAlloc(null);
+            });
+        return () => {
+            alive = false;
+        };
     }, []);
 
     const showMessage = (type, text) => {
@@ -249,6 +276,10 @@ function RoomAllocation({ onNextStep, onCancel }) {
                         <span className={styles.infoValue}>{totalSeats}</span>
                     </div>
                 </div>
+            )}
+
+            {savedAlloc !== undefined && (
+                <AllocationLogCard saved={savedAlloc} newCount={newSinceAlloc} onOpen={onNextStep} />
             )}
 
             {/* BUTON URMĂTORUL PAS */}

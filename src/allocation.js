@@ -195,13 +195,17 @@ export function allocateByClassPairs(students, rooms) {
 // iar elevii noi (fără cod) se pun pe locurile libere, începând cu ultima sală folosită,
 // apoi sălile de după ea, apoi (dacă tot nu ajung locurile) sălile dinainte, de la coadă.
 // Dacă nu mai e niciun loc liber, cei rămași intră tot în ultima sală (peste capacitate).
-export function allocateKeepingCodes(students, rooms) {
+//   saved: Map id elev → sală, din repartizarea salvată (are prioritate față de sala de la cod)
+//   placeNew: false → elevii noi nu se așază (doar se numără), la reafișarea repartizării salvate
+export function allocateKeepingCodes(students, rooms, { saved = new Map(), placeNew = true } = {}) {
   const byRoom = new Map(rooms.map((r) => [r.name, []]));
   const newcomers = [];
   students.forEach((s) => {
-    if (s.cod && s.salaCod && byRoom.has(s.salaCod)) byRoom.get(s.salaCod).push(s);
+    const sala = saved.get(s.id) || (s.cod && s.salaCod) || "";
+    if (sala && byRoom.has(sala)) byRoom.get(sala).push(s);
     else newcomers.push(s);
   });
+  const toPlace = placeNew ? newcomers : [];
 
   const lastUsed = rooms.reduce((last, r, i) => (byRoom.get(r.name).length > 0 ? i : last), 0);
   const order = [
@@ -211,17 +215,17 @@ export function allocateKeepingCodes(students, rooms) {
   const placedNew = new Map(); // sala → elevii noi puși acolo
   let k = 0;
   for (const room of order) {
-    while (k < newcomers.length && byRoom.get(room.name).length < seatsOf(room)) {
-      byRoom.get(room.name).push(newcomers[k]);
+    while (k < toPlace.length && byRoom.get(room.name).length < seatsOf(room)) {
+      byRoom.get(room.name).push(toPlace[k]);
       placedNew.set(room.name, (placedNew.get(room.name) || 0) + 1);
       k++;
     }
   }
   let overflow = 0;
-  if (k < newcomers.length && rooms.length > 0) {
+  if (k < toPlace.length && rooms.length > 0) {
     const target = rooms[lastUsed].name;
-    while (k < newcomers.length) {
-      byRoom.get(target).push(newcomers[k++]);
+    while (k < toPlace.length) {
+      byRoom.get(target).push(toPlace[k++]);
       placedNew.set(target, (placedNew.get(target) || 0) + 1);
       overflow++;
     }
@@ -257,7 +261,27 @@ export function allocateKeepingCodes(students, rooms) {
     allocated: data.length,
     unallocated: 0,
     newcomers: newcomers.length,
+    placedNewCount: toPlace.length,
     overflow,
     placedNew: [...placedNew.entries()],
+  };
+}
+
+// statistica unei repartizări (pentru afișare și jurnal)
+export function allocationStats(roomSummaries, rooms) {
+  const usedNames = new Set(roomSummaries.map((x) => x.room.name));
+  const emptyRooms = rooms.filter((r) => !usedNames.has(r.name));
+  const last = roomSummaries[roomSummaries.length - 1] || null;
+  const freeUsed = roomSummaries.reduce((sum, x) => sum + Math.max(0, x.seats - x.count), 0);
+  return {
+    placed: roomSummaries.reduce((sum, x) => sum + x.count, 0),
+    roomsUsed: roomSummaries.length,
+    lastRoom: last ? `${last.room.name}${last.room.floor ? ` (${last.room.floor})` : ""}` : "",
+    lastCount: last ? last.count : 0,
+    lastSeats: last ? last.seats : 0,
+    emptyRooms: emptyRooms.map((r) => `${r.name}${r.floor ? ` (${r.floor})` : ""}`),
+    freeEmpty: emptyRooms.reduce((sum, r) => sum + seatsOf(r), 0),
+    freeUsed,
+    over: roomSummaries.filter((x) => x.count > x.seats).map((x) => `${x.room.name} (${x.count}/${x.seats})`),
   };
 }

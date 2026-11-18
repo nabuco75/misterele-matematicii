@@ -8,7 +8,15 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import styles from "./AllocationProcess.module.css";
-import { allocateByClassPairs, allocateKeepingCodes, CLASS_ORDER, sortRooms } from "./allocation";
+import {
+    allocateByClassPairs,
+    allocateKeepingCodes,
+    allocationStats,
+    CLASS_ORDER,
+    sortRooms,
+} from "./allocation";
+import { loadAllocation, saveAllocation } from "./allocationStore";
+import { AllocationLogCard, AllocationStatsView } from "./AllocationLog";
 import {
     exportRoomsExcel,
     groupByRoom,
@@ -37,6 +45,7 @@ function AllocationProcess({ onBack, onDashboard }) {
     const [lastCodeN, setLastCodeN] = useState(0);
     const [orphanCodes, setOrphanCodes] = useState([]);
     const [savingCodes, setSavingCodes] = useState(false);
+    const [saved, setSaved] = useState(null); // repartizarea salvată + jurnalul
     const [studentStats, setStudentStats] = useState(
         CLASS_ORDER.reduce((acc, cls) => ({ ...acc, [cls]: 0 }), { total: 0 })
     );
@@ -84,7 +93,36 @@ function AllocationProcess({ onBack, onDashboard }) {
                 ...d.data(),
             }));
             // repartizarea începe de la parter, apoi etajele în ordine; pe etaj după numărul sălii
-            setRooms(sortRooms(roomsData));
+            const sorted = sortRooms(roomsData);
+            setRooms(sorted);
+
+            // repartizarea salvată: se reafișează (elevii veniți după ea doar se numără)
+            try {
+                let savedAlloc = await loadAllocation();
+                const hasSaved = savedAlloc && savedAlloc.assignments.size > 0;
+                if (hasSaved || data.students.some((s) => s.cod && s.salaCod)) {
+                    const restored = allocateKeepingCodes(data.students, sorted, {
+                        saved: savedAlloc?.assignments,
+                        placeNew: false,
+                    });
+                    setAllocationResult(restored.data);
+                    setRoomSummaries(restored.roomSummaries);
+                    // repartizare făcută înainte de salvare: o reconstituim din sălile de la coduri
+                    if (!hasSaved && restored.data.length > 0) {
+                        savedAlloc = await saveAllocation({
+                            data: restored.data,
+                            roomSummaries: restored.roomSummaries,
+                            rooms: sorted,
+                            type: "din-coduri",
+                            previous: savedAlloc,
+                        });
+                    }
+                }
+                setSaved(savedAlloc);
+            } catch (err) {
+                console.error("Eroare la citirea repartizării salvate:", err);
+                showMessage("error", "❌ Repartizarea salvată nu a putut fi citită.");
+            }
         } catch (err) {
             console.error("Eroare la încărcarea datelor:", err);
             showMessage("error", "❌ Eroare la încărcarea datelor!");
@@ -98,7 +136,8 @@ function AllocationProcess({ onBack, onDashboard }) {
         if (
             students.some((s) => s.cod) &&
             !window.confirm(
-                "Elevii au deja coduri. O repartizare nouă îi poate muta în alte săli decât cele de pe listele deja printate.\n\n" +
+                "Se reface TOATĂ repartizarea: elevii pot ajunge în alte săli decât cele de pe listele deja printate.\n" +
+                    "Se păstrează doar codurile (fiecare elev își păstrează codul).\n\n" +
                     "Pentru elevi veniți ulterior folosiți butonul „Repartizează elevii noi”, care îi lasă pe ceilalți pe loc.\n\n" +
                     "Refaceți totuși toată repartizarea?"
             )
@@ -142,6 +181,21 @@ function AllocationProcess({ onBack, onDashboard }) {
 
             setAllocationResult(result.data);
             setRoomSummaries(result.roomSummaries);
+            try {
+                setSaved(
+                    await saveAllocation({
+                        data: result.data,
+                        roomSummaries: result.roomSummaries,
+                        rooms,
+                        type: "completa",
+                        previous: saved,
+                    })
+                );
+            } catch (err) {
+                console.error("Eroare la salvarea repartizării:", err);
+                showMessage("error", "❌ Repartizarea s-a făcut, dar nu s-a putut salva în baza de date.");
+                return;
+            }
 
             if (result.unallocated === 0) {
                 showMessage(
@@ -192,15 +246,33 @@ function AllocationProcess({ onBack, onDashboard }) {
 
     // ====== ELEVI NOI: ceilalți rămân în sala lor, noii merg în ultima sală ======
     const studentsWithCode = students.filter((s) => s.cod).length;
-    const newStudents = students.length - studentsWithCode;
+    // elevii care nu apar în repartizarea afișată (înscriși după ea)
+    const placedIds = new Set((allocationResult || []).map((s) => s.id));
+    const newStudents = allocationResult ? students.filter((s) => !placedIds.has(s.id)).length : 0;
 
-    const handleKeepAllocation = () => {
+    const handleKeepAllocation = async () => {
         if (rooms.length === 0) return;
-        const result = allocateKeepingCodes(students, rooms);
+        const result = allocateKeepingCodes(students, rooms, { saved: saved?.assignments });
         setAllocationResult(result.data);
         setRoomSummaries(result.roomSummaries);
         if (result.newcomers === 0) {
-            showMessage("success", "✅ Repartizarea salvată: fiecare elev în sala în care a primit codul.");
+            showMessage("success", "✅ Repartizarea salvată: fiecare elev în sala lui.");
+            return;
+        }
+        try {
+            setSaved(
+                await saveAllocation({
+                    data: result.data,
+                    roomSummaries: result.roomSummaries,
+                    rooms,
+                    type: "elevi-noi",
+                    added: result.newcomers,
+                    previous: saved,
+                })
+            );
+        } catch (err) {
+            console.error("Eroare la salvarea repartizării:", err);
+            showMessage("error", "❌ Elevii noi au fost așezați, dar repartizarea nu s-a putut salva.");
             return;
         }
         const where = result.placedNew.map(([sala, n]) => `${n} în ${sala}`).join(", ");
@@ -373,6 +445,13 @@ function AllocationProcess({ onBack, onDashboard }) {
                 </div>
             </div>
 
+            <AllocationLogCard
+                saved={saved}
+                newCount={newStudents}
+                onPlaceNew={handleKeepAllocation}
+                onRegenerate={handleGenerateAllocation}
+            />
+
             <div className={styles.headerSettings}>
                 <h3>📝 Antetul listelor</h3>
                 <label>
@@ -409,16 +488,14 @@ function AllocationProcess({ onBack, onDashboard }) {
                     🎲 Generează Repartizare Inteligentă
                 </button>
 
-                {studentsWithCode > 0 && (
+                {(studentsWithCode > 0 || saved?.last) && newStudents > 0 && (
                     <button
                         onClick={handleKeepAllocation}
                         className={styles.newStudentsButton}
                         disabled={rooms.length === 0 || loading}
                         title="Elevii care au cod rămân în sala lor; cei fără cod se pun pe locurile libere, începând cu ultima sală"
                     >
-                        {newStudents > 0
-                            ? `➕ Repartizează elevii noi (${newStudents}) în ultima sală`
-                            : "📂 Repartizarea salvată (fiecare în sala lui)"}
+                        {`➕ Repartizează elevii noi (${newStudents}) în ultima sală`}
                     </button>
                 )}
 
@@ -488,70 +565,7 @@ function AllocationProcess({ onBack, onDashboard }) {
             {allocationResult && roomSummaries.length > 0 && (
                 <div className={styles.previewContainer}>
                     <h2 className={styles.subtitle}>🏫 Situația pe săli</h2>
-                    {(() => {
-                        const usedNames = new Set(roomSummaries.map((s) => s.room.name));
-                        const emptyRooms = rooms.filter((r) => !usedNames.has(r.name));
-                        const last = roomSummaries[roomSummaries.length - 1];
-                        const lastFree = last.seats - last.count;
-                        const placed = roomSummaries.reduce((sum, s) => sum + s.count, 0);
-                        const freeUsed = roomSummaries.reduce((sum, s) => sum + Math.max(0, s.seats - s.count), 0);
-                        const freeEmpty = emptyRooms.reduce((sum, r) => sum + (parseInt(r.seats) || 0), 0);
-                        const over = roomSummaries.filter((s) => s.count > s.seats);
-                        const roomLabel = (r) => `${r.name}${r.floor ? ` (${r.floor})` : ""}`;
-                        return (
-                            <div className={styles.allocStats}>
-                                <div className={styles.allocStat}>
-                                    <span className={styles.allocStatIcon}>🧑‍🎓</span>
-                                    <span className={styles.allocStatValue}>{placed}</span>
-                                    <span className={styles.allocStatLabel}>elevi repartizați</span>
-                                </div>
-                                <div className={styles.allocStat}>
-                                    <span className={styles.allocStatIcon}>🚪</span>
-                                    <span className={styles.allocStatValue}>{roomSummaries.length}</span>
-                                    <span className={styles.allocStatLabel}>
-                                        {roomSummaries.length === 1 ? "sală folosită" : "săli folosite"}
-                                    </span>
-                                </div>
-                                <div
-                                    className={`${styles.allocStat} ${
-                                        lastFree > 0 ? styles.allocStatOk : lastFree < 0 ? styles.allocStatBad : ""
-                                    }`}
-                                >
-                                    <span className={styles.allocStatIcon}>🏁</span>
-                                    <span className={styles.allocStatValue}>
-                                        {lastFree > 0 ? `${lastFree} libere` : lastFree < 0 ? `${-lastFree} peste` : "plină"}
-                                    </span>
-                                    <span className={styles.allocStatLabel}>
-                                        ultima sală: <b>{roomLabel(last.room)}</b> ({last.count} / {last.seats})
-                                    </span>
-                                </div>
-                                <div className={styles.allocStat}>
-                                    <span className={styles.allocStatIcon}>🪑</span>
-                                    <span className={styles.allocStatValue}>{emptyRooms.length}</span>
-                                    <span className={styles.allocStatLabel}>
-                                        {emptyRooms.length === 1 ? "sală liberă" : "săli libere"}
-                                        {emptyRooms.length > 0 && ` (${freeEmpty} locuri)`}
-                                    </span>
-                                </div>
-                                <p className={styles.allocStatText}>
-                                    Elevii au fost repartizați în <b>{roomSummaries.length}</b>{" "}
-                                    {roomSummaries.length === 1 ? "sală" : "săli"}.{" "}
-                                    {lastFree > 0
-                                        ? `Ultima sală (${roomLabel(last.room)}) mai are ${lastFree} ${lastFree === 1 ? "loc liber" : "locuri libere"}.`
-                                        : lastFree === 0
-                                        ? `Ultima sală (${roomLabel(last.room)}) este plină.`
-                                        : `Ultima sală (${roomLabel(last.room)}) are ${-lastFree} elevi peste numărul de locuri.`}{" "}
-                                    {emptyRooms.length > 0
-                                        ? `Mai ${emptyRooms.length === 1 ? "este liberă o sală" : `sunt ${emptyRooms.length} săli libere`}: ${emptyRooms.map(roomLabel).join(", ")}.`
-                                        : "Nu mai este nicio sală liberă."}{" "}
-                                    În total mai sunt <b>{freeUsed + freeEmpty}</b> locuri libere
-                                    {freeUsed > 0 && ` (${freeUsed} în sălile folosite)`}.
-                                    {over.length > 0 &&
-                                        ` ⚠️ Peste capacitate: ${over.map((s) => `${s.room.name} (${s.count}/${s.seats})`).join(", ")}.`}
-                                </p>
-                            </div>
-                        );
-                    })()}
+                    <AllocationStatsView stats={allocationStats(roomSummaries, rooms)} />
                     <div className={styles.resultsTableWrapper}>
                         <table className={styles.resultsTable}>
                             <thead>
