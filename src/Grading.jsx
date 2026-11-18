@@ -668,11 +668,9 @@ function Grading({ onDashboard }) {
                     ) : r.media !== null ? (
                       <span
                         className={`${styles.mediaPill} ${styles[`media_${mediaTier(r.media)}`]}`}
-                        style={{ "--p": `${Math.min(100, r.media * 10)}%` }}
                         title={`Media ${formatMedia(r.media)} (din ${SUBJECTS.length} subiecte)`}
                       >
-                        <span className={styles.mediaRing} />
-                        <span className={styles.mediaValue}>{formatMedia(r.media)}</span>
+                        {formatMedia(r.media)}
                       </span>
                     ) : r.stare === "incomplet" ? (
                       <span className={styles.mediaPending} title="Lipsesc note la unele subiecte">
