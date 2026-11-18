@@ -29,8 +29,6 @@ function RoomAllocation({ onNextStep }) {
     const [roomName, setRoomName] = useState("");
     const [roomFloor, setRoomFloor] = useState("");
     const [roomSeats, setRoomSeats] = useState("");
-    const [roomRows, setRoomRows] = useState(""); // NOU
-    const [roomCols, setRoomCols] = useState(""); // NOU
     const [message, setMessage] = useState(null);
 
     useEffect(() => {
@@ -91,8 +89,6 @@ function RoomAllocation({ onNextStep }) {
         e.preventDefault();
 
         const seatsNum = parseInt(roomSeats);
-        const rowsNum = parseInt(roomRows);
-        const colsNum = parseInt(roomCols);
 
         // Validare de bază
         if (!roomName.trim()) {
@@ -105,19 +101,6 @@ function RoomAllocation({ onNextStep }) {
             showMessage("error", "Numărul de locuri trebuie să fie pozitiv!");
             return;
         }
-        
-        // Validare rânduri/coloane
-        if (isNaN(rowsNum) || rowsNum <= 0 || isNaN(colsNum) || colsNum <= 0) {
-            showMessage("error", "Rândurile și Coloanele trebuie să fie numere pozitive!");
-            return;
-        }
-        
-        // Avertizare capacitate
-        if (rowsNum * colsNum < seatsNum) {
-            if (!window.confirm(`Avertisment! Dimensiunea salii (${rowsNum}x${colsNum}=${rowsNum * colsNum}) este mai mică decât numărul de locuri alocat (${seatsNum}). Repartizarea poate eșua. Continuați?`)) {
-                return;
-            }
-        }
 
 
         try {
@@ -125,8 +108,6 @@ function RoomAllocation({ onNextStep }) {
                 name: roomName.trim(),
                 floor: roomFloor.trim() || "Nespecificat",
                 seats: seatsNum,
-                rows: rowsNum, 
-                cols: colsNum, 
             };
             
             if (isEditing && editingRoomId) {
@@ -154,8 +135,6 @@ function RoomAllocation({ onNextStep }) {
         setRoomName(room.name);
         setRoomFloor(room.floor || "");
         setRoomSeats(String(room.seats));
-        setRoomRows(String(room.rows || "")); 
-        setRoomCols(String(room.cols || "")); 
         setShowAddRoomForm(true);
     };
 
@@ -183,8 +162,6 @@ function RoomAllocation({ onNextStep }) {
         setRoomName("");
         setRoomFloor("");
         setRoomSeats("");
-        setRoomRows("");
-        setRoomCols("");
         setIsEditing(false);
         setEditingRoomId(null);
         setShowAddRoomForm(false);
@@ -233,7 +210,7 @@ function RoomAllocation({ onNextStep }) {
             {showAddRoomForm && (
                 <form onSubmit={handleAddOrEditRoom} className={styles.formContainer}>
                     <p className={styles.formTitle}>
-                        {isEditing ? `Editează sala: ${editingRoomId}` : "Adaugă o sală nouă"}
+                        {isEditing ? `Editează sala: ${rooms.find((r) => r.id === editingRoomId)?.name || roomName}` : "Adaugă o sală nouă"}
                     </p>
 
                     <input type="text" value={roomName} onChange={(e) => setRoomName(e.target.value)}
@@ -241,21 +218,8 @@ function RoomAllocation({ onNextStep }) {
                     <input type="text" value={roomFloor} onChange={(e) => setRoomFloor(e.target.value)}
                         placeholder="Etaj (ex: Etaj I)" className={styles.inputField}/>
 
-                    <div className={styles.splitFields}>
-                        <input type="number" value={roomSeats} onChange={(e) => setRoomSeats(e.target.value)}
-                            placeholder="Număr locuri (Capacitate)" className={styles.inputField} min="1" required/>
-                        <input type="number" value={roomRows} onChange={(e) => setRoomRows(e.target.value)}
-                            placeholder="Rânduri (Structura)" className={styles.inputField} min="1" required/>
-                        <input type="number" value={roomCols} onChange={(e) => setRoomCols(e.target.value)}
-                            placeholder="Coloane (Structura)" className={styles.inputField} min="1" required/>
-                    </div>
-                    {/* Alerta de locuri fizice */}
-                    {roomRows && roomCols && roomSeats && (
-                        <p className={styles.formNote}>
-                            Dimensiune fizică: {roomRows} Rânduri x {roomCols} Coloane = {parseInt(roomRows) * parseInt(roomCols)} locuri.
-                            Capacitate alocată: {roomSeats} locuri.
-                        </p>
-                    )}
+                    <input type="number" value={roomSeats} onChange={(e) => setRoomSeats(e.target.value)}
+                        placeholder="Număr locuri" className={styles.inputField} min="1" required/>
 
                     <div className={styles.formActions}>
                         <button type="submit" className={styles.submitButton}>
@@ -308,7 +272,6 @@ function RoomAllocation({ onNextStep }) {
                                 </div>
                                 <div className={styles.roomDetails}>
                                     {room.floor && `${room.floor}`} • {room.seats} locuri
-                                    {room.rows && room.cols && ` (Structura: ${room.rows}R x ${room.cols}C)`}
                                 </div>
                             </div>
                             <div className={styles.roomActions}>
