@@ -1,5 +1,5 @@
 // Etapele concursului: Săli → Repartizare → Coduri → Tipărire → Notare.
-// - <StageCards onGo />            în panoul de admin: carduri mari, cu starea fiecărei etape
+// - useStageStatus()               starea etapelor (pentru panoul de admin)
 // - <StageBar current onGo onHome /> sus pe fiecare pagină de etapă: treci direct la altă etapă
 // Starea se doar CITEȘTE din baza de date (nu se scrie nimic).
 import { useEffect, useState } from "react";
@@ -23,7 +23,9 @@ export const STAGE_IDS = STAGES.map((s) => s.id);
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-// starea fiecărei etapă: { [id]: { text, alert } }  (alert = e ceva de făcut acolo)
+// starea fiecărei etape: { [id]: { text, alert, state } }
+//   alert = e ceva de făcut acolo; state = "done" (gata) | "todo" (în lucru) | "idle" (nu a început)
+// plus status.meta = { students, schools, perClass }
 async function loadStageStatus() {
   const [roomsSnap, data, saved, gradesSnap] = await Promise.all([
     getDocs(collection(db, "rooms")),
@@ -37,34 +39,38 @@ async function loadStageStatus() {
   const status = {};
 
   status.sali = rooms.length
-    ? { text: `${plural(rooms.length, "sală", "săli")} · ${seats} locuri` }
-    : { text: "Nicio sală configurată", alert: true };
+    ? { text: `${plural(rooms.length, "sală", "săli")} · ${seats} locuri`, state: "done" }
+    : { text: "Nicio sală configurată", alert: true, state: "todo" };
 
   const hasAlloc = !!(saved?.assignments && saved.assignments.size > 0);
   if (!hasAlloc) {
     status.repartizare = students.length
-      ? { text: "Elevii nu sunt încă repartizați", alert: true }
-      : { text: "Niciun elev înscris" };
+      ? { text: "Elevii nu sunt încă repartizați", alert: true, state: "todo" }
+      : { text: "Niciun elev înscris", state: "idle" };
   } else {
     const diff = diffWithAllocation(students, saved.assignments, data.orphans);
     const toCheck = diff.pairs.length + diff.unpairedGhosts.length;
     if (diff.realNew.length > 0) {
-      status.repartizare = { text: plural(diff.realNew.length, "elev nou de repartizat", "elevi noi de repartizat"), alert: true };
+      status.repartizare = { text: plural(diff.realNew.length, "elev nou de repartizat", "elevi noi de repartizat"), alert: true, state: "todo" };
     } else if (toCheck > 0) {
-      status.repartizare = { text: plural(toCheck, "nume de verificat", "nume de verificat"), alert: true };
+      status.repartizare = { text: plural(toCheck, "nume de verificat", "nume de verificat"), alert: true, state: "todo" };
     } else {
-      status.repartizare = { text: `${students.length} elevi au sală` };
+      status.repartizare = { text: `${students.length} elevi au sală`, state: "done" };
     }
   }
 
   const withCode = students.filter((s) => s.cod).length;
   const withoutCode = students.length - withCode;
   if (withCode === 0) {
-    status.coduri = { text: hasAlloc ? "Neanonimizat încă" : "—", alert: hasAlloc && students.length > 0 };
+    status.coduri = {
+      text: hasAlloc ? "Neanonimizat încă" : "—",
+      alert: hasAlloc && students.length > 0,
+      state: hasAlloc && students.length > 0 ? "todo" : "idle",
+    };
   } else if (withoutCode > 0) {
-    status.coduri = { text: plural(withoutCode, "elev fără cod", "elevi fără cod"), alert: true };
+    status.coduri = { text: plural(withoutCode, "elev fără cod", "elevi fără cod"), alert: true, state: "todo" };
   } else {
-    status.coduri = { text: `${withCode} coduri date` };
+    status.coduri = { text: `${withCode} coduri date`, state: "done" };
   }
 
   // tranșele de coduri ale căror bilețele nu au fost descărcate
@@ -75,24 +81,41 @@ async function loadStageStatus() {
     const codes = b.codes ? b.codes : [...codesNow].filter((c) => !listed.has(c));
     return codes.some((c) => codesNow.has(c));
   }).length;
-  if (!hasAlloc) status.tiparire = { text: "Întâi repartizarea" };
-  else if (pending > 0) status.tiparire = { text: plural(pending, "tranșă de bilețele de tipărit", "tranșe de bilețele de tipărit"), alert: true };
-  else status.tiparire = { text: "Liste și bilețele gata de descărcat" };
+  if (!hasAlloc) status.tiparire = { text: "Întâi repartizarea", state: "idle" };
+  else if (pending > 0)
+    status.tiparire = {
+      text: plural(pending, "tranșă de bilețele de tipărit", "tranșe de bilețele de tipărit"),
+      alert: true,
+      state: "todo",
+    };
+  else status.tiparire = { text: "Liste și bilețele gata de descărcat", state: "done" };
 
   const grades = {};
   gradesSnap.forEach((d) => (grades[d.id] = d.data()));
   const rows = buildResults(students, grades);
   const done = rows.filter((r) => r.stare === "notat" || r.stare === "absent").length;
-  status.notare = { text: `${done} / ${students.length} elevi notați` };
+  status.notare = {
+    text: `${done} / ${students.length} elevi notați`,
+    state: students.length > 0 && done === students.length ? "done" : done > 0 ? "todo" : "idle",
+    done,
+    total: students.length,
+  };
+
+  const perClass = {};
+  students.forEach((s) => (perClass[s.clasa] = (perClass[s.clasa] || 0) + 1));
+  status.meta = {
+    students: students.length,
+    schools: new Set(students.map((s) => s.scoala)).size,
+    perClass,
+  };
 
   return status;
 }
 
-// carduri mari, în panoul de admin
-export function StageCards({ onGo }) {
+// starea etapelor, citită o dată la deschiderea panoului
+export function useStageStatus() {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(false);
-
   useEffect(() => {
     let alive = true;
     loadStageStatus()
@@ -105,36 +128,7 @@ export function StageCards({ onGo }) {
       alive = false;
     };
   }, []);
-
-  return (
-    <section className={styles.cardsSection}>
-      <h2 className={styles.cardsTitle}>Etapele concursului</h2>
-      <div className={styles.cards}>
-        {STAGES.map((st, i) => {
-          const s = status?.[st.id];
-          return (
-            <button key={st.id} className={`${styles.card} ${s?.alert ? styles.cardAlert : ""}`} onClick={() => onGo(st.id)}>
-              <span className={styles.step}>{i + 1}</span>
-              <span className={styles.cardIcon}>{st.icon}</span>
-              <span className={styles.cardLabel}>{st.label}</span>
-              <span className={styles.cardStatus}>
-                {s ? (
-                  <>
-                    {s.alert && <span className={styles.dot} aria-hidden="true" />}
-                    {s.text}
-                  </>
-                ) : error ? (
-                  st.hint
-                ) : (
-                  <span className={styles.loadingText}>se încarcă…</span>
-                )}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
+  return { status, error };
 }
 
 // bara de sus, pe paginile etapelor

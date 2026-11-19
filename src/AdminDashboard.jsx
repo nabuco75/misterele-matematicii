@@ -24,7 +24,9 @@ import { applyRemovals, applyRenames } from "./studentSync";
 import { cleanTeacherName, teacherKey, validateTeacher } from "./teachers";
 import { displayName } from "./nameFormat";
 import TeacherSearch from "./TeacherSearch.jsx";
-import { StageBar, StageCards } from "./StageNav.jsx";
+import { StageBar, useStageStatus } from "./StageNav.jsx";
+import DashboardHero from "./DashboardHero.jsx";
+import Icon from "./icons.jsx";
 import styles from "./AdminDashboard.module.css";
 
 // iconița de fișier Excel (foaie verde cu X) pentru butoanele de descărcare
@@ -1437,6 +1439,15 @@ function AdminDashboard() {
     return <Grading stageBar={<StageBar current="notare" onGo={setCurrentView} onHome={goHome} />} />;
   }
 
+  // lumina care urmărește mouse-ul pe carduri (doar efect vizual)
+  const handleGlowMove = (e) => {
+    const el = e.target.closest?.("[data-glow]");
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+    el.style.setProperty("--my", `${e.clientY - r.top}px`);
+  };
+
   // 4. VIZUALIZARE DASHBOARD
   return (
     <div>
@@ -1450,10 +1461,13 @@ function AdminDashboard() {
         }
       />
 
-      <div className={styles.container}>
-        <h1 className={styles.title}>
-          Bine ai venit în panoul de administrare!
-        </h1>
+      <div className={`${styles.container} ${styles.aurora}`} onMouseMove={handleGlowMove}>
+        <div className={styles.auroraBg} aria-hidden="true">
+          <span className={styles.blob1} />
+          <span className={styles.blob2} />
+          <span className={styles.blob3} />
+          <span className={styles.grain} />
+        </div>
 
         {schoolOperationMessage && (
           <p className={styles.successMessage}>
@@ -1462,13 +1476,14 @@ function AdminDashboard() {
         )}
 
         <div className={styles.dash}>
-          <StageCards onGo={setCurrentView} />
+          <DashboardStatus onGo={setCurrentView} />
           {[
             {
               title: "Școli",
               tiles: [
                 {
                   icon: showAddSchoolForm ? "✖️" : "➕",
+                  svg: showAddSchoolForm ? "close" : "plus",
                   label: showAddSchoolForm ? "Ascunde formularul" : "Adaugă o școală",
                   sub: "Școală nouă, manual",
                   color: "teal",
@@ -1477,6 +1492,7 @@ function AdminDashboard() {
                 },
                 {
                   icon: "📤",
+                  svg: "upload",
                   label: "Încarcă școli din Excel",
                   sub: "Import în masă",
                   color: "teal",
@@ -1484,6 +1500,7 @@ function AdminDashboard() {
                 },
                 {
                   icon: "✅",
+                  svg: "check",
                   label: showRegisteredSchools ? "Ascunde școli înscrise" : "Școli înscrise",
                   sub: "Cine a trimis elevi",
                   color: "green",
@@ -1495,6 +1512,7 @@ function AdminDashboard() {
                 },
                 {
                   icon: "⏳",
+                  svg: "hourglass",
                   label: showSchoolsWithoutRegs ? "Ascunde școli fără înscrieri" : "Școli fără înscrieri",
                   sub: "Cine încă lipsește",
                   color: "orange",
@@ -1511,6 +1529,7 @@ function AdminDashboard() {
               tiles: [
                 {
                   icon: showTeacherSearch ? "✖️" : "🔎",
+                  svg: showTeacherSearch ? "close" : "search",
                   label: showTeacherSearch ? "Închide căutarea" : "Caută profesor sau elev",
                   sub: "Corectează profesori și elevi, din orice școală",
                   color: "indigo",
@@ -1519,6 +1538,7 @@ function AdminDashboard() {
                 },
                 {
                   icon: "📊",
+                  svg: "chart",
                   label: showStatistics ? "Ascunde situația" : "Situație înscrieri",
                   sub: "Statistici pe clase și școli",
                   color: "violet",
@@ -1527,6 +1547,7 @@ function AdminDashboard() {
                 },
                 {
                   icon: "🧑‍🎓",
+                  svg: "users",
                   label: "Elevii înscriși",
                   sub: "Excel complet",
                   color: "blue",
@@ -1535,6 +1556,7 @@ function AdminDashboard() {
                 },
                 {
                   icon: "📋",
+                  svg: "list",
                   label: "Lista simplificată",
                   sub: "Excel, doar esențialul",
                   color: "blue",
@@ -1543,6 +1565,7 @@ function AdminDashboard() {
                 },
                 {
                   icon: "👩‍🏫",
+                  svg: "teacher",
                   label: "Profesori îndrumători",
                   sub: "Excel cu profesorii",
                   color: "blue",
@@ -1551,6 +1574,7 @@ function AdminDashboard() {
                 },
                 {
                   icon: "🏛️",
+                  svg: "building",
                   label: "Școlile participante",
                   sub: "Excel cu școlile",
                   color: "blue",
@@ -1566,12 +1590,15 @@ function AdminDashboard() {
                 {section.tiles.map((t) => (
                   <button
                     key={t.sub}
+                    data-glow
                     onClick={t.onClick}
                     className={`${styles.tile} ${styles[`tile_${t.color}`]} ${
                       section.hero ? styles.tileHero : ""
                     } ${t.active ? styles.tileActive : ""}`}
                   >
-                    <span className={styles.tileIcon}>{t.icon}</span>
+                    <span className={styles.tileIcon}>
+                      {t.svg ? <Icon name={t.svg} size={24} /> : t.icon}
+                    </span>
                     <span className={styles.tileText}>
                       <span className={styles.tileLabel}>{t.label}</span>
                       <span className={styles.tileSub}>{t.sub}</span>
@@ -1597,7 +1624,9 @@ function AdminDashboard() {
               onClick={() => handleDeleteAllRegistrations("elevi")}
               className={`${styles.tile} ${styles.tile_red}`}
             >
-              <span className={styles.tileIcon}>🗑️</span>
+              <span className={styles.tileIcon}>
+                <Icon name="trash" size={22} />
+              </span>
               <span className={styles.tileText}>
                 <span className={styles.tileLabel}>Șterge toate înscrierile</span>
                 <span className={styles.tileSub}>Elevi + îndrumători — nu se poate anula</span>
@@ -2131,6 +2160,12 @@ function AdminDashboard() {
       </div>
     </div>
   );
+}
+
+// partea de sus a panoului, cu starea etapelor (citită la fiecare deschidere a panoului)
+function DashboardStatus({ onGo }) {
+  const { status, error } = useStageStatus();
+  return <DashboardHero status={status} error={error} onGo={onGo} />;
 }
 
 export default AdminDashboard;
