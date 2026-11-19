@@ -60,6 +60,14 @@ const compareBy = (key, dir) => (a, b) => {
   return diff * sign || compareRanking(a, b);
 };
 
+// cardurile claselor: aceeași familie de culori ca pe listele din săli
+const CLASS_THEME = {
+  "a IV-a": { cls: "classIV", roman: "IV" },
+  "a V-a": { cls: "classV", roman: "V" },
+  "a VI-a": { cls: "classVI", roman: "VI" },
+  "a VII-a": { cls: "classVII", roman: "VII" },
+};
+
 // butoanele mari de ordonare
 const SORT_MODES = [
   {
@@ -430,29 +438,38 @@ function Grading({ onDashboard }) {
 
       {/* situația pe clase */}
       <div className={styles.stats}>
-        {stats.map((s) => (
-          <button
-            key={s.clasa}
-            className={`${styles.statCard} ${filters.clasa === s.clasa ? styles.statActive : ""}`}
-            onClick={() => setFilter("clasa", filters.clasa === s.clasa ? "" : s.clasa)}
-            title="Arată doar această clasă"
-          >
-            <div className={styles.statClass}>Clasa {s.clasa}</div>
-            <div>
-              notați <b>{s.notati}</b> / {s.total - s.absenti}
-            </div>
-            <div className={styles.progress}>
-              <div
-                style={{
-                  width: `${s.total - s.absenti ? (s.notati / (s.total - s.absenti)) * 100 : 0}%`,
-                }}
-              />
-            </div>
-            <div className={styles.statSmall}>
-              {s.absenti} absenți · {s.premii} premii
-            </div>
-          </button>
-        ))}
+        {stats.map((s) => {
+          const theme = CLASS_THEME[s.clasa] || { cls: "classOther", roman: "" };
+          const present = s.total - s.absenti;
+          const pct = present ? Math.round((s.notati / present) * 100) : 0;
+          const active = filters.clasa === s.clasa;
+          return (
+            <button
+              key={s.clasa}
+              className={`${styles.statCard} ${styles[theme.cls]} ${active ? styles.statActive : ""} ${
+                filters.clasa && !active ? styles.statDimmed : ""
+              }`}
+              onClick={() => setFilter("clasa", active ? "" : s.clasa)}
+              title={active ? "Arată toate clasele" : "Arată doar această clasă"}
+              aria-pressed={active}
+            >
+              <span className={styles.statRoman} aria-hidden="true">
+                {theme.roman}
+              </span>
+              <div className={styles.statClass}>Clasa {s.clasa}</div>
+              <div className={styles.statLine}>
+                notați <b>{s.notati}</b> / {present}
+                <span className={styles.statPct}>{pct}%</span>
+              </div>
+              <div className={styles.progress}>
+                <div style={{ width: `${pct}%` }} />
+              </div>
+              <div className={styles.statSmall}>
+                {s.absenti} absenți · {s.premii} premii
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {/* filtre */}
