@@ -1756,7 +1756,7 @@ function AdminDashboard() {
           </div>
         )}
 
-        {showTeacherSearch && <TeacherSearch />}
+        {showTeacherSearch && <TeacherSearch onClose={() => setShowTeacherSearch(false)} />}
 
         {showRegisteredSchools && (
           <div className={styles.registeredSchoolsContainer}>

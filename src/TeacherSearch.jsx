@@ -70,7 +70,7 @@ const mostCommon = (values) => {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "";
 };
 
-function TeacherSearch() {
+function TeacherSearch({ onClose }) {
   const [loading, setLoading] = useState(true);
   const [regs, setRegs] = useState([]);
   const [search, setSearch] = useState("");
@@ -569,6 +569,11 @@ function TeacherSearch() {
 
   return (
     <div className={styles.panel}>
+      {onClose && (
+        <button type="button" className={styles.closeButton} onClick={onClose} title="Închide căutarea">
+          ✖ Închide
+        </button>
+      )}
       <h2 className={styles.title}>🔎 Caută profesor sau elev</h2>
       <p className={styles.intro}>
         Scrieți orice știți: o parte din numele profesorului, emailul, telefonul, școala, localitatea,
