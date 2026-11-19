@@ -368,7 +368,7 @@ function Grading({ onDashboard }) {
       title: "Avizier – cu coduri",
       hint: "Cod, note, sumă, premiu – fără nume (anonim), pentru afișat la avizier",
       columns: ["nr", "cod", "s1", "s2", "s3", "suma", "premiu"],
-      subtitle: "Rezultate – cu nume",
+      subtitle: "Rezultate",
     },
     {
       id: "rezultate",
