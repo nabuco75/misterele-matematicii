@@ -933,3 +933,66 @@
   font-size: 0.88rem;
   color: #6b778c;
 }
+
+/* ======================================================================
+   AURORA – notarea pe fundalul de noapte (doar vizual; tabelul rămâne luminos)
+   ====================================================================== */
+:global(.aurora-stage) .page {
+  max-width: 1600px;
+  padding: 0 20px 40px;
+}
+:global(.aurora-stage) .title {
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #fff;
+  text-shadow: 0 2px 30px rgba(129, 140, 248, 0.35);
+}
+:global(.aurora-stage) .loading {
+  color: rgba(226, 232, 255, 0.85);
+}
+:global(.aurora-stage) .panel,
+:global(.aurora-stage) .tableWrap {
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 24px 60px rgba(3, 6, 25, 0.45), 0 2px 8px rgba(3, 6, 25, 0.2);
+}
+:global(.aurora-stage) .panel {
+  padding: 18px 20px;
+}
+:global(.aurora-stage) .panelTitle {
+  color: #141a3a;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+:global(.aurora-stage) .statCard {
+  border-radius: 20px;
+  box-shadow: 0 18px 44px rgba(3, 6, 25, 0.4);
+}
+:global(.aurora-stage) .table th {
+  background: #1e1b4b;
+}
+:global(.aurora-stage) .sortable:hover {
+  background: #312e81;
+}
+:global(.aurora-stage) .table tbody tr:hover {
+  background: #fff8dc;
+}
+:global(.aurora-stage) .filters select,
+:global(.aurora-stage) .filters input {
+  border-radius: 10px;
+  border-color: #d5d9e8;
+}
+:global(.aurora-stage) .filters select:focus,
+:global(.aurora-stage) .filters input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+}
+:global(.aurora-stage) .sortActive,
+:global(.aurora-stage) .sortActive:hover {
+  background: #312e81;
+}
+:global(.aurora-stage) .error {
+  border-radius: 14px;
+}

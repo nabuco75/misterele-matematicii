@@ -26,6 +26,7 @@ import { displayName } from "./nameFormat";
 import TeacherSearch from "./TeacherSearch.jsx";
 import { StageBar, useStageStatus } from "./StageNav.jsx";
 import DashboardHero from "./DashboardHero.jsx";
+import AuroraStage from "./Aurora.jsx";
 import Icon from "./icons.jsx";
 import styles from "./AdminDashboard.module.css";
 
@@ -1416,27 +1417,35 @@ function AdminDashboard() {
   // 1. ETAPA „SĂLI”
   if (currentView === "sali") {
     return (
-      <RoomAllocation
-        onNextStep={() => setCurrentView("repartizare")}
-        stageBar={<StageBar current="sali" onGo={setCurrentView} onHome={goHome} />}
-      />
+      <AuroraStage>
+        <RoomAllocation
+          onNextStep={() => setCurrentView("repartizare")}
+          stageBar={<StageBar current="sali" onGo={setCurrentView} onHome={goHome} />}
+        />
+      </AuroraStage>
     );
   }
 
   // 2–4. ETAPELE „REPARTIZARE”, „CODURI”, „TIPĂRIRE” – aceeași componentă (datele nu se reîncarcă la trecerea între ele)
   if (["repartizare", "coduri", "tiparire"].includes(currentView)) {
     return (
-      <AllocationProcess
-        section={currentView}
-        onGo={setCurrentView}
-        stageBar={<StageBar current={currentView} onGo={setCurrentView} onHome={goHome} />}
-      />
+      <AuroraStage>
+        <AllocationProcess
+          section={currentView}
+          onGo={setCurrentView}
+          stageBar={<StageBar current={currentView} onGo={setCurrentView} onHome={goHome} />}
+        />
+      </AuroraStage>
     );
   }
 
   // 5. ETAPA „NOTARE”
   if (currentView === "notare") {
-    return <Grading stageBar={<StageBar current="notare" onGo={setCurrentView} onHome={goHome} />} />;
+    return (
+      <AuroraStage>
+        <Grading stageBar={<StageBar current="notare" onGo={setCurrentView} onHome={goHome} />} />
+      </AuroraStage>
+    );
   }
 
   // lumina care urmărește mouse-ul pe carduri (doar efect vizual)

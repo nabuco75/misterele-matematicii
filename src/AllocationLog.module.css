@@ -160,3 +160,40 @@
   line-height: 1.7;
   font-size: 0.93rem;
 }
+
+/* AURORA – foaie albă pe fundalul de noapte (doar vizual) */
+:global(.aurora-stage) .card {
+  max-width: 1000px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 24px 60px rgba(3, 6, 25, 0.45), 0 2px 8px rgba(3, 6, 25, 0.2);
+  padding: 24px 26px;
+}
+:global(.aurora-stage) .title {
+  color: #141a3a;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+:global(.aurora-stage) .badge {
+  background: #eef0ff;
+  color: #4338ca;
+}
+:global(.aurora-stage) .stat {
+  border-radius: 18px;
+  background: #f6f7fb;
+  border-color: #eceef6;
+}
+:global(.aurora-stage) .value {
+  color: #141a3a;
+  letter-spacing: -0.02em;
+}
+:global(.aurora-stage) .ok {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+}
+:global(.aurora-stage) .ok .value {
+  color: #047857;
+}
+:global(.aurora-stage) .link {
+  color: #4338ca;
+}

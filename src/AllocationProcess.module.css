@@ -837,3 +837,225 @@
   font-size: 0.9rem;
   color: #5d6d7e;
 }
+
+/* ======================================================================
+   AURORA – Repartizare / Coduri / Tipărire pe fundalul de noapte (doar vizual)
+   ====================================================================== */
+:global(.aurora-stage) .container {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 20px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  border-radius: 0;
+}
+:global(.aurora-stage) .title {
+  margin: 4px 0 24px;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #fff;
+  text-shadow: 0 2px 30px rgba(129, 140, 248, 0.35);
+}
+:global(.aurora-stage) .loading {
+  color: rgba(226, 232, 255, 0.85);
+}
+
+/* foile de lucru: albe, rotunjite, cu umbră adâncă */
+:global(.aurora-stage) .infoBox,
+:global(.aurora-stage) .previewContainer,
+:global(.aurora-stage) .headerSettings,
+:global(.aurora-stage) .reconcileCard,
+:global(.aurora-stage) .batchCard,
+:global(.aurora-stage) .stageEmpty,
+:global(.aurora-stage) .codesSummary {
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(3, 6, 25, 0.45), 0 2px 8px rgba(3, 6, 25, 0.2);
+}
+:global(.aurora-stage) .reconcileCard {
+  border: 2px solid #fbbf24;
+}
+:global(.aurora-stage) .codesSummary {
+  border-left: 5px solid #8b5cf6;
+}
+:global(.aurora-stage) .infoBox h3,
+:global(.aurora-stage) .subtitle,
+:global(.aurora-stage) .headerSettings h3,
+:global(.aurora-stage) .reconcileCard h3,
+:global(.aurora-stage) .batchCard h3 {
+  color: #141a3a;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+:global(.aurora-stage) .infoBox h3 {
+  border-bottom-color: #eef0f6;
+}
+:global(.aurora-stage) .infoRowTotal {
+  border-top-color: #6366f1;
+}
+:global(.aurora-stage) .infoValue {
+  color: #141a3a;
+}
+:global(.aurora-stage) .headerSettings input {
+  border-radius: 12px;
+  border: 1px solid #dfe2ee;
+}
+:global(.aurora-stage) .headerSettings input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+}
+
+/* tabele */
+:global(.aurora-stage) .resultsTableWrapper {
+  border-radius: 16px;
+}
+:global(.aurora-stage) .resultsTable th {
+  background: #f3f4fa;
+  color: #3b4263;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+:global(.aurora-stage) .resultsTable td {
+  color: #1f2547;
+  border-bottom: 1px solid #f0f1f7;
+}
+:global(.aurora-stage) .resultsTable tr:hover {
+  background: #f7f7ff;
+}
+
+/* butoanele mari de acțiune: aceeași formă, culori cu sens */
+:global(.aurora-stage) .generateButton,
+:global(.aurora-stage) .newStudentsButton,
+:global(.aurora-stage) .exportButton,
+:global(.aurora-stage) .pdfButton,
+:global(.aurora-stage) .codesButton,
+:global(.aurora-stage) .dangerButton {
+  padding: 14px 24px;
+  border-radius: 14px;
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  border: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, background 0.2s ease;
+}
+:global(.aurora-stage) .generateButton {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  box-shadow: 0 12px 28px rgba(79, 70, 229, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+:global(.aurora-stage) .newStudentsButton {
+  background: linear-gradient(135deg, #fbbf24, #d97706);
+  box-shadow: 0 12px 28px rgba(217, 119, 6, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+:global(.aurora-stage) .exportButton {
+  background: linear-gradient(135deg, #10b981, #047857);
+  box-shadow: 0 12px 28px rgba(4, 120, 87, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+:global(.aurora-stage) .pdfButton {
+  background: linear-gradient(135deg, #f43f5e, #be123c);
+  box-shadow: 0 12px 28px rgba(190, 18, 60, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+:global(.aurora-stage) .codesButton {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  box-shadow: 0 12px 28px rgba(109, 40, 217, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+:global(.aurora-stage) .generateButton:hover:not(:disabled),
+:global(.aurora-stage) .newStudentsButton:hover:not(:disabled),
+:global(.aurora-stage) .exportButton:hover,
+:global(.aurora-stage) .pdfButton:hover,
+:global(.aurora-stage) .codesButton:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.07);
+}
+:global(.aurora-stage) .generateButton:hover:not(:disabled) {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+}
+/* butoanele riscante (refacere totală, anulare coduri): sticlă cu contur roșu */
+:global(.aurora-stage) .dangerButton {
+  background: rgba(248, 113, 113, 0.08);
+  color: #fecaca;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+:global(.aurora-stage) .dangerButton:hover:not(:disabled) {
+  background: #e11d48;
+  border-color: #e11d48;
+  color: #fff;
+}
+:global(.aurora-stage) .backButton {
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(165, 180, 252, 0.35);
+  color: #eef2ff;
+}
+
+/* butoanele mici din tabelul pe săli */
+:global(.aurora-stage) .smallPdfButton,
+:global(.aurora-stage) .smallExcelButton,
+:global(.aurora-stage) .smallCodesButton {
+  border-radius: 10px;
+  font-weight: 700;
+  box-shadow: none;
+}
+:global(.aurora-stage) .smallPdfButton {
+  background: #fff1f2;
+  color: #be123c;
+}
+:global(.aurora-stage) .smallPdfButton:hover {
+  background: #e11d48;
+  color: #fff;
+}
+:global(.aurora-stage) .smallExcelButton {
+  background: #ecfdf5;
+  color: #047857;
+}
+:global(.aurora-stage) .smallExcelButton:hover {
+  background: #059669;
+  color: #fff;
+}
+:global(.aurora-stage) .smallCodesButton {
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+:global(.aurora-stage) .smallCodesButton:hover {
+  background: #7c3aed;
+  color: #fff;
+}
+
+/* tranșe, de tipărit, mesaje */
+:global(.aurora-stage) .batchPending,
+:global(.aurora-stage) .batchPrinted {
+  border-radius: 14px;
+}
+:global(.aurora-stage) .batchButton,
+:global(.aurora-stage) .todoButton,
+:global(.aurora-stage) .reconcileButton {
+  border-radius: 12px;
+}
+:global(.aurora-stage) .batchButton {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+}
+:global(.aurora-stage) .todoButton {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+}
+:global(.aurora-stage) .todoBanner {
+  border-radius: 18px;
+  border: 1px solid rgba(251, 191, 36, 0.7);
+  background: linear-gradient(135deg, #fffbeb, #fff7e6);
+  box-shadow: 0 18px 44px rgba(3, 6, 25, 0.4);
+}
+:global(.aurora-stage) .successMessage,
+:global(.aurora-stage) .errorMessage,
+:global(.aurora-stage) .warningMessage {
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(3, 6, 25, 0.3);
+}
+:global(.aurora-stage) .retiredNote {
+  color: rgba(226, 232, 255, 0.8);
+}
