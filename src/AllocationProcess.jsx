@@ -19,6 +19,7 @@ import {
     formatWhen,
     loadAllocation,
     logAllocationEvent,
+    markBatchPrinted,
     saveAllocation,
     saveLastNewCodes,
 } from "./allocationStore";
@@ -379,8 +380,11 @@ function AllocationProcess({ onBack, onDashboard }) {
             setStudents((prev) => prev.map((s) => (codeById.get(s.id) ? { ...s, cod: codeById.get(s.id) } : s)));
             setLastCodeN(lastN + added.length);
             try {
-                const lastNewCodes = await saveLastNewCodes(added.map((s) => s.cod));
-                setSaved((prev) => (prev ? { ...prev, lastNewCodes } : prev));
+                const batches = await saveLastNewCodes(
+                    added.map((s) => s.cod),
+                    saved?.codeBatches || []
+                );
+                setSaved((prev) => (prev ? { ...prev, ...batches } : prev));
             } catch (err) {
                 console.error("Eroare la salvarea listei de coduri noi:", err);
             }
@@ -414,13 +418,35 @@ function AllocationProcess({ onBack, onDashboard }) {
         );
     };
 
-    // biletele doar pentru ultimele coduri date (elevii noi)
-    const lastNewCodes = saved?.lastNewCodes?.codes || [];
-    const newCodeSet = new Set(lastNewCodes);
-    const newCodeStudents = (allocationResult || []).filter((s) => s.cod && newCodeSet.has(s.cod));
-    const handleNewCodesPdf = () => {
-        const groups = groupByRoom(newCodeStudents, rooms);
-        printCodesPdf(groups, header, `Coduri_elevi_noi_${lastNewCodes[0]}-${lastNewCodes[lastNewCodes.length - 1]}`);
+    // tranșele de coduri (prima anonimizare + fiecare grup de elevi noi), cea mai nouă prima
+    const listedCodes = new Set((saved?.codeBatches || []).flatMap((b) => b.codes || []));
+    const codeBatches = (saved?.codeBatches || [])
+        .map((b, i) => {
+            const set = new Set(b.codes || []);
+            const studentsIn = (allocationResult || []).filter(
+                (s) => s.cod && (b.codes ? set.has(s.cod) : !listedCodes.has(s.cod))
+            );
+            return { ...b, nr: i + 1, studentsIn };
+        })
+        .filter((b) => b.studentsIn.length > 0)
+        .reverse();
+    const batchRange = (b) => {
+        const codes = b.studentsIn.map((s) => s.cod).sort((x, y) => x.localeCompare(y, "ro", { numeric: true }));
+        return codes.length === 1 ? codes[0] : `${codes[0]} … ${codes[codes.length - 1]}`;
+    };
+    const handleBatchPdf = async (b) => {
+        const codes = b.studentsIn.map((s) => s.cod).sort((x, y) => x.localeCompare(y, "ro", { numeric: true }));
+        printCodesPdf(
+            groupByRoom(b.studentsIn, rooms),
+            header,
+            `Coduri_transa_${b.nr}_${codes[0]}-${codes[codes.length - 1]}`
+        );
+        try {
+            const updated = await markBatchPrinted(saved?.codeBatches || [], b.at);
+            setSaved((prev) => (prev ? { ...prev, codeBatches: updated } : prev));
+        } catch (err) {
+            console.error("Eroare la notarea tranșei ca tipărită:", err);
+        }
     };
 
     // ====== NUME CORECTATE / ELEVI SCOȘI DUPĂ REPARTIZARE ======
@@ -513,7 +539,7 @@ function AllocationProcess({ onBack, onDashboard }) {
                         type: "anulare-coduri",
                         roomSummaries,
                         rooms,
-                        previous: saved,
+                        previous: saved ? { ...saved, lastNewCodes: null, codeBatches: [] } : saved,
                         details: { deleted: r.deleted },
                     })
                 );
@@ -801,21 +827,6 @@ function AllocationProcess({ onBack, onDashboard }) {
                     >
                         ✂️ Bilețele cu coduri – toate sălile (PDF)
                     </button>
-                    {newCodeStudents.length > 0 && (
-                        <button
-                            onClick={handleNewCodesPdf}
-                            className={styles.newStudentsButton}
-                            title={`Codurile date pe ${formatWhen(saved.lastNewCodes.at)}: ${newCodeStudents
-                                .map((s) => `${s.cod} – ${s.nume}`)
-                                .join(", ")}`}
-                        >
-                            ✂️ Bilețele doar pentru elevii noi ({newCodeStudents.length}:{" "}
-                            {newCodeStudents.length === 1
-                                ? newCodeStudents[0].cod
-                                : `${lastNewCodes[0]} … ${lastNewCodes[lastNewCodes.length - 1]}`}
-                            )
-                        </button>
-                    )}
                     <button
                         onClick={() => exportCodesExcel(allocationResult, rooms, header)}
                         className={styles.exportButton}
@@ -830,6 +841,55 @@ function AllocationProcess({ onBack, onDashboard }) {
                     >
                         🗑️ Anulează anonimizarea
                     </button>
+                </div>
+            )}
+
+            {hasCodes && codeBatches.length > 0 && (
+                <div className={styles.batchCard}>
+                    <h3>✂️ Tranșe de coduri ({codeBatches.length})</h3>
+                    <p className={styles.reconcileIntro}>
+                        Fiecare dată când s-au dat coduri apare aici, cea mai nouă sus. Bilețelele descărcate
+                        sunt marcate cu ✅, ca să știți ce mai aveți de tipărit.
+                    </p>
+                    <ul className={styles.batchList}>
+                        {codeBatches.map((b) => (
+                            <li
+                                key={b.at}
+                                className={b.printedAt ? styles.batchPrinted : styles.batchPending}
+                                title={b.studentsIn.map((s) => `${s.cod} – ${s.nume} (${s.sala})`).join("\n")}
+                            >
+                                <div className={styles.batchInfo}>
+                                    <b>
+                                        Tranșa {b.nr}
+                                        {b.nr === 1 ? " (anonimizarea inițială)" : ""}
+                                    </b>{" "}
+                                    · {b.studentsIn.length} {b.studentsIn.length === 1 ? "elev" : "elevi"}{" "}
+                                    <span className={styles.reconcileCode}>{batchRange(b)}</span>
+                                    <div className={styles.batchWhen}>
+                                        {b.at !== "initial" && <>coduri date pe {formatWhen(b.at)} · </>}
+                                        {b.printedAt ? (
+                                            <span className={styles.batchOk}>
+                                                ✅{" "}
+                                                {b.printedAt === "initial"
+                                                    ? "bilețele tipărite la anonimizare"
+                                                    : `bilețele descărcate pe ${formatWhen(b.printedAt)}`}
+                                            </span>
+                                        ) : (
+                                            <span className={styles.batchTodo}>⏳ bilețele netipărite încă</span>
+                                        )}
+                                    </div>
+                                    {b.nr > 1 && b.studentsIn.length <= 20 && (
+                                        <div className={styles.batchNames}>
+                                            {b.studentsIn.map((s) => `${s.cod} ${s.nume} (${s.sala})`).join(" · ")}
+                                        </div>
+                                    )}
+                                </div>
+                                <button onClick={() => handleBatchPdf(b)} className={styles.batchButton}>
+                                    ✂️ Bilețele {b.printedAt ? "(din nou)" : ""}
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             )}
 

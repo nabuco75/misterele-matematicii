@@ -23,7 +23,7 @@ export const logAllocationEvent = async ({ type, roomSummaries, rooms, previous,
   const entry = { at: new Date().toISOString(), type, ...details, ...allocationStats(roomSummaries, rooms) };
   const history = [entry, ...(previous?.history || [])].slice(0, HISTORY_LIMIT);
   await setDoc(allocationDoc(), { history }, { merge: true });
-  return { ...(previous || { assignments: new Map(), lastNewCodes: null }), history, last: lastAllocation(history) };
+  return { ...(previous || { assignments: new Map(), lastNewCodes: null, codeBatches: [] }), history, last: lastAllocation(history) };
 };
 
 // { assignments: Map id → sală, last, history } sau null dacă nu s-a salvat nicio repartizare
@@ -36,14 +36,31 @@ export const loadAllocation = async () => {
     last: lastAllocation(data.history || []),
     history: data.history || [],
     lastNewCodes: data.lastNewCodes || null,
+    // toate tranșele de coduri date (prima anonimizare + fiecare grup de elevi noi);
+    // datele vechi aveau doar ultima tranșă: restul codurilor devin tranșa inițială (codes: null =
+    // „toate codurile care nu sunt în altă tranșă”), considerată tipărită la anonimizare
+    codeBatches:
+      data.codeBatches ||
+      (data.lastNewCodes
+        ? [{ at: "initial", codes: null, printedAt: "initial" }, data.lastNewCodes]
+        : []),
   };
 };
 
-// ultimele coduri date (pentru biletele „doar elevii noi”)
-export const saveLastNewCodes = async (codes) => {
+// o tranșă nouă de coduri: devine „ultimele coduri” și se adaugă în lista tranșelor
+export const saveLastNewCodes = async (codes, previousBatches = []) => {
   const lastNewCodes = { at: new Date().toISOString(), codes };
-  await setDoc(allocationDoc(), { lastNewCodes }, { merge: true });
-  return lastNewCodes;
+  const codeBatches = [...previousBatches, lastNewCodes];
+  await setDoc(allocationDoc(), { lastNewCodes, codeBatches }, { merge: true });
+  return { lastNewCodes, codeBatches };
+};
+
+// bilețelele unei tranșe au fost descărcate (tipărite): se notează data
+export const markBatchPrinted = async (codeBatches, at) => {
+  const printedAt = new Date().toISOString();
+  const updated = codeBatches.map((b) => (b.at === at ? { ...b, printedAt } : b));
+  await setDoc(allocationDoc(), { codeBatches: updated }, { merge: true });
+  return updated;
 };
 
 export const saveAllocation = async ({ data, roomSummaries, rooms, type, added = 0, previous }) => {
@@ -67,6 +84,7 @@ export const saveAllocation = async ({ data, roomSummaries, rooms, type, added =
     last: lastAllocation(history),
     history,
     lastNewCodes: previous?.lastNewCodes || null,
+    codeBatches: previous?.codeBatches || [],
   };
 };
 

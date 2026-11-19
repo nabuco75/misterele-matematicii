@@ -228,4 +228,4 @@ export async function cancelAnonymization() {
 
 // după anulare: biletele „elevi noi” nu mai sunt valabile
 export const clearLastNewCodes = () =>
-  setDoc(allocationRef(), { lastNewCodes: deleteField() }, { merge: true });
+  setDoc(allocationRef(), { lastNewCodes: deleteField(), codeBatches: deleteField() }, { merge: true });
