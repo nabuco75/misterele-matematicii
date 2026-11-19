@@ -496,6 +496,7 @@ function AdminDashboard() {
       XLSX.writeFile(wb, "lista_participanti_simplificata.xlsx");
     } catch (err) {
       console.error("Eroare la exportul listei simplificate:", err);
+      window.alert("❌ Lista simplificată nu s-a putut descărca. Verificați conexiunea la internet și încercați din nou.");
     }
   };
 
@@ -608,6 +609,7 @@ function AdminDashboard() {
       XLSX.writeFile(wb, "profesori_indrumatori.xlsx");
     } catch (err) {
       console.error("Eroare la exportul profesorilor îndrumători:", err);
+      window.alert("❌ Lista profesorilor îndrumători nu s-a putut descărca. Verificați conexiunea la internet și încercați din nou.");
     }
   };
 
@@ -693,6 +695,7 @@ function AdminDashboard() {
         "Eroare la exportul școlilor participante:",
         err
       );
+      window.alert("❌ Lista școlilor participante nu s-a putut descărca. Verificați conexiunea la internet și încercați din nou.");
     }
   };
 
@@ -827,6 +830,7 @@ function AdminDashboard() {
       XLSX.writeFile(wb, "elevi_inscrisi.xlsx");
     } catch (err) {
       console.error("Eroare la exportul în Excel:", err);
+      window.alert("❌ Lista elevilor înscriși nu s-a putut descărca. Verificați conexiunea la internet și încercați din nou.");
     }
   };
 
@@ -1470,7 +1474,7 @@ function AdminDashboard() {
                 {
                   icon: "📝",
                   label: "Notare și rezultate",
-                  sub: "Note, medii, premii, clasamente",
+                  sub: "Note, sume, premii, clasamente",
                   color: "gold",
                   onClick: () => setCurrentView("grading"),
                 },

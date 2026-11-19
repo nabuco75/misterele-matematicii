@@ -224,7 +224,7 @@ function Grading({ onDashboard }) {
   const deleteAllGrades = async () => {
     if (gradedCount === 0) return;
     const answer = window.prompt(
-      `Se vor șterge DEFINITIV toate notele (${gradedCount} elevi), cu medii, premii și absenți.\n` +
+      `Se vor șterge DEFINITIV toate notele (${gradedCount} elevi), cu sume, premii și absenți.\n` +
         "Nu se poate anula.\n\nScrieți STERGE ca să confirmați:"
     );
     if (answer === null) return;
@@ -710,7 +710,7 @@ function Grading({ onDashboard }) {
           <h2 className={styles.dangerTitle}>🧹 Pornește notarea de la zero</h2>
           <p className={styles.dangerText}>
             Șterge <b>toate notele</b> ({gradedCount} {gradedCount === 1 ? "elev notat" : "elevi notați"}), deci și
-            mediile, premiile și bifele de absent. Elevii, codurile și repartizarea rămân neatinse.
+            sumele, premiile și bifele de absent. Elevii, codurile și repartizarea rămân neatinse.
           </p>
         </div>
         <button className={styles.dangerButton} onClick={deleteAllGrades} disabled={deleting || gradedCount === 0}>
