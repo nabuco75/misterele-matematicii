@@ -21,6 +21,8 @@ import AllocationProcess from "./AllocationProcess.jsx";
 import Grading from "./Grading.jsx";
 import ClassForm from "./ClassForm.jsx";
 import { applyRemovals, applyRenames } from "./studentSync";
+import { cleanTeacherName, teacherKey, validateTeacher } from "./teachers";
+import TeacherSearch from "./TeacherSearch.jsx";
 import styles from "./AdminDashboard.module.css";
 
 // iconița de fișier Excel (foaie verde cu X) pentru butoanele de descărcare
@@ -91,6 +93,7 @@ function AdminDashboard() {
   const [moveTargets, setMoveTargets] = useState({});
   // editarea profesorului îndrumător al unei înscrieri: { regId, nume, email, telefon, applyAll }
   const [profEdit, setProfEdit] = useState(null);
+  const [showTeacherSearch, setShowTeacherSearch] = useState(false);
   const [profEditError, setProfEditError] = useState("");
 
   // —— Form de înscriere suplimentară (ADMIN)
@@ -1212,19 +1215,7 @@ function AdminDashboard() {
   };
 
   // ====== PROFESOR ÎNDRUMĂTOR (nume, email, telefon) ======
-  const sameProf = (a, b) =>
-    String(a || "")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase() ===
-    String(b || "")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase();
+  const sameProf = (a, b) => teacherKey(a) === teacherKey(b);
 
   // celelalte înscrieri de la aceeași școală, cu același profesor
   const otherRegsOfProf = (reg) =>
@@ -1241,31 +1232,16 @@ function AdminDashboard() {
     setProfEditError("");
   };
 
-  const validateProfEdit = ({ nume, email, telefon }) => {
-    const v = nume.trim();
-    if (!v) return "Numele profesorului îndrumător este necesar.";
-    if (v.includes("@"))
-      return "Ați scris o adresă de email în câmpul pentru nume. Emailul se scrie în câmpul „Email”.";
-    if (/\d/.test(v)) return "Numele nu poate conține cifre.";
-    if (v.split(/\s+/).filter(Boolean).length < 2)
-      return "Scrieți numele și prenumele profesorului (ex: Popescu Maria).";
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
-      return "Adresa de email nu este validă.";
-    if (telefon.trim() && !/^[0-9+()\s.-]{6,20}$/.test(telefon.trim()))
-      return "Numărul de telefon nu este valid (doar cifre, spații, +, -).";
-    return "";
-  };
-
   const handleSaveProfEdit = () => {
     if (!profEdit) return;
     const reg = schoolRegs.find((r) => r.id === profEdit.regId);
     if (!reg) return;
-    const err = validateProfEdit(profEdit);
+    const err = validateTeacher(profEdit);
     if (err) {
       setProfEditError(err);
       return;
     }
-    const nume = profEdit.nume.trim().replace(/\s+/g, " ");
+    const nume = cleanTeacherName(profEdit.nume);
     const email = profEdit.email.trim();
     const telefon = profEdit.telefon.trim();
     const others = otherRegsOfProf(reg);
@@ -1539,6 +1515,14 @@ function AdminDashboard() {
               title: "Înscrieri și liste",
               tiles: [
                 {
+                  icon: showTeacherSearch ? "✖️" : "🔎",
+                  label: showTeacherSearch ? "Închide căutarea" : "Caută profesor îndrumător",
+                  sub: "După nume, email, telefon, școală sau elev",
+                  color: "indigo",
+                  active: showTeacherSearch,
+                  onClick: () => setShowTeacherSearch((v) => !v),
+                },
+                {
                   icon: "📊",
                   label: showStatistics ? "Ascunde situația" : "Situație înscrieri",
                   sub: "Statistici pe clase și școli",
@@ -1734,6 +1718,8 @@ function AdminDashboard() {
             </p>
           </div>
         )}
+
+        {showTeacherSearch && <TeacherSearch />}
 
         {showRegisteredSchools && (
           <div className={styles.registeredSchoolsContainer}>

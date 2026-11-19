@@ -1,0 +1,258 @@
+/* Căutare globală profesori îndrumători */
+.panel {
+  width: 100%;
+  max-width: 1000px;
+  margin: 20px auto;
+  padding: 22px 24px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  color: #2c3e50;
+  box-sizing: border-box;
+}
+
+.title {
+  margin: 0 0 6px;
+  font-size: 1.6rem;
+}
+
+.intro {
+  margin: 0 0 14px;
+  line-height: 1.45;
+  color: #555;
+}
+
+.search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  font-size: 1.15rem;
+  border: 2px solid #2980b9;
+  border-radius: 10px;
+  outline: none;
+}
+
+.search:focus {
+  box-shadow: 0 0 0 4px rgba(41, 128, 185, 0.18);
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  margin: 14px 0;
+}
+
+.linkBtn {
+  background: none;
+  border: none;
+  color: #2980b9;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 1rem;
+}
+
+.count,
+.empty {
+  margin: 14px 0 8px;
+  color: #555;
+}
+
+.success {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #e8f8ef;
+  color: #1e7e46;
+  font-weight: 600;
+}
+
+.error {
+  margin: 10px 0;
+  color: #c0392b;
+  font-weight: 600;
+}
+
+.dupBox {
+  margin: 10px 0 18px;
+  padding: 12px 14px;
+  border: 1px solid #f5c26b;
+  border-radius: 10px;
+  background: #fff8ec;
+  line-height: 1.45;
+}
+
+.dupList {
+  margin-top: 10px;
+}
+
+.card {
+  margin: 10px 0;
+  padding: 14px 16px;
+  border: 1px solid #e0e6ed;
+  border-left: 5px solid #2980b9;
+  border-radius: 10px;
+  background: #fafcfe;
+}
+
+.cardEditing {
+  border-color: #27ae60;
+  border-left-color: #27ae60;
+  background: #f6fdf9;
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.name {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.variants {
+  margin-top: 3px;
+  color: #b9770e;
+  font-size: 0.9rem;
+}
+
+.contact {
+  margin-top: 4px;
+  color: #555;
+  font-size: 0.95rem;
+  word-break: break-word;
+}
+
+.editBtn {
+  flex-shrink: 0;
+  background: #f39c12;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.editBtn:hover {
+  background: #d68910;
+}
+
+.regs {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.regs li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.regHit {
+  background: #eaf4fc;
+}
+
+.regCheck {
+  margin-top: 4px;
+}
+
+.spelling {
+  color: #b9770e;
+}
+
+.studentHit {
+  color: #1e7e46;
+  font-weight: 600;
+}
+
+.form {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #c8d6e5;
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
+.fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 200px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.fields input {
+  padding: 8px 10px;
+  border: 1px solid #bdc3c7;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.formHint {
+  margin: 10px 0 0;
+  font-size: 0.88rem;
+  color: #666;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.saveBtn,
+.cancelBtn {
+  border: none;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.saveBtn {
+  background: #27ae60;
+  color: #fff;
+}
+
+.saveBtn:hover:not(:disabled) {
+  background: #229954;
+}
+
+.cancelBtn {
+  background: #ecf0f1;
+  color: #2c3e50;
+}
+
+.saveBtn:disabled,
+.cancelBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 600px) {
+  .panel {
+    padding: 16px;
+  }
+
+  .cardHead {
+    flex-direction: column;
+  }
+}
