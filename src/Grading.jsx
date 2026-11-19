@@ -107,7 +107,7 @@ const TABLE_COLUMNS = [
   { key: "sala", label: "Sala", defaultDir: "asc" },
 ];
 
-function Grading({ onDashboard }) {
+function Grading({ onDashboard, stageBar }) {
   const [header] = useState(loadHeader);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -424,6 +424,7 @@ function Grading({ onDashboard }) {
 
   return (
     <div className={styles.page}>
+      {stageBar}
       <div className={styles.topBar}>
         {onDashboard && (
           <button onClick={onDashboard} className={styles.backButton}>

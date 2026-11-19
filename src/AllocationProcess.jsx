@@ -48,7 +48,7 @@ import {
     saveHeader,
 } from "./contestData";
 
-function AllocationProcess({ onBack, onDashboard }) {
+function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo, stageBar }) {
     const [header, setHeader] = useState(loadHeader);
     const [loading, setLoading] = useState(true);
     const [students, setStudents] = useState([]);
@@ -574,9 +574,53 @@ function AllocationProcess({ onBack, onDashboard }) {
             ? Math.round((studentStats.total / totalSeats) * 100)
             : 0;
 
+    const SECTION_TITLES = {
+        repartizare: "🪑 Repartizare",
+        coduri: "🔐 Coduri",
+        tiparire: "🖨️ Tipărire",
+    };
+    const goTo = (id) => onGo && onGo(id);
+
+    // ce mai e de tipărit: tranșele de bilețele nedescărcate și sălile elevilor din ele
+    const pendingBatches = codeBatches.filter((b) => !b.printedAt);
+    const pendingRooms = [
+        ...new Set(pendingBatches.flatMap((b) => b.studentsIn.map((s) => s.sala)).filter(Boolean)),
+    ];
+    const todoBanner = (withLink) =>
+        pendingBatches.length > 0 && (
+            <div className={styles.todoBanner}>
+                <div>
+                    <b>⏳ De tipărit:</b> bilețelele pentru{" "}
+                    {pendingBatches.map((b) => `tranșa ${b.nr} (${batchRange(b)})`).join(", ")}
+                    {pendingRooms.length > 0 && (
+                        <>
+                            {" "}· lista de pe ușa: <b>{pendingRooms.join(", ")}</b>
+                        </>
+                    )}{" "}
+                    · borderoul de coduri.
+                </div>
+                {withLink && onGo && (
+                    <button className={styles.todoButton} onClick={() => goTo("tiparire")}>
+                        🖨️ Mergi la Tipărire →
+                    </button>
+                )}
+            </div>
+        );
+    const needAllocation = (
+        <div className={styles.stageEmpty}>
+            <p>Elevii nu sunt încă repartizați în săli.</p>
+            {onGo && (
+                <button className={styles.todoButton} onClick={() => goTo("repartizare")}>
+                    🪑 Mergi la Repartizare →
+                </button>
+            )}
+        </div>
+    );
+
     return (
         <div className={styles.container}>
-            <h1 className={styles.title}>Procesul de Repartizare</h1>
+            {stageBar}
+            <h1 className={styles.title}>{SECTION_TITLES[section] || "🪑 Repartizare"}</h1>
 
             {message && (
                 <div
@@ -592,425 +636,611 @@ function AllocationProcess({ onBack, onDashboard }) {
                 </div>
             )}
 
-            <div className={styles.buttonContainer}>
-                {onDashboard && (
-                    <button onClick={onDashboard} className={styles.backButton}>
-                        ← Panou Admin
-                    </button>
-                )}
-                <button onClick={onBack} className={styles.backButton}>
-                    ← Înapoi la Configurare Săli
-                </button>
-            </div>
-
-            <div className={styles.infoBoxesContainer}>
-                <div className={styles.infoBox}>
-                    <h3>👥 Elevi Înscriși</h3>
-                    {CLASS_ORDER.map((clasa) => (
-                        <div key={clasa} className={styles.infoRow}>
-                            <span className={styles.infoLabel}>
-                                Clasa {clasa}:
-                            </span>
-                            <span className={styles.infoValue}>
-                                {studentStats[clasa] || 0}
-                            </span>
-                        </div>
-                    ))}
-                    <div className={styles.infoRowTotal}>
-                        <span className={styles.infoLabel}>TOTAL ELEVI:</span>
-                        <span className={styles.infoValue}>
-                            {studentStats.total}
-                        </span>
-                    </div>
-                </div>
-
-                <div className={styles.infoBox}>
-                    <h3>🏫 Capacitate Săli</h3>
-                    <div className={styles.infoRow}>
-                        <span className={styles.infoLabel}>Săli active:</span>
-                        <span className={styles.infoValue}>
-                            {rooms.length}
-                        </span>
-                    </div>
-                    <div className={styles.infoRow}>
-                        <span className={styles.infoLabel}>Locuri totale:</span>
-                        <span className={styles.infoValue}>{totalSeats}</span>
-                    </div>
-                    <div className={styles.infoRowTotal}>
-                        <span className={styles.infoLabel}>GRAD OCUPARE:</span>
-                        <span
-                            className={styles.infoValue}
-                            style={{
-                                color:
-                                    studentStats.total > totalSeats
-                                        ? "red"
-                                        : "green",
-                            }}
-                        >
-                            {occupiedPercentage}%
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <AllocationLogCard
-                saved={saved}
-                newCount={newStudents}
-                renamedCount={pendingPairs}
-                ghostCount={diff ? diff.unpairedGhosts.length : 0}
-                onPlaceNew={handleKeepAllocation}
-                onRegenerate={handleGenerateAllocation}
-            />
-
-            <div className={styles.headerSettings}>
-                <h3>📝 Antetul listelor</h3>
-                <label>
-                    Ediția
-                    <input
-                        type="text"
-                        value={header.edition}
-                        onChange={(e) => updateHeader("edition", e.target.value)}
-                        placeholder="ex: a XX-a"
-                    />
-                </label>
-                <label>
-                    Data concursului
-                    <input
-                        type="text"
-                        value={header.date}
-                        onChange={(e) => updateHeader("date", e.target.value)}
-                        placeholder="ex: 21 noiembrie 2026"
-                    />
-                </label>
-                <p className={styles.headerPreview}>
-                    Pe liste: <b>Ediția {header.edition} - {header.date}</b>
-                </p>
-            </div>
-
-            <div className={styles.actionButtonsContainer}>
-                <button
-                    onClick={handleGenerateAllocation}
-                    className={styles.generateButton}
-                    disabled={
-                        students.length === 0 || rooms.length === 0 || loading
-                    }
-                >
-                    🎲 Generează Repartizare Inteligentă
-                </button>
-
-                {(studentsWithCode > 0 || saved?.last) && newStudents > 0 && (
-                    <button
-                        onClick={handleKeepAllocation}
-                        className={styles.newStudentsButton}
-                        disabled={rooms.length === 0 || loading}
-                        title="Elevii care au cod rămân în sala lor; cei fără cod se pun pe locurile libere, începând cu ultima sală"
-                    >
-                        {`➕ Repartizează elevii noi (${newStudents}) în ultima sală`}
-                    </button>
-                )}
-
-                {allocationResult && (
-                    <button
-                        onClick={handleExportExcel}
-                        className={styles.exportButton}
-                    >
-                        📥 Descarcă Excel ({allocationResult.length} elevi)
-                    </button>
-                )}
-
-                {allocationResult && (
-                    <button
-                        onClick={() => handleExportPdf()}
-                        className={styles.pdfButton}
-                    >
-                        📄 Liste pentru uși (PDF)
-                    </button>
-                )}
-
-                {allocationResult && (
-                    <button
-                        onClick={handleGenerateCodes}
-                        className={styles.codesButton}
-                        disabled={withoutCode === 0 || savingCodes}
-                        title="Elevii fără cod primesc coduri definitive, în ordinea sălilor; cei care au deja cod îl păstrează"
-                    >
-                        🔐{" "}
-                        {savingCodes
-                            ? "Se salvează codurile..."
-                            : withoutCode === 0
-                            ? "Toți elevii au cod"
-                            : hasCodes
-                            ? `Dă coduri elevilor noi (${withoutCode})`
-                            : "Generează coduri anonimizare"}
-                    </button>
-                )}
-            </div>
-
-            {diff && diff.ghosts.length > 0 && (
-                <div className={styles.reconcileCard}>
-                    <h3>🔗 Nume corectate sau elevi scoși după repartizare</h3>
-                    <p className={styles.reconcileIntro}>
-                        Acești elevi apar în repartizare (sau au cod), dar nu mai există cu acest nume în
-                        înscrieri. De obicei numele a fost corectat. Alegeți elevul corespunzător: își
-                        păstrează <b>sala</b> și <b>codul</b>. Dacă elevul a fost scos, alegeți „scos”:
-                        locul se eliberează, iar codul nu se mai dă nimănui.
-                    </p>
-                    <table className={styles.reconcileTable}>
-                        <thead>
-                            <tr>
-                                <th>Nume vechi (din repartizare)</th>
-                                <th>Sală / cod</th>
-                                <th>Este acum…</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {diff.ghosts.map((g) => {
-                                const options = diff.newcomers.filter((st) => st.regId === g.regId);
-                                const choice = choiceOf(g);
-                                return (
-                                    <tr key={ghostId(g)}>
-                                        <td>
-                                            <b>{g.nume}</b>
-                                        </td>
-                                        <td>
-                                            {g.sala || "—"}
-                                            {g.cod && <span className={styles.reconcileCode}>{g.cod}</span>}
-                                        </td>
-                                        <td>
-                                            <select
-                                                value={choice}
-                                                onChange={(e) =>
-                                                    setReconcileChoice((prev) => ({
-                                                        ...prev,
-                                                        [ghostId(g)]: e.target.value,
-                                                    }))
-                                                }
-                                                className={styles.reconcileSelect}
-                                            >
-                                                <option value="">— nu decid acum —</option>
-                                                {options.map((st) => (
-                                                    <option key={st.id} value={st.id}>
-                                                        ✏️ {st.nume} ({st.clasa})
-                                                        {suggested.get(ghostId(g)) === st.id ? " — sugerat" : ""}
-                                                    </option>
-                                                ))}
-                                                <option value="__removed">🚪 Elevul a fost scos din concurs</option>
-                                            </select>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                    <button
-                        onClick={handleReconcile}
-                        className={styles.reconcileButton}
-                        disabled={reconciling}
-                    >
-                        {reconciling ? "Se salvează..." : "✅ Confirmă"}
-                    </button>
+            {!stageBar && (
+                <div className={styles.buttonContainer}>
+                    {onDashboard && (
+                        <button onClick={onDashboard} className={styles.backButton}>
+                            ← Panou Admin
+                        </button>
+                    )}
+                    {onBack && (
+                        <button onClick={onBack} className={styles.backButton}>
+                            ← Înapoi la Săli
+                        </button>
+                    )}
                 </div>
             )}
 
-            {retiredCodes.length > 0 && (
-                <p className={styles.retiredNote}>
-                    🗄️ Coduri retrase (elevi scoși), care nu se mai dau nimănui:{" "}
-                    {retiredCodes.map((c) => `${c.cod} (${c.nume})`).join(", ")}.
-                </p>
-            )}
-
-            {hasCodes && (
-                <div className={styles.actionButtonsContainer}>
-                    <button
-                        onClick={() => handleCodesPdf()}
-                        className={styles.codesButton}
-                    >
-                        ✂️ Bilețele cu coduri – toate sălile (PDF)
-                    </button>
-                    <button
-                        onClick={() => exportCodesExcel(allocationResult, rooms, header)}
-                        className={styles.exportButton}
-                    >
-                        📥 Borderou coduri (Excel)
-                    </button>
-                    <button
-                        onClick={handleCancelCodes}
-                        className={styles.dangerButton}
-                        disabled={savingCodes}
-                        title="Șterge toate codurile (doar dacă nu s-au trecut note pe coduri); repartizarea rămâne"
-                    >
-                        🗑️ Anulează anonimizarea
-                    </button>
-                </div>
-            )}
-
-            {hasCodes && codeBatches.length > 0 && (
-                <div className={styles.batchCard}>
-                    <h3>✂️ Tranșe de coduri ({codeBatches.length})</h3>
-                    <p className={styles.reconcileIntro}>
-                        Fiecare dată când s-au dat coduri apare aici, cea mai nouă sus. Bilețelele descărcate
-                        sunt marcate cu ✅, ca să știți ce mai aveți de tipărit.
-                    </p>
-                    <ul className={styles.batchList}>
-                        {codeBatches.map((b) => (
-                            <li
-                                key={b.at}
-                                className={b.printedAt ? styles.batchPrinted : styles.batchPending}
-                                title={b.studentsIn.map((s) => `${s.cod} – ${s.nume} (${s.sala})`).join("\n")}
-                            >
-                                <div className={styles.batchInfo}>
-                                    <b>
-                                        Tranșa {b.nr}
-                                        {b.nr === 1 ? " (anonimizarea inițială)" : ""}
-                                    </b>{" "}
-                                    · {b.studentsIn.length} {b.studentsIn.length === 1 ? "elev" : "elevi"}{" "}
-                                    <span className={styles.reconcileCode}>{batchRange(b)}</span>
-                                    <div className={styles.batchWhen}>
-                                        {b.at !== "initial" && <>coduri date pe {formatWhen(b.at)} · </>}
-                                        {b.printedAt ? (
-                                            <span className={styles.batchOk}>
-                                                ✅{" "}
-                                                {b.printedAt === "initial"
-                                                    ? "bilețele tipărite la anonimizare"
-                                                    : `bilețele descărcate pe ${formatWhen(b.printedAt)}`}
-                                            </span>
-                                        ) : (
-                                            <span className={styles.batchTodo}>⏳ bilețele netipărite încă</span>
-                                        )}
+            {/* ===================== REPARTIZARE ===================== */}
+            {section === "repartizare" && (
+                <>
+                        <div className={styles.infoBoxesContainer}>
+                            <div className={styles.infoBox}>
+                                <h3>👥 Elevi Înscriși</h3>
+                                {CLASS_ORDER.map((clasa) => (
+                                    <div key={clasa} className={styles.infoRow}>
+                                        <span className={styles.infoLabel}>
+                                            Clasa {clasa}:
+                                        </span>
+                                        <span className={styles.infoValue}>
+                                            {studentStats[clasa] || 0}
+                                        </span>
                                     </div>
-                                    {b.nr > 1 && b.studentsIn.length <= 20 && (
-                                        <div className={styles.batchNames}>
-                                            {b.studentsIn.map((s) => `${s.cod} ${s.nume} (${s.sala})`).join(" · ")}
-                                        </div>
-                                    )}
+                                ))}
+                                <div className={styles.infoRowTotal}>
+                                    <span className={styles.infoLabel}>TOTAL ELEVI:</span>
+                                    <span className={styles.infoValue}>
+                                        {studentStats.total}
+                                    </span>
                                 </div>
-                                <button onClick={() => handleBatchPdf(b)} className={styles.batchButton}>
-                                    ✂️ Bilețele {b.printedAt ? "(din nou)" : ""}
+                            </div>
+
+                            <div className={styles.infoBox}>
+                                <h3>🏫 Capacitate Săli</h3>
+                                <div className={styles.infoRow}>
+                                    <span className={styles.infoLabel}>Săli active:</span>
+                                    <span className={styles.infoValue}>
+                                        {rooms.length}
+                                    </span>
+                                </div>
+                                <div className={styles.infoRow}>
+                                    <span className={styles.infoLabel}>Locuri totale:</span>
+                                    <span className={styles.infoValue}>{totalSeats}</span>
+                                </div>
+                                <div className={styles.infoRowTotal}>
+                                    <span className={styles.infoLabel}>GRAD OCUPARE:</span>
+                                    <span
+                                        className={styles.infoValue}
+                                        style={{
+                                            color:
+                                                studentStats.total > totalSeats
+                                                    ? "red"
+                                                    : "green",
+                                        }}
+                                    >
+                                        {occupiedPercentage}%
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <AllocationLogCard
+                            saved={saved}
+                            newCount={newStudents}
+                            renamedCount={pendingPairs}
+                            ghostCount={diff ? diff.unpairedGhosts.length : 0}
+                            onPlaceNew={handleKeepAllocation}
+                            onRegenerate={handleGenerateAllocation}
+                        />
+
+                    <div className={styles.actionButtonsContainer}>
+                        {/* după prima repartizare, refacerea totală devine un buton discret (mută elevii în alte săli) */}
+                        <button
+                            onClick={handleGenerateAllocation}
+                            className={allocationResult ? styles.dangerButton : styles.generateButton}
+                            disabled={
+                                students.length === 0 || rooms.length === 0 || loading
+                            }
+                            title={
+                                allocationResult
+                                    ? "Reface TOATĂ repartizarea: elevii pot ajunge în alte săli decât cele de pe listele printate"
+                                    : undefined
+                            }
+                        >
+                            {allocationResult
+                                ? "🎲 Refă toată repartizarea de la zero"
+                                : "🎲 Generează Repartizare Inteligentă"}
+                        </button>
+
+                        {(studentsWithCode > 0 || saved?.last) && newStudents > 0 && (
+                            <button
+                                onClick={handleKeepAllocation}
+                                className={styles.newStudentsButton}
+                                disabled={rooms.length === 0 || loading}
+                                title="Elevii care au cod rămân în sala lor; cei fără cod se pun pe locurile libere, începând cu ultima sală"
+                            >
+                                {`➕ Repartizează elevii noi (${newStudents}) în ultima sală`}
+                            </button>
+                        )}
+                    </div>
+
+                        {diff && diff.ghosts.length > 0 && (
+                            <div className={styles.reconcileCard}>
+                                <h3>🔗 Nume corectate sau elevi scoși după repartizare</h3>
+                                <p className={styles.reconcileIntro}>
+                                    Acești elevi apar în repartizare (sau au cod), dar nu mai există cu acest nume în
+                                    înscrieri. De obicei numele a fost corectat. Alegeți elevul corespunzător: își
+                                    păstrează <b>sala</b> și <b>codul</b>. Dacă elevul a fost scos, alegeți „scos”:
+                                    locul se eliberează, iar codul nu se mai dă nimănui.
+                                </p>
+                                <table className={styles.reconcileTable}>
+                                    <thead>
+                                        <tr>
+                                            <th>Nume vechi (din repartizare)</th>
+                                            <th>Sală / cod</th>
+                                            <th>Este acum…</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {diff.ghosts.map((g) => {
+                                            const options = diff.newcomers.filter((st) => st.regId === g.regId);
+                                            const choice = choiceOf(g);
+                                            return (
+                                                <tr key={ghostId(g)}>
+                                                    <td>
+                                                        <b>{g.nume}</b>
+                                                    </td>
+                                                    <td>
+                                                        {g.sala || "—"}
+                                                        {g.cod && <span className={styles.reconcileCode}>{g.cod}</span>}
+                                                    </td>
+                                                    <td>
+                                                        <select
+                                                            value={choice}
+                                                            onChange={(e) =>
+                                                                setReconcileChoice((prev) => ({
+                                                                    ...prev,
+                                                                    [ghostId(g)]: e.target.value,
+                                                                }))
+                                                            }
+                                                            className={styles.reconcileSelect}
+                                                        >
+                                                            <option value="">— nu decid acum —</option>
+                                                            {options.map((st) => (
+                                                                <option key={st.id} value={st.id}>
+                                                                    ✏️ {st.nume} ({st.clasa})
+                                                                    {suggested.get(ghostId(g)) === st.id ? " — sugerat" : ""}
+                                                                </option>
+                                                            ))}
+                                                            <option value="__removed">🚪 Elevul a fost scos din concurs</option>
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                                <button
+                                    onClick={handleReconcile}
+                                    className={styles.reconcileButton}
+                                    disabled={reconciling}
+                                >
+                                    {reconciling ? "Se salvează..." : "✅ Confirmă"}
                                 </button>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
+                            </div>
+                        )}
 
-            {allocationResult && roomSummaries.length > 0 && (
-                <div className={styles.previewContainer}>
-                    <h2 className={styles.subtitle}>🏫 Situația pe săli</h2>
-                    <AllocationStatsView stats={allocationStats(roomSummaries, rooms)} />
-                    <div className={styles.resultsTableWrapper}>
-                        <table className={styles.resultsTable}>
-                            <thead>
-                                <tr>
-                                    <th>Sală</th>
-                                    <th>Ocupare</th>
-                                    <th>Clase</th>
-                                    <th>Listă</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {roomSummaries.map((s) => (
-                                    <tr key={s.room.id || s.room.name}>
-                                        <td style={{ fontWeight: "bold" }}>
-                                            {s.room.name}
-                                            {s.room.floor ? ` (${s.room.floor})` : ""}
-                                        </td>
-                                        <td>
-                                            {s.count} / {s.seats}
-                                        </td>
-                                        <td>
-                                            {CLASS_ORDER.filter((c) => s.perClass[c]).map((c) => (
-                                                <span
-                                                    key={c}
-                                                    className={styles.classChip}
-                                                    style={{ background: `#${CLASS_COLORS[c]}` }}
-                                                >
-                                                    {s.perClass[c]} × {c}
-                                                </span>
+                    {todoBanner(true)}
+
+                        {allocationResult && roomSummaries.length > 0 && (
+                            <div className={styles.previewContainer}>
+                                <h2 className={styles.subtitle}>🏫 Situația pe săli</h2>
+                                <AllocationStatsView stats={allocationStats(roomSummaries, rooms)} />
+                                <div className={styles.resultsTableWrapper}>
+                                    <table className={styles.resultsTable}>
+                                        <thead>
+                                            <tr>
+                                                <th>Sală</th>
+                                                <th>Ocupare</th>
+                                                <th>Clase</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {roomSummaries.map((s) => (
+                                                <tr key={s.room.id || s.room.name}>
+                                                    <td style={{ fontWeight: "bold" }}>
+                                                        {s.room.name}
+                                                        {s.room.floor ? ` (${s.room.floor})` : ""}
+                                                    </td>
+                                                    <td>
+                                                        {s.count} / {s.seats}
+                                                    </td>
+                                                    <td>
+                                                        {CLASS_ORDER.filter((c) => s.perClass[c]).map((c) => (
+                                                            <span
+                                                                key={c}
+                                                                className={styles.classChip}
+                                                                style={{ background: `#${CLASS_COLORS[c]}` }}
+                                                            >
+                                                                {s.perClass[c]} × {c}
+                                                            </span>
+                                                        ))}
+                                                        {s.mosaic && (
+                                                            <span className={styles.classChip}>🧩 mozaic</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
                                             ))}
-                                            {s.mosaic && (
-                                                <span className={styles.classChip}>🧩 mozaic</span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <button
-                                                onClick={() => handleExportPdf(s.room.name)}
-                                                className={styles.smallPdfButton}
-                                            >
-                                                📄 PDF
-                                            </button>{" "}
-                                            <button
-                                                onClick={() => handleExportExcel(s.room.name)}
-                                                className={styles.smallExcelButton}
-                                            >
-                                                📥 Excel
-                                            </button>
-                                            {hasCodes && (
-                                                <>
-                                                    {" "}
-                                                    <button
-                                                        onClick={() => handleCodesPdf(s.room.name)}
-                                                        className={styles.smallCodesButton}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {allocationResult && (
+                            <div className={styles.previewContainer}>
+                                <h2 className={styles.subtitle}>
+                                    📋 Rezultat Repartizare ({allocationResult.length} elevi)
+                                </h2>
+
+                                <div className={styles.resultsTableWrapper}>
+                                    <table className={styles.resultsTable}>
+                                        <thead>
+                                            <tr>
+                                                <th>Nr.</th>
+                                                <th>Nume Elev</th>
+                                                <th>Clasa</th>
+                                                <th>Școala</th>
+                                                <th>Profesor</th>
+                                                <th>Sală</th>
+                                                {hasCodes && <th>Cod</th>}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {allocationResult.map((item, index) => (
+                                                <tr key={index}>
+                                                    <td>{index + 1}</td>
+                                                    <td>{item.nume}</td>
+                                                    <td>{item.clasa}</td>
+                                                    <td>{item.scoala}</td>
+                                                    <td>{item.profesor}</td>
+                                                    <td
+                                                        style={{
+                                                            fontWeight: "bold",
+                                                            color: "#2980b9",
+                                                        }}
                                                     >
-                                                        ✂️ Coduri
-                                                    </button>
-                                                </>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                                                        {item.sala}
+                                                    </td>
+                                                    {hasCodes && (
+                                                        <td style={{ fontWeight: "bold", fontFamily: "monospace" }}>
+                                                            {item.cod}
+                                                        </td>
+                                                    )}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                </>
             )}
 
-            {allocationResult && (
-                <div className={styles.previewContainer}>
-                    <h2 className={styles.subtitle}>
-                        📋 Rezultat Repartizare ({allocationResult.length} elevi)
-                    </h2>
+            {/* ===================== CODURI ===================== */}
+            {section === "coduri" &&
+                (!allocationResult ? (
+                    needAllocation
+                ) : (
+                    <>
+                        <div className={styles.codesSummary}>
+                            <div>
+                                <b>{studentsWithCode}</b> elevi au cod
+                                {lastCodeN > 0 && (
+                                    <>
+                                        {" "}· ultimul cod dat:{" "}
+                                        <b>
+                                            {CODE_PREFIX}_{String(lastCodeN).padStart(2, "0")}
+                                        </b>
+                                    </>
+                                )}
+                                {withoutCode > 0 && (
+                                    <>
+                                        {" "}· <span className={styles.batchTodo}>{withoutCode} fără cod</span>
+                                    </>
+                                )}
+                            </div>
+                            <div className={styles.codesHint}>
+                                Codurile se dau în ordinea sălilor și nu se mai schimbă. Elevii noi primesc cod
+                                automat când sunt repartizați.
+                            </div>
+                        </div>
 
-                    <div className={styles.resultsTableWrapper}>
-                        <table className={styles.resultsTable}>
-                            <thead>
-                                <tr>
-                                    <th>Nr.</th>
-                                    <th>Nume Elev</th>
-                                    <th>Clasa</th>
-                                    <th>Școala</th>
-                                    <th>Profesor</th>
-                                    <th>Sală</th>
-                                    {hasCodes && <th>Cod</th>}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {allocationResult.map((item, index) => (
-                                    <tr key={index}>
-                                        <td>{index + 1}</td>
-                                        <td>{item.nume}</td>
-                                        <td>{item.clasa}</td>
-                                        <td>{item.scoala}</td>
-                                        <td>{item.profesor}</td>
-                                        <td
-                                            style={{
-                                                fontWeight: "bold",
-                                                color: "#2980b9",
-                                            }}
+                        <div className={styles.actionButtonsContainer}>
+                                {allocationResult && (
+                                    <button
+                                        onClick={handleGenerateCodes}
+                                        className={styles.codesButton}
+                                        disabled={withoutCode === 0 || savingCodes}
+                                        title="Elevii fără cod primesc coduri definitive, în ordinea sălilor; cei care au deja cod îl păstrează"
+                                    >
+                                        🔐{" "}
+                                        {savingCodes
+                                            ? "Se salvează codurile..."
+                                            : withoutCode === 0
+                                            ? "Toți elevii au cod"
+                                            : hasCodes
+                                            ? `Dă coduri elevilor noi (${withoutCode})`
+                                            : "Generează coduri anonimizare"}
+                                    </button>
+                                )}
+                            {hasCodes && (
+                                <>
+                                    <button
+                                        onClick={handleCancelCodes}
+                                        className={styles.dangerButton}
+                                        disabled={savingCodes}
+                                        title="Șterge toate codurile (doar dacă nu s-au trecut note pe coduri); repartizarea rămâne"
+                                    >
+                                        🗑️ Anulează anonimizarea
+                                    </button>
+                                </>
+                            )}
+                        </div>
+
+                    <>
+                        {diff && diff.ghosts.length > 0 && (
+                            <div className={styles.reconcileCard}>
+                                <h3>🔗 Nume corectate sau elevi scoși după repartizare</h3>
+                                <p className={styles.reconcileIntro}>
+                                    Acești elevi apar în repartizare (sau au cod), dar nu mai există cu acest nume în
+                                    înscrieri. De obicei numele a fost corectat. Alegeți elevul corespunzător: își
+                                    păstrează <b>sala</b> și <b>codul</b>. Dacă elevul a fost scos, alegeți „scos”:
+                                    locul se eliberează, iar codul nu se mai dă nimănui.
+                                </p>
+                                <table className={styles.reconcileTable}>
+                                    <thead>
+                                        <tr>
+                                            <th>Nume vechi (din repartizare)</th>
+                                            <th>Sală / cod</th>
+                                            <th>Este acum…</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {diff.ghosts.map((g) => {
+                                            const options = diff.newcomers.filter((st) => st.regId === g.regId);
+                                            const choice = choiceOf(g);
+                                            return (
+                                                <tr key={ghostId(g)}>
+                                                    <td>
+                                                        <b>{g.nume}</b>
+                                                    </td>
+                                                    <td>
+                                                        {g.sala || "—"}
+                                                        {g.cod && <span className={styles.reconcileCode}>{g.cod}</span>}
+                                                    </td>
+                                                    <td>
+                                                        <select
+                                                            value={choice}
+                                                            onChange={(e) =>
+                                                                setReconcileChoice((prev) => ({
+                                                                    ...prev,
+                                                                    [ghostId(g)]: e.target.value,
+                                                                }))
+                                                            }
+                                                            className={styles.reconcileSelect}
+                                                        >
+                                                            <option value="">— nu decid acum —</option>
+                                                            {options.map((st) => (
+                                                                <option key={st.id} value={st.id}>
+                                                                    ✏️ {st.nume} ({st.clasa})
+                                                                    {suggested.get(ghostId(g)) === st.id ? " — sugerat" : ""}
+                                                                </option>
+                                                            ))}
+                                                            <option value="__removed">🚪 Elevul a fost scos din concurs</option>
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                                <button
+                                    onClick={handleReconcile}
+                                    className={styles.reconcileButton}
+                                    disabled={reconciling}
+                                >
+                                    {reconciling ? "Se salvează..." : "✅ Confirmă"}
+                                </button>
+                            </div>
+                        )}
+
+                        {retiredCodes.length > 0 && (
+                            <p className={styles.retiredNote}>
+                                🗄️ Coduri retrase (elevi scoși), care nu se mai dau nimănui:{" "}
+                                {retiredCodes.map((c) => `${c.cod} (${c.nume})`).join(", ")}.
+                            </p>
+                        )}
+                    </>
+
+                        {todoBanner(true)}
+                    </>
+                ))}
+
+            {/* ===================== TIPĂRIRE ===================== */}
+            {section === "tiparire" &&
+                (!allocationResult ? (
+                    needAllocation
+                ) : (
+                    <>
+                        {todoBanner(false)}
+
+                    <>
+                        <div className={styles.headerSettings}>
+                            <h3>📝 Antetul listelor</h3>
+                            <label>
+                                Ediția
+                                <input
+                                    type="text"
+                                    value={header.edition}
+                                    onChange={(e) => updateHeader("edition", e.target.value)}
+                                    placeholder="ex: a XX-a"
+                                />
+                            </label>
+                            <label>
+                                Data concursului
+                                <input
+                                    type="text"
+                                    value={header.date}
+                                    onChange={(e) => updateHeader("date", e.target.value)}
+                                    placeholder="ex: 21 noiembrie 2026"
+                                />
+                            </label>
+                            <p className={styles.headerPreview}>
+                                Pe liste: <b>Ediția {header.edition} - {header.date}</b>
+                            </p>
+                        </div>
+                    </>
+
+                        <div className={styles.actionButtonsContainer}>
+                                {allocationResult && (
+                                    <button
+                                        onClick={() => handleExportPdf()}
+                                        className={styles.pdfButton}
+                                    >
+                                        📄 Liste pentru uși (PDF)
+                                    </button>
+                                )}
+
+                                {allocationResult && (
+                                    <button
+                                        onClick={handleExportExcel}
+                                        className={styles.exportButton}
+                                    >
+                                        📥 Descarcă Excel ({allocationResult.length} elevi)
+                                    </button>
+                                )}
+                            {hasCodes && (
+                                <>
+                                    <button
+                                        onClick={() => handleCodesPdf()}
+                                        className={styles.codesButton}
+                                    >
+                                        ✂️ Bilețele cu coduri – toate sălile (PDF)
+                                    </button>
+                                    <button
+                                        onClick={() => exportCodesExcel(allocationResult, rooms, header)}
+                                        className={styles.exportButton}
+                                    >
+                                        📥 Borderou coduri (Excel)
+                                    </button>
+                                </>
+                            )}
+                        </div>
+
+                    <>
+                        {hasCodes && codeBatches.length > 0 && (
+                            <div className={styles.batchCard}>
+                                <h3>✂️ Tranșe de coduri ({codeBatches.length})</h3>
+                                <p className={styles.reconcileIntro}>
+                                    Fiecare dată când s-au dat coduri apare aici, cea mai nouă sus. Bilețelele descărcate
+                                    sunt marcate cu ✅, ca să știți ce mai aveți de tipărit.
+                                </p>
+                                <ul className={styles.batchList}>
+                                    {codeBatches.map((b) => (
+                                        <li
+                                            key={b.at}
+                                            className={b.printedAt ? styles.batchPrinted : styles.batchPending}
+                                            title={b.studentsIn.map((s) => `${s.cod} – ${s.nume} (${s.sala})`).join("\n")}
                                         >
-                                            {item.sala}
-                                        </td>
-                                        {hasCodes && (
-                                            <td style={{ fontWeight: "bold", fontFamily: "monospace" }}>
-                                                {item.cod}
-                                            </td>
-                                        )}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
+                                            <div className={styles.batchInfo}>
+                                                <b>
+                                                    Tranșa {b.nr}
+                                                    {b.nr === 1 ? " (anonimizarea inițială)" : ""}
+                                                </b>{" "}
+                                                · {b.studentsIn.length} {b.studentsIn.length === 1 ? "elev" : "elevi"}{" "}
+                                                <span className={styles.reconcileCode}>{batchRange(b)}</span>
+                                                <div className={styles.batchWhen}>
+                                                    {b.at !== "initial" && <>coduri date pe {formatWhen(b.at)} · </>}
+                                                    {b.printedAt ? (
+                                                        <span className={styles.batchOk}>
+                                                            ✅{" "}
+                                                            {b.printedAt === "initial"
+                                                                ? "bilețele tipărite la anonimizare"
+                                                                : `bilețele descărcate pe ${formatWhen(b.printedAt)}`}
+                                                        </span>
+                                                    ) : (
+                                                        <span className={styles.batchTodo}>⏳ bilețele netipărite încă</span>
+                                                    )}
+                                                </div>
+                                                {b.nr > 1 && b.studentsIn.length <= 20 && (
+                                                    <div className={styles.batchNames}>
+                                                        {b.studentsIn.map((s) => `${s.cod} ${s.nume} (${s.sala})`).join(" · ")}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button onClick={() => handleBatchPdf(b)} className={styles.batchButton}>
+                                                ✂️ Bilețele {b.printedAt ? "(din nou)" : ""}
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        {allocationResult && roomSummaries.length > 0 && (
+                            <div className={styles.previewContainer}>
+                                <h2 className={styles.subtitle}>🏫 Situația pe săli</h2>
+                                <AllocationStatsView stats={allocationStats(roomSummaries, rooms)} />
+                                <div className={styles.resultsTableWrapper}>
+                                    <table className={styles.resultsTable}>
+                                        <thead>
+                                            <tr>
+                                                <th>Sală</th>
+                                                <th>Ocupare</th>
+                                                <th>Clase</th>
+                                                <th>Listă</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {roomSummaries.map((s) => (
+                                                <tr key={s.room.id || s.room.name}>
+                                                    <td style={{ fontWeight: "bold" }}>
+                                                        {s.room.name}
+                                                        {s.room.floor ? ` (${s.room.floor})` : ""}
+                                                    </td>
+                                                    <td>
+                                                        {s.count} / {s.seats}
+                                                    </td>
+                                                    <td>
+                                                        {CLASS_ORDER.filter((c) => s.perClass[c]).map((c) => (
+                                                            <span
+                                                                key={c}
+                                                                className={styles.classChip}
+                                                                style={{ background: `#${CLASS_COLORS[c]}` }}
+                                                            >
+                                                                {s.perClass[c]} × {c}
+                                                            </span>
+                                                        ))}
+                                                        {s.mosaic && (
+                                                            <span className={styles.classChip}>🧩 mozaic</span>
+                                                        )}
+                                                    </td>
+                                                    <td>
+                                                        <button
+                                                            onClick={() => handleExportPdf(s.room.name)}
+                                                            className={styles.smallPdfButton}
+                                                        >
+                                                            📄 PDF
+                                                        </button>{" "}
+                                                        <button
+                                                            onClick={() => handleExportExcel(s.room.name)}
+                                                            className={styles.smallExcelButton}
+                                                        >
+                                                            📥 Excel
+                                                        </button>
+                                                        {hasCodes && (
+                                                            <>
+                                                                {" "}
+                                                                <button
+                                                                    onClick={() => handleCodesPdf(s.room.name)}
+                                                                    className={styles.smallCodesButton}
+                                                                >
+                                                                    ✂️ Coduri
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </>
+                    </>
+                ))}
         </div>
     );
 }

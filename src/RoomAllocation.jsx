@@ -23,7 +23,7 @@ const DEFAULT_ROOMS = [
     { name: "Sala 19", floor: "Etaj II", seats: 5, rows: 3, cols: 2 }, // Ex: foarte mic
 ];
 
-function RoomAllocation({ onNextStep, onCancel }) {
+function RoomAllocation({ onNextStep, onCancel, stageBar }) {
     const [rooms, setRooms] = useState([]);
     const [showAddRoomForm, setShowAddRoomForm] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -205,7 +205,8 @@ function RoomAllocation({ onNextStep, onCancel }) {
     if (loading) {
         return (
             <div className={styles.container}>
-                <h1 className={styles.title}>Repartizare Elevi în Săli</h1>
+                {stageBar}
+                <h1 className={styles.title}>🏫 Săli</h1>
                 <p className={styles.emptyMessage}>Se încarcă sălile...</p>
             </div>
         );
@@ -213,7 +214,8 @@ function RoomAllocation({ onNextStep, onCancel }) {
 
     return (
         <div className={styles.container}>
-            <h1 className={styles.title}>Repartizare Elevi în Săli</h1>
+            {stageBar}
+            <h1 className={styles.title}>🏫 Săli</h1>
 
             {/* Mesaje */}
             {message && (
@@ -301,7 +303,7 @@ function RoomAllocation({ onNextStep, onCancel }) {
                         <span className={styles.nextStepIcon} aria-hidden="true">🎯</span>
                         <span className={styles.nextStepText}>
                             <span className={styles.nextStepLabel}>Următorul pas</span>
-                            <span className={styles.nextStepTitle}>Repartizare elevi în săli</span>
+                            <span className={styles.nextStepTitle}>🪑 Repartizare</span>
                         </span>
                         <span className={styles.nextStepArrow} aria-hidden="true">→</span>
                     </button>

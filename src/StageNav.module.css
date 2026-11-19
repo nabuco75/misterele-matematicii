@@ -1,0 +1,196 @@
+/* ===== Carduri mari (panoul de admin) ===== */
+.cardsSection {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 22px;
+  padding: 18px 20px 22px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(10, 25, 60, 0.18);
+}
+.cardsTitle {
+  margin: 0 0 14px 4px;
+  font-size: 0.85rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 800;
+  text-align: left;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  counter-reset: step;
+}
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 150px;
+  padding: 16px 16px 14px;
+  background: #fff;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(10, 25, 60, 0.18);
+  color: #1f2d3d;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 26px rgba(10, 25, 60, 0.28);
+  border-color: #3f8efc;
+}
+.card:focus-visible {
+  outline: 3px solid #ffd166;
+  outline-offset: 2px;
+}
+/* săgeată între carduri */
+.card:not(:last-child)::after {
+  content: "›";
+  position: absolute;
+  right: -13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1.6rem;
+  font-weight: 800;
+  pointer-events: none;
+}
+.cardAlert {
+  border-color: #f59e0b;
+}
+.step {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #eef2f7;
+  color: #5d6d7e;
+  font-size: 0.8rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cardIcon {
+  font-size: 2rem;
+  line-height: 1;
+}
+.cardLabel {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+.cardStatus {
+  margin-top: auto;
+  font-size: 0.88rem;
+  color: #5d6d7e;
+  line-height: 1.35;
+}
+.cardAlert .cardStatus {
+  color: #b45309;
+  font-weight: 700;
+}
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+  vertical-align: 1px;
+}
+.loadingText {
+  opacity: 0.6;
+}
+
+@media (max-width: 900px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .card:not(:last-child)::after {
+    display: none;
+  }
+}
+@media (max-width: 480px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    min-height: 0;
+  }
+}
+
+/* ===== Bara de sus (paginile etapelor) ===== */
+.bar {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(10, 25, 60, 0.15);
+  box-sizing: border-box;
+}
+.home {
+  background: #eef2f7;
+  color: #2c3e50;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.home:hover {
+  background: #dde4ee;
+}
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.steps li {
+  display: flex;
+  align-items: center;
+}
+.sep {
+  color: #aab4c0;
+  font-weight: 800;
+  margin: 0 4px;
+}
+.stepBtn {
+  background: transparent;
+  color: #2c3e50;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.stepBtn:hover {
+  background: #eef4ff;
+}
+.stepActive,
+.stepActive:hover {
+  background: linear-gradient(135deg, #3f8efc, #2563eb);
+  color: #fff;
+  cursor: default;
+}

@@ -24,6 +24,7 @@ import { applyRemovals, applyRenames } from "./studentSync";
 import { cleanTeacherName, teacherKey, validateTeacher } from "./teachers";
 import { displayName } from "./nameFormat";
 import TeacherSearch from "./TeacherSearch.jsx";
+import { StageBar, StageCards } from "./StageNav.jsx";
 import styles from "./AdminDashboard.module.css";
 
 // iconița de fișier Excel (foaie verde cu X) pentru butoanele de descărcare
@@ -40,8 +41,9 @@ const ExcelIcon = () => (
 function AdminDashboard() {
   // ------------------------------------------------------------------
   // 1. STARE NAVIGARE
-  // 'dashboard' | 'rooms' | 'allocation'
+  // 'dashboard' sau o etapă: 'sali' | 'repartizare' | 'coduri' | 'tiparire' | 'notare'
   const [currentView, setCurrentView] = useState("dashboard");
+  const goHome = () => setCurrentView("dashboard");
   const location = useLocation();
 
   // butonul „Admin Dashboard” din bara de sus readuce panoul principal din orice ecran
@@ -1409,29 +1411,30 @@ function AdminDashboard() {
   // 🌟 RENDER NAVIGARE
   // ===========================================
 
-  // 1. VIZUALIZARE REPARTIZARE SĂLI
-  if (currentView === "rooms") {
+  // 1. ETAPA „SĂLI”
+  if (currentView === "sali") {
     return (
       <RoomAllocation
-        onNextStep={() => setCurrentView("allocation")}
-        onCancel={() => setCurrentView("dashboard")}
+        onNextStep={() => setCurrentView("repartizare")}
+        stageBar={<StageBar current="sali" onGo={setCurrentView} onHome={goHome} />}
       />
     );
   }
 
-  // 2. VIZUALIZARE PROCES REPARTIZARE
-  if (currentView === "allocation") {
+  // 2–4. ETAPELE „REPARTIZARE”, „CODURI”, „TIPĂRIRE” – aceeași componentă (datele nu se reîncarcă la trecerea între ele)
+  if (["repartizare", "coduri", "tiparire"].includes(currentView)) {
     return (
       <AllocationProcess
-        onBack={() => setCurrentView("rooms")}
-        onDashboard={() => setCurrentView("dashboard")}
+        section={currentView}
+        onGo={setCurrentView}
+        stageBar={<StageBar current={currentView} onGo={setCurrentView} onHome={goHome} />}
       />
     );
   }
 
-  // 3. NOTARE ȘI REZULTATE
-  if (currentView === "grading") {
-    return <Grading onDashboard={() => setCurrentView("dashboard")} />;
+  // 5. ETAPA „NOTARE”
+  if (currentView === "notare") {
+    return <Grading stageBar={<StageBar current="notare" onGo={setCurrentView} onHome={goHome} />} />;
   }
 
   // 4. VIZUALIZARE DASHBOARD
@@ -1459,27 +1462,8 @@ function AdminDashboard() {
         )}
 
         <div className={styles.dash}>
+          <StageCards onGo={setCurrentView} />
           {[
-            {
-              title: "Concursul",
-              hero: true,
-              tiles: [
-                {
-                  icon: "🏫",
-                  label: "Repartizare în săli",
-                  sub: "Săli, liste pe uși, coduri",
-                  color: "indigo",
-                  onClick: () => setCurrentView("rooms"),
-                },
-                {
-                  icon: "📝",
-                  label: "Notare și rezultate",
-                  sub: "Note, sume, premii, clasamente",
-                  color: "gold",
-                  onClick: () => setCurrentView("grading"),
-                },
-              ],
-            },
             {
               title: "Școli",
               tiles: [
