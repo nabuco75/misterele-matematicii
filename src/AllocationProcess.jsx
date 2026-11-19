@@ -15,7 +15,20 @@ import {
     CLASS_ORDER,
     sortRooms,
 } from "./allocation";
-import { formatWhen, loadAllocation, saveAllocation, saveLastNewCodes } from "./allocationStore";
+import {
+    formatWhen,
+    loadAllocation,
+    logAllocationEvent,
+    saveAllocation,
+    saveLastNewCodes,
+} from "./allocationStore";
+import {
+    applyRemovals,
+    applyRenames,
+    cancelAnonymization,
+    clearLastNewCodes,
+    diffWithAllocation,
+} from "./studentSync";
 import { AllocationLogCard, AllocationStatsView } from "./AllocationLog";
 import {
     exportRoomsExcel,
@@ -44,6 +57,10 @@ function AllocationProcess({ onBack, onDashboard }) {
     const [message, setMessage] = useState(null);
     const [lastCodeN, setLastCodeN] = useState(0);
     const [orphanCodes, setOrphanCodes] = useState([]);
+    const [retiredCodes, setRetiredCodes] = useState([]);
+    // reconciliere: fantomă (înscriere|nume vechi) → id elev / "__removed" (scos) / "" (nedecis)
+    const [reconcileChoice, setReconcileChoice] = useState({});
+    const [reconciling, setReconciling] = useState(false);
     const [savingCodes, setSavingCodes] = useState(false);
     const [saved, setSaved] = useState(null); // repartizarea salvată + jurnalul
     const [studentStats, setStudentStats] = useState(
@@ -79,6 +96,8 @@ function AllocationProcess({ onBack, onDashboard }) {
             }
             setLastCodeN(data.lastCodeN);
             setOrphanCodes(data.orphans);
+            setRetiredCodes(data.retiredCodes || []);
+            setReconcileChoice({});
             setStudents(data.students);
             const stats = CLASS_ORDER.reduce((acc, cls) => ({ ...acc, [cls]: 0 }), {});
             data.students.forEach((s) => {
@@ -248,10 +267,27 @@ function AllocationProcess({ onBack, onDashboard }) {
     const studentsWithCode = students.filter((s) => s.cod).length;
     // elevii care nu apar în repartizarea afișată (înscriși după ea)
     const placedIds = new Set((allocationResult || []).map((s) => s.id));
-    const newStudents = allocationResult ? students.filter((s) => !placedIds.has(s.id)).length : 0;
+    // comparația cu repartizarea salvată: elevi cu adevărat noi, nume corectate, elevi scoși
+    const diff = saved?.assignments
+        ? diffWithAllocation(students, saved.assignments, orphanCodes)
+        : null;
+    const newStudents = diff
+        ? diff.realNew.length
+        : allocationResult
+        ? students.filter((s) => !placedIds.has(s.id)).length
+        : 0;
+    const pendingPairs = diff ? diff.pairs.length : 0;
 
     const handleKeepAllocation = async () => {
         if (rooms.length === 0) return;
+        if (pendingPairs > 0) {
+            showMessage(
+                "warning",
+                `⚠️ Confirmați întâi cele ${pendingPairs} nume corectate (caseta „Nume corectate sau elevi scoși”), altfel elevii respectivi ar primi sală și cod nou.`,
+                9000
+            );
+            return;
+        }
         const result = allocateKeepingCodes(students, rooms, { saved: saved?.assignments });
         setAllocationResult(result.data);
         setRoomSummaries(result.roomSummaries);
@@ -297,6 +333,14 @@ function AllocationProcess({ onBack, onDashboard }) {
         const base = Array.isArray(allocArg) ? allocArg : allocationResult;
         const missing = base ? base.filter((s) => !s.cod).length : 0;
         if (!base || base.length === 0 || missing === 0) return;
+        if (pendingPairs > 0) {
+            showMessage(
+                "warning",
+                `⚠️ Confirmați întâi cele ${pendingPairs} nume corectate, ca elevii respectivi să-și păstreze codul vechi.`,
+                9000
+            );
+            return;
+        }
         if (
             ask &&
             !window.confirm(
@@ -377,6 +421,117 @@ function AllocationProcess({ onBack, onDashboard }) {
     const handleNewCodesPdf = () => {
         const groups = groupByRoom(newCodeStudents, rooms);
         printCodesPdf(groups, header, `Coduri_elevi_noi_${lastNewCodes[0]}-${lastNewCodes[lastNewCodes.length - 1]}`);
+    };
+
+    // ====== NUME CORECTATE / ELEVI SCOȘI DUPĂ REPARTIZARE ======
+    const ghostId = (g) => `${g.regId}|${g.nume}`;
+    const suggested = new Map((diff?.pairs || []).map((p) => [ghostId(p.ghost), p.student.id]));
+    const choiceOf = (g) => reconcileChoice[ghostId(g)] ?? suggested.get(ghostId(g)) ?? "";
+
+    const handleReconcile = async () => {
+        if (!diff) return;
+        const renames = [];
+        const removals = [];
+        const usedStudents = new Set();
+        for (const g of diff.ghosts) {
+            const choice = choiceOf(g);
+            if (choice === "__removed") {
+                removals.push({ regId: g.regId, nume: g.nume });
+            } else if (choice) {
+                const st = students.find((x) => x.id === choice);
+                if (!st) continue;
+                if (usedStudents.has(st.id)) {
+                    showMessage("error", `❌ „${st.nume}” este ales pentru două nume vechi. Alegeți o singură dată.`, 8000);
+                    return;
+                }
+                usedStudents.add(st.id);
+                renames.push({ regId: g.regId, oldName: g.nume, newName: st.nume });
+            }
+        }
+        if (renames.length === 0 && removals.length === 0) {
+            showMessage("warning", "Nu ați ales nimic de confirmat.");
+            return;
+        }
+        const lines = [
+            ...renames.map((r) => `• „${r.oldName}” → „${r.newName}” (își păstrează sala și codul)`),
+            ...removals.map((r) => `• „${r.nume}” — scos: se eliberează locul, codul devine retras`),
+        ];
+        if (!window.confirm(`Confirmați?\n\n${lines.join("\n")}`)) return;
+        setReconciling(true);
+        try {
+            const r1 = await applyRenames(renames);
+            const r2 = await applyRemovals(removals);
+            await loadData();
+            showMessage(
+                "success",
+                `✅ Gata: ${renames.length} nume corectate (săli păstrate: ${r1.seats}, coduri păstrate: ${r1.codes})` +
+                    (removals.length ? `, ${removals.length} elevi scoși (locuri eliberate: ${r2.seats}).` : "."),
+                10000
+            );
+        } catch (err) {
+            console.error("Eroare la reconciliere:", err);
+            showMessage("error", "❌ Modificările nu au putut fi salvate. Încercați din nou.");
+        } finally {
+            setReconciling(false);
+        }
+    };
+
+    // ====== ANULARE ANONIMIZARE (doar dacă nu există note pe coduri) ======
+    const handleCancelCodes = async () => {
+        if (
+            !window.confirm(
+                "Anulați anonimizarea?\n\n" +
+                    "• Se șterg TOATE codurile de anonimizare.\n" +
+                    "• Biletele și borderoul de coduri printate până acum NU mai sunt valabile.\n" +
+                    "• Repartizarea în săli rămâne neschimbată.\n" +
+                    "• Nu se poate dacă au fost deja trecute note pe coduri.\n\n" +
+                    "După anulare puteți genera din nou codurile."
+            )
+        ) {
+            return;
+        }
+        const typed = window.prompt("Pentru confirmare scrieți cuvântul ANULEZ:");
+        if ((typed || "").trim().toUpperCase() !== "ANULEZ") {
+            showMessage("warning", "Anularea a fost oprită (cuvântul de confirmare nu a fost scris).");
+            return;
+        }
+        setSavingCodes(true);
+        try {
+            const r = await cancelAnonymization();
+            if (r.blocked) {
+                showMessage(
+                    "error",
+                    `⛔ Anonimizarea nu se poate anula: ${r.blocked} elevi au deja note trecute pe coduri. Notele s-ar pierde.`,
+                    12000
+                );
+                return;
+            }
+            try {
+                await clearLastNewCodes();
+                setSaved(
+                    await logAllocationEvent({
+                        type: "anulare-coduri",
+                        roomSummaries,
+                        rooms,
+                        previous: saved,
+                        details: { deleted: r.deleted },
+                    })
+                );
+            } catch (err) {
+                console.error("Eroare la scrierea în jurnal:", err);
+            }
+            await loadData();
+            showMessage(
+                "success",
+                `✅ Anonimizarea a fost anulată: ${r.deleted} coduri șterse. Repartizarea a rămas. Puteți genera din nou codurile.`,
+                12000
+            );
+        } catch (err) {
+            console.error("Eroare la anularea anonimizării:", err);
+            showMessage("error", "❌ Anonimizarea nu a putut fi anulată. Încercați din nou.");
+        } finally {
+            setSavingCodes(false);
+        }
     };
 
     // ====== RENDER ======
@@ -475,6 +630,8 @@ function AllocationProcess({ onBack, onDashboard }) {
             <AllocationLogCard
                 saved={saved}
                 newCount={newStudents}
+                renamedCount={pendingPairs}
+                ghostCount={diff ? diff.unpairedGhosts.length : 0}
                 onPlaceNew={handleKeepAllocation}
                 onRegenerate={handleGenerateAllocation}
             />
@@ -563,13 +720,77 @@ function AllocationProcess({ onBack, onDashboard }) {
                 )}
             </div>
 
-            {orphanCodes.length > 0 && (
-                <div className={styles.warningMessage}>
-                    ⚠️ {orphanCodes.length} coduri date anterior nu mai au elev corespunzător (înscriere
-                    ștearsă sau elev scos):{" "}
-                    {orphanCodes.map((c) => `${c.cod} (${c.nume})`).join(", ")}. Codurile acestea nu se
-                    refolosesc.
+            {diff && diff.ghosts.length > 0 && (
+                <div className={styles.reconcileCard}>
+                    <h3>🔗 Nume corectate sau elevi scoși după repartizare</h3>
+                    <p className={styles.reconcileIntro}>
+                        Acești elevi apar în repartizare (sau au cod), dar nu mai există cu acest nume în
+                        înscrieri. De obicei numele a fost corectat. Alegeți elevul corespunzător: își
+                        păstrează <b>sala</b> și <b>codul</b>. Dacă elevul a fost scos, alegeți „scos”:
+                        locul se eliberează, iar codul nu se mai dă nimănui.
+                    </p>
+                    <table className={styles.reconcileTable}>
+                        <thead>
+                            <tr>
+                                <th>Nume vechi (din repartizare)</th>
+                                <th>Sală / cod</th>
+                                <th>Este acum…</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {diff.ghosts.map((g) => {
+                                const options = diff.newcomers.filter((st) => st.regId === g.regId);
+                                const choice = choiceOf(g);
+                                return (
+                                    <tr key={ghostId(g)}>
+                                        <td>
+                                            <b>{g.nume}</b>
+                                        </td>
+                                        <td>
+                                            {g.sala || "—"}
+                                            {g.cod && <span className={styles.reconcileCode}>{g.cod}</span>}
+                                        </td>
+                                        <td>
+                                            <select
+                                                value={choice}
+                                                onChange={(e) =>
+                                                    setReconcileChoice((prev) => ({
+                                                        ...prev,
+                                                        [ghostId(g)]: e.target.value,
+                                                    }))
+                                                }
+                                                className={styles.reconcileSelect}
+                                            >
+                                                <option value="">— nu decid acum —</option>
+                                                {options.map((st) => (
+                                                    <option key={st.id} value={st.id}>
+                                                        ✏️ {st.nume} ({st.clasa})
+                                                        {suggested.get(ghostId(g)) === st.id ? " — sugerat" : ""}
+                                                    </option>
+                                                ))}
+                                                <option value="__removed">🚪 Elevul a fost scos din concurs</option>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                    <button
+                        onClick={handleReconcile}
+                        className={styles.reconcileButton}
+                        disabled={reconciling}
+                    >
+                        {reconciling ? "Se salvează..." : "✅ Confirmă"}
+                    </button>
                 </div>
+            )}
+
+            {retiredCodes.length > 0 && (
+                <p className={styles.retiredNote}>
+                    🗄️ Coduri retrase (elevi scoși), care nu se mai dau nimănui:{" "}
+                    {retiredCodes.map((c) => `${c.cod} (${c.nume})`).join(", ")}.
+                </p>
             )}
 
             {hasCodes && (
@@ -600,6 +821,14 @@ function AllocationProcess({ onBack, onDashboard }) {
                         className={styles.exportButton}
                     >
                         📥 Borderou coduri (Excel)
+                    </button>
+                    <button
+                        onClick={handleCancelCodes}
+                        className={styles.dangerButton}
+                        disabled={savingCodes}
+                        title="Șterge toate codurile (doar dacă nu s-au trecut note pe coduri); repartizarea rămâne"
+                    >
+                        🗑️ Anulează anonimizarea
                     </button>
                 </div>
             )}

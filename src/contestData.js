@@ -1,5 +1,5 @@
 // Date comune pentru repartizare și notare: elevii înscriși (cu școală, profesor) și codurile lor.
-import { collection, doc, getDocs, writeBatch } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
 import { CLASS_ORDER } from "./allocation";
 import { DEFAULT_EDITION, DEFAULT_CONTEST_DATE } from "./roomLists";
@@ -40,7 +40,9 @@ export const normName = (s) =>
 // leagă codurile salvate de elevii actuali: întâi după înscriere + nume; dacă într-o înscriere
 // a rămas exact un cod nelegat și exact un elev fără cod, înseamnă că numele a fost corectat
 // între timp → elevul își păstrează codul.
-export const attachCodes = (students, codeDocs) => {
+export const attachCodes = (students, allCodeDocs) => {
+  // codurile retrase (elev scos) nu se mai leagă de nimeni și nu se mai dau altcuiva
+  const codeDocs = allCodeDocs.filter((c) => !c.retras);
   const byKey = new Map();
   codeDocs.forEach((c) => byKey.set(`${c.regId}|${normName(c.nume)}`, c));
   const used = new Set();
@@ -67,7 +69,7 @@ export const attachCodes = (students, codeDocs) => {
       const c = free[0];
       result[idxs[0]] = { ...result[idxs[0]], cod: c.cod, salaCod: c.salaLaAtribuire || "" };
       used.add(c.cod);
-      renamed.push({ cod: c.cod, nume: result[idxs[0]].nume });
+      renamed.push({ cod: c.cod, regId, oldName: c.nume, newName: result[idxs[0]].nume });
     }
   });
   const orphans = codeDocs.filter((c) => !used.has(c.cod));
@@ -123,21 +125,19 @@ export const loadContestStudents = async () => {
 
   const attached = attachCodes(students, codeDocs);
   if (attached.renamed.length > 0) {
-    // numele corectate se actualizează și în borderoul salvat
+    // numele corectate se actualizează în coduri, în repartizarea salvată și în notele puse pe nume
     try {
-      const batch = writeBatch(db);
-      attached.renamed.forEach(({ cod, nume }) =>
-        batch.update(doc(db, CODES_COLLECTION, cod), { nume })
-      );
-      await batch.commit();
+      const { applyRenames } = await import("./studentSync");
+      await applyRenames(attached.renamed);
     } catch (err) {
-      console.error("Eroare la actualizarea numelor în coduri:", err);
+      console.error("Eroare la actualizarea numelor corectate:", err);
     }
   }
 
   return {
     students: attached.students,
     orphans: attached.orphans,
+    retiredCodes: codeDocs.filter((c) => c.retras),
     lastCodeN: codeDocs.reduce((m, c) => Math.max(m, c.n || 0), 0),
     codesError,
   };

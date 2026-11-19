@@ -11,6 +11,19 @@ export const ALLOCATION_TYPES = {
   completa: "Repartizare completă",
   "elevi-noi": "Elevi noi adăugați",
   "din-coduri": "Reconstituită din coduri",
+  "anulare-coduri": "Anonimizare anulată (coduri șterse)",
+};
+
+// evenimente din jurnal care nu sunt repartizări (nu devin „ultima repartizare”)
+const EVENT_TYPES = new Set(["anulare-coduri"]);
+const lastAllocation = (history) => history.find((h) => !EVENT_TYPES.has(h.type)) || null;
+
+// adaugă în jurnal un eveniment (ex. anularea anonimizării), cu statistica repartizării curente
+export const logAllocationEvent = async ({ type, roomSummaries, rooms, previous, details = {} }) => {
+  const entry = { at: new Date().toISOString(), type, ...details, ...allocationStats(roomSummaries, rooms) };
+  const history = [entry, ...(previous?.history || [])].slice(0, HISTORY_LIMIT);
+  await setDoc(allocationDoc(), { history }, { merge: true });
+  return { ...(previous || { assignments: new Map(), lastNewCodes: null }), history, last: lastAllocation(history) };
 };
 
 // { assignments: Map id → sală, last, history } sau null dacă nu s-a salvat nicio repartizare
@@ -20,7 +33,7 @@ export const loadAllocation = async () => {
   const data = snap.data();
   return {
     assignments: new Map((data.assignments || []).map((a) => [a.id, a.sala])),
-    last: data.history?.[0] || null,
+    last: lastAllocation(data.history || []),
     history: data.history || [],
     lastNewCodes: data.lastNewCodes || null,
   };
@@ -51,7 +64,7 @@ export const saveAllocation = async ({ data, roomSummaries, rooms, type, added =
   );
   return {
     assignments: new Map(data.map((s) => [s.id, s.sala])),
-    last: entry,
+    last: lastAllocation(history),
     history,
     lastNewCodes: previous?.lastNewCodes || null,
   };

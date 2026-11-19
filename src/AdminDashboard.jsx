@@ -19,6 +19,7 @@ import RoomAllocation from "./RoomAllocation.jsx";
 import AllocationProcess from "./AllocationProcess.jsx";
 import Grading from "./Grading.jsx";
 import ClassForm from "./ClassForm.jsx";
+import { applyRemovals, applyRenames } from "./studentSync";
 import styles from "./AdminDashboard.module.css";
 
 // iconița de fișier Excel (foaie verde cu X) pentru butoanele de descărcare
@@ -993,10 +994,36 @@ function AdminDashboard() {
             });
           }
 
+          // numele corectate: elevul își păstrează sala, codul și notele
+          const renames = students
+            .map((st) => {
+              const before = originalStudents.find((o) => o.id === st.id);
+              return before && before.nume !== st.nume
+                ? { regId: st.id.split("-")[0], oldName: before.nume, newName: st.nume }
+                : null;
+            })
+            .filter(Boolean);
+          let syncNote = "";
+          if (renames.length > 0) {
+            try {
+              const r = await applyRenames(renames);
+              const parts = [
+                r.seats && `sala (${r.seats})`,
+                r.codes && `codul (${r.codes})`,
+                r.grades && `notele (${r.grades})`,
+              ].filter(Boolean);
+              if (parts.length > 0) syncNote = ` Elevii redenumiți și-au păstrat ${parts.join(", ")}.`;
+            } catch (syncErr) {
+              console.error("Eroare la actualizarea repartizării/codurilor:", syncErr);
+              syncNote =
+                " ⚠️ Repartizarea/codurile nu s-au putut actualiza — confirmați numele corectate din pagina Repartizare.";
+            }
+          }
+
           setOriginalStudents(JSON.parse(JSON.stringify(students)));
           setHasUnsavedChanges(false);
           showStudentEditorMessage(
-            "✅ Modificările au fost salvate cu succes!",
+            `✅ Modificările au fost salvate cu succes!${syncNote}`,
             "success"
           );
         } catch (err) {
@@ -1090,8 +1117,20 @@ function AdminDashboard() {
 
           setStudents(reindex);
           setOriginalStudents(reindex);
+          // elevul scos nu mai ocupă loc în sală; codul lui devine „retras”
+          let syncNote = "";
+          if (expectedName) {
+            try {
+              const r = await applyRemovals([{ regId: registrationId, nume: expectedName }]);
+              if (r.seats || r.codes) {
+                syncNote = ` Locul din sală a fost eliberat${r.codes ? ", iar codul a fost retras" : ""}.`;
+              }
+            } catch (syncErr) {
+              console.error("Eroare la eliberarea locului:", syncErr);
+            }
+          }
           showStudentEditorMessage(
-            "✅ Elevul a fost șters cu succes!",
+            `✅ Elevul a fost șters cu succes!${syncNote}`,
             "success"
           );
         } catch (e) {
@@ -1138,8 +1177,17 @@ function AdminDashboard() {
       )}) de la ${selectedSchool?.name}? Toți elevii din ea vor fi șterși. Acțiunea este ireversibilă.`,
       onConfirm: async () => {
         try {
+          const removed = originalStudents
+            .filter((st) => st.id.startsWith(`${reg.id}-`))
+            .map((st) => ({ regId: reg.id, nume: st.nume }));
           await deleteDoc(doc(db, "registration", reg.id));
           removeRegFromEditor(reg.id);
+          // elevii înscrierii nu mai ocupă loc în săli; codurile lor devin „retrase”
+          try {
+            await applyRemovals(removed);
+          } catch (syncErr) {
+            console.error("Eroare la eliberarea locurilor:", syncErr);
+          }
           showStudentEditorMessage(
             "✅ Înscrierea a fost ștearsă.",
             "success"

@@ -56,7 +56,18 @@ export function AllocationStatsView({ stats }) {
 }
 
 // cartea „Ultima repartizare” + elevii veniți după ea + istoric
-export function AllocationLogCard({ saved, newCount, onPlaceNew, onRegenerate, onOpen }) {
+//   newCount     – elevi cu adevărat noi (fără sală)
+//   renamedCount – elevi din repartizare al căror nume pare corectat (de confirmat)
+//   ghostCount   – elevi din repartizare care nu mai apar în înscrieri (scoși), fără pereche
+export function AllocationLogCard({
+  saved,
+  newCount,
+  renamedCount = 0,
+  ghostCount = 0,
+  onPlaceNew,
+  onRegenerate,
+  onOpen,
+}) {
   const [showHistory, setShowHistory] = useState(false);
   if (!saved?.last) {
     return (
@@ -84,6 +95,37 @@ export function AllocationLogCard({ saved, newCount, onPlaceNew, onRegenerate, o
       </p>
       <AllocationStatsView stats={last} />
 
+      {(renamedCount > 0 || ghostCount > 0) && (
+        <div className={styles.newBox}>
+          {renamedCount > 0 && (
+            <p>
+              🔗 <b>{renamedCount}</b>{" "}
+              {renamedCount === 1
+                ? "elev din repartizare are numele corectat"
+                : "elevi din repartizare au numele corectat"}{" "}
+              după repartizare (nu sunt elevi noi). Confirmați legătura în pagina Repartizare — își păstrează
+              sala și codul.
+            </p>
+          )}
+          {ghostCount > 0 && (
+            <p>
+              🚪 <b>{ghostCount}</b>{" "}
+              {ghostCount === 1
+                ? "elev din repartizare nu mai apare în înscrieri"
+                : "elevi din repartizare nu mai apar în înscrieri"}{" "}
+              (scoși sau redenumiți). Locurile lor se pot elibera din pagina Repartizare.
+            </p>
+          )}
+          {onOpen && (
+            <div className={styles.actions}>
+              <button className={styles.primary} onClick={onOpen}>
+                Mergi la repartizare →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {newCount > 0 ? (
         <div className={styles.newBox}>
           <p>
@@ -108,11 +150,11 @@ export function AllocationLogCard({ saved, newCount, onPlaceNew, onRegenerate, o
             )}
           </div>
         </div>
-      ) : (
+      ) : renamedCount === 0 && ghostCount === 0 ? (
         <p className={styles.allGood}>✅ Toți elevii înscriși au sală. Nu a mai venit nimeni de la ultima repartizare.</p>
-      )}
+      ) : null}
 
-      {history.length > 1 && (
+      {(history.length > 1 || history[0] !== last) && (
         <div className={styles.history}>
           <button className={styles.link} onClick={() => setShowHistory((v) => !v)}>
             {showHistory ? "▾" : "▸"} Istoric ({history.length} repartizări)
@@ -122,8 +164,14 @@ export function AllocationLogCard({ saved, newCount, onPlaceNew, onRegenerate, o
               {history.map((h) => (
                 <li key={h.at}>
                   <b>{formatWhen(h.at)}</b> — {ALLOCATION_TYPES[h.type] || h.type}
-                  {h.type === "elevi-noi" && h.added > 0 && ` (+${h.added})`}: {h.placed} elevi în {h.roomsUsed}{" "}
-                  săli, ultima {h.lastRoom} ({h.lastCount}/{h.lastSeats})
+                  {h.type === "anulare-coduri" ? (
+                    ` (${h.deleted || 0} coduri șterse; repartizarea a rămas neschimbată)`
+                  ) : (
+                    <>
+                      {h.type === "elevi-noi" && h.added > 0 && ` (+${h.added})`}: {h.placed} elevi în{" "}
+                      {h.roomsUsed} săli, ultima {h.lastRoom} ({h.lastCount}/{h.lastSeats})
+                    </>
+                  )}
                 </li>
               ))}
             </ul>

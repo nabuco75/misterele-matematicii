@@ -6,6 +6,7 @@ import { sortRooms } from "./allocation";
 import { loadAllocation } from "./allocationStore";
 import { loadContestStudents } from "./contestData";
 import { AllocationLogCard } from "./AllocationLog";
+import { diffWithAllocation } from "./studentSync";
 
 // Săli pre-configurate cu dimensiunea matriceală (rânduri x coloane)
 const DEFAULT_ROOMS = [
@@ -41,17 +42,22 @@ function RoomAllocation({ onNextStep, onCancel }) {
 
     // jurnalul repartizării + câți elevi s-au înscris după ea
     const [savedAlloc, setSavedAlloc] = useState(undefined);
-    const [newSinceAlloc, setNewSinceAlloc] = useState(0);
+    const [allocDiff, setAllocDiff] = useState({ realNew: 0, pairs: 0, ghosts: 0 });
     useEffect(() => {
         let alive = true;
-        Promise.all([loadAllocation(), loadContestStudents()])
-            .then(([saved, data]) => {
+        // întâi elevii (numele corectate recunoscute automat se salvează), apoi repartizarea
+        loadContestStudents()
+            .then(async (data) => {
+                const saved = await loadAllocation();
                 if (!alive) return;
                 setSavedAlloc(saved);
                 if (saved) {
-                    setNewSinceAlloc(
-                        data.students.filter((s) => !saved.assignments.get(s.id) && !(s.cod && s.salaCod)).length
-                    );
+                    const diff = diffWithAllocation(data.students, saved.assignments, data.orphans);
+                    setAllocDiff({
+                        realNew: diff.realNew.length,
+                        pairs: diff.pairs.length,
+                        ghosts: diff.unpairedGhosts.length,
+                    });
                 }
             })
             .catch((err) => {
@@ -279,7 +285,13 @@ function RoomAllocation({ onNextStep, onCancel }) {
             )}
 
             {savedAlloc !== undefined && (
-                <AllocationLogCard saved={savedAlloc} newCount={newSinceAlloc} onOpen={onNextStep} />
+                <AllocationLogCard
+                    saved={savedAlloc}
+                    newCount={allocDiff.realNew}
+                    renamedCount={allocDiff.pairs}
+                    ghostCount={allocDiff.ghosts}
+                    onOpen={onNextStep}
+                />
             )}
 
             {/* BUTON URMĂTORUL PAS */}
