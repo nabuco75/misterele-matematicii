@@ -141,7 +141,11 @@ function Landing() {
             {/* ClassForm cu modal de autentificare integrat */}
             {showClassForm && selectedSchool && (
               <div className={styles.formWrap}>
-                <ClassForm selectedSchool={selectedSchool} onAuthenticated={() => setAuthed(true)} />
+                <ClassForm
+                  selectedSchool={selectedSchool}
+                  onAuthenticated={() => setAuthed(true)}
+                  onCancel={() => setShowClassForm(false)}
+                />
               </div>
             )}
           </>

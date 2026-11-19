@@ -1281,25 +1281,29 @@ function AdminDashboard() {
       onConfirm: async () => {
         try {
           setIsSaving(true);
+          // se scrie doar ce s-a schimbat: emailul / telefonul celorlalte înscrieri rămân ale lor
+          const nameChanged = nume !== (reg.profesor || "");
+          const patch = {};
+          if (nameChanged) patch.profesorIndrumatorEmail = nume;
+          if (email !== (reg.profesorEmail || "")) patch.profesorEmail = email;
+          if (telefon !== (reg.telefon || "")) patch.telefon = telefon;
           const batch = writeBatch(db);
-          targets.forEach((r) =>
-            batch.update(doc(db, "registration", r.id), {
-              profesorIndrumatorEmail: nume,
-              profesorEmail: email,
-              telefon,
-            })
-          );
+          targets.forEach((r) => batch.update(doc(db, "registration", r.id), patch));
           // codurile de anonimizare păstrează și ele numele profesorului (pentru borderou)
-          for (const r of targets) {
-            const codesSnap = await getDocs(query(collection(db, "codes"), where("regId", "==", r.id)));
-            codesSnap.forEach((c) => batch.update(c.ref, { profesor: nume }));
+          if (nameChanged) {
+            for (const r of targets) {
+              const codesSnap = await getDocs(query(collection(db, "codes"), where("regId", "==", r.id)));
+              codesSnap.forEach((c) => batch.update(c.ref, { profesor: nume }));
+            }
           }
           await batch.commit();
 
+          const local = {};
+          if ("profesorIndrumatorEmail" in patch) local.profesor = nume;
+          if ("profesorEmail" in patch) local.profesorEmail = email;
+          if ("telefon" in patch) local.telefon = telefon;
           const ids = new Set(targets.map((r) => r.id));
-          setSchoolRegs((prev) =>
-            prev.map((r) => (ids.has(r.id) ? { ...r, profesor: nume, profesorEmail: email, telefon } : r))
-          );
+          setSchoolRegs((prev) => prev.map((r) => (ids.has(r.id) ? { ...r, ...local } : r)));
           setProfEdit(null);
           setProfEditError("");
           showStudentEditorMessage(
@@ -1762,7 +1766,7 @@ function AdminDashboard() {
             ) : registeredSchools.length === 0 ? (
               <p>Deocamdată nu există înscrieri.</p>
             ) : (
-              <table className={styles.schoolTable}>
+              <div className={styles.tableScroll}><table className={styles.schoolTable}>
                 <thead>
                   <tr>
                     <th>#</th>
@@ -1783,7 +1787,7 @@ function AdminDashboard() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
         )}
@@ -1806,7 +1810,7 @@ function AdminDashboard() {
                 >
                   Descarcă lista în Excel
                 </button>
-                <table className={styles.schoolTable}>
+                <div className={styles.tableScroll}><table className={styles.schoolTable}>
                   <thead>
                     <tr>
                       <th>#</th>
@@ -1825,7 +1829,7 @@ function AdminDashboard() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               </>
             )}
           </div>
@@ -2106,7 +2110,7 @@ function AdminDashboard() {
             {students.length === 0 ? (
               <p>Niciun elev înscris sub această școală.</p>
             ) : (
-              <table className={styles.studentTable}>
+              <div className={styles.tableScroll}><table className={styles.studentTable}>
                 <thead>
                   <tr>
                     <th>#</th>
@@ -2149,7 +2153,7 @@ function AdminDashboard() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
         )}

@@ -1283,3 +1283,15 @@
   letter-spacing: -0.02em;
   color: #fff;
 }
+
+/* tabelele late se derulează orizontal pe telefon, în loc să fie tăiate */
+.tableScroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 10px;
+}
+.tableScroll > table {
+  min-width: 520px;
+}

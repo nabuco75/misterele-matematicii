@@ -1,5 +1,6 @@
 // ClassForm.jsx
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import emailjs from "emailjs-com";
 import { db } from "./firebase";
 import {
@@ -84,6 +85,15 @@ const isVipSchool = (schoolName) => {
       target.includes("vaslui"))
   );
 };
+
+// același nume, indiferent de diacritice, majuscule și spații
+const nameKey = (v) =>
+  String(v || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z]+/g, " ")
+    .trim();
 
 // validare nume elev ("" = valid; câmpurile goale sunt permise)
 // full=false → doar greșelile evidente (@, cifre), afișate în timp ce scrie
@@ -173,7 +183,7 @@ const downloadReceipt = (r) => {
 const barColor = (pct) =>
   pct < 60 ? "#22c55e" : pct < 100 ? "#f59e0b" : "#ef4444";
 
-function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated }) {
+function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, onCancel }) {
   const schoolId = selectedSchool?.id || "";
   const schoolName = selectedSchool?.name || "";
 
@@ -282,6 +292,23 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated })
     }
   };
 
+  // altă școală: numărătoarea și mesajele celei vechi nu mai sunt valabile
+  useEffect(() => {
+    setCountByClass({ "a IV-a": 0, "a V-a": 0, "a VI-a": 0, "a VII-a": 0 });
+    setMessage({ type: "", content: "" });
+    setReceipt(null);
+    setStudentSubmitErrors({});
+    setShowConfirmation(false);
+  }, [schoolId]);
+
+  // Esc închide fereastra codului de acces
+  useEffect(() => {
+    if (isAuthenticated || isAdminOverride || !onCancel) return undefined;
+    const onKey = (e) => e.key === "Escape" && onCancel();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isAuthenticated, isAdminOverride, onCancel]);
+
   useEffect(() => {
     if (!schoolId) return;
     const classes = Object.keys(studentsByClass);
@@ -321,6 +348,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated })
     // eroarea de la trimitere dispare când câmpul devine corect
     const key = `${className}|${index}`;
     if (studentSubmitErrors[key] && !validateStudent(value)) {
+      // (dublurile se reverifică la apăsarea „Înscrie”)
       setStudentSubmitErrors((p) => {
         const rest = { ...p };
         delete rest[key];
@@ -371,6 +399,20 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated })
           if (!firstStudentError)
             firstStudentError = `Clasa ${className}, elevul ${index + 1}: ${err}`;
         }
+      });
+    });
+    // același elev scris de două ori în aceeași clasă
+    Object.keys(studentsByClass).forEach((className) => {
+      const seen = new Map();
+      studentsByClass[className].forEach((s, index) => {
+        const k = nameKey(s);
+        if (!k) return;
+        if (seen.has(k)) {
+          const err = `Elevul apare de două ori (vezi elevul ${seen.get(k) + 1}).`;
+          badStudents[`${className}|${index}`] = err;
+          if (!firstStudentError)
+            firstStudentError = `Clasa ${className}, elevul ${index + 1}: ${err}`;
+        } else seen.set(k, index);
       });
     });
     setStudentSubmitErrors(badStudents);
@@ -606,13 +648,25 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated })
 
   // autentificare doar pentru user normal
   if (!isAuthenticated && !isAdminOverride) {
-    return (
+    // în document.body: deasupra barei de sus și a oricărui container
+    return createPortal(
       <>
         <div className={styles.authOverlay}>
-          <div className={styles.authModal}>
+          <div className={styles.authModal} role="dialog" aria-modal="true" aria-labelledby="authTitle">
+            {onCancel && (
+              <button
+                type="button"
+                className={styles.authClose}
+                onClick={onCancel}
+                aria-label="Închide"
+                title="Închide (Esc)"
+              >
+                ×
+              </button>
+            )}
             <div className={styles.authHeader}>
               <div className={styles.authIcon}>🔐</div>
-              <h2 className={styles.authTitle}>
+              <h2 id="authTitle" className={styles.authTitle}>
                 Acces Restricționat
               </h2>
               <p className={styles.authSubtitle}>
@@ -686,7 +740,8 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated })
             </form>
           </div>
         </div>
-      </>
+      </>,
+      document.body
     );
   }
 
@@ -815,7 +870,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated })
                             studentError ? styles.invalid : ""
                           }`}
                           disabled={
-                            !isUnlimited && used >= 5
+                            !isUnlimited && used >= 5 && !student
                           }
                         />
                         {studentError && (
@@ -846,6 +901,12 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated })
                           }}
                         >
                           ● Limită atinsă
+                        </span>
+                      )}
+                      {used >= 5 && pending > 0 && (
+                        <span className={styles.fullHint}>
+                          Clasa s-a completat între timp: ștergeți numele scrise aici ca să puteți trimite
+                          celelalte clase.
                         </span>
                       )}
                     </>
@@ -975,10 +1036,11 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated })
         )}
       </form>
 
-      {showConfirmation && (
+      {showConfirmation &&
+        createPortal(
         <>
           <div className={styles.modalOverlay} />
-          <div className={styles.confirmationModal}>
+          <div className={styles.confirmationModal} role="dialog" aria-modal="true">
             <p>
               Confirmi înscrierea elevilor la <strong>{schoolName}</strong>?
               {!isUnlimited &&
@@ -997,8 +1059,9 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated })
               Anulează
             </button>
           </div>
-        </>
-      )}
+        </>,
+          document.body
+        )}
     </div>
   );
 }

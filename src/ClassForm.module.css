@@ -1085,3 +1085,86 @@
 .statChip + .input-field {
   margin-top: 14px;
 }
+
+/* ferestrele sunt în document.body (portal): fontul și stratul se dau explicit */
+.authOverlay,
+.modalOverlay,
+.confirmationModal {
+  font-family: "Plus Jakarta Sans", Inter, system-ui, sans-serif;
+}
+.authOverlay {
+  z-index: 10000;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* margin:auto centrează, dar pe ecrane scurte lasă fereastra să înceapă de sus (derulabilă) */
+.authModal {
+  margin: auto;
+  flex-shrink: 0;
+}
+.modalOverlay {
+  z-index: 10000;
+}
+.confirmationModal {
+  z-index: 10001;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+.authClose {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.2s ease;
+}
+.authClose:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+.authClose:focus-visible {
+  outline: 3px solid #fde68a;
+  outline-offset: 2px;
+}
+/* clasă completată între timp, cu nume deja scrise */
+.fullHint {
+  display: block;
+  margin-top: 6px;
+  color: #b91c1c;
+  font-weight: 700;
+}
+@media (max-height: 640px) {
+  .authHeader {
+    padding: 22px 24px 18px;
+  }
+}
+.authOverlay :global(*),
+.confirmationModal :global(*),
+.confirmationModal {
+  box-sizing: border-box;
+}
+.authOverlay :global(button),
+.authOverlay :global(input),
+.confirmationModal :global(button) {
+  font-family: inherit;
+}
+/* butonul × nu preia stilul general al butoanelor */
+.authModal .authClose {
+  width: 40px;
+  min-width: 0;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+  transform: none;
+}

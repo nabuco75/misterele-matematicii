@@ -996,3 +996,18 @@
 :global(.aurora-stage) .error {
   border-radius: 14px;
 }
+
+/* note trimise, încă neconfirmate de server */
+.pending {
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+  background: #fff7d6;
+  color: #7a4b00;
+  border: 1px solid #f5d77a;
+  padding: 10px 14px;
+  border-radius: 14px;
+  margin-bottom: 12px;
+  font-weight: 700;
+  box-shadow: 0 8px 22px rgba(3, 6, 25, 0.25);
+}

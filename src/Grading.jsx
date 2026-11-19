@@ -1,5 +1,5 @@
 // Notare și rezultate: introducerea punctajelor, premii automate, filtre, sortări, exporturi.
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, onSnapshot, serverTimestamp, setDoc, writeBatch } from "firebase/firestore";
 import { db } from "./firebase";
 import styles from "./Grading.module.css";
@@ -119,6 +119,13 @@ function Grading({ onDashboard, stageBar }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   // implicit în ordinea codurilor: ordinea nu se schimbă în timp ce se introduc notele
   const [sort, setSort] = useState({ key: "cod", dir: "asc" });
+  // fără coduri, notele s-ar salva pe alte înregistrări: tabelul devine doar de citit
+  const [codesFailed, setCodesFailed] = useState(false);
+  // elevii notați de când s-a ales filtrul rămân în tabel (nu dispar în timp ce se tastează)
+  const [pinned, setPinned] = useState(() => new Set());
+  // note trimise, dar încă neconfirmate de server (ex. fără internet)
+  const pendingRef = useRef(0);
+  const [pendingSaves, setPendingSaves] = useState(0);
 
   // elevii (o dată) + notele (în timp real: ce notează alt profesor apare imediat)
   useEffect(() => {
@@ -127,7 +134,12 @@ function Grading({ onDashboard, stageBar }) {
       .then((data) => {
         if (!alive) return;
         setStudents(data.students);
-        if (data.codesError) setLoadError("Codurile elevilor nu au putut fi citite.");
+        if (data.codesError) {
+          setCodesFailed(true);
+          setLoadError(
+            "Codurile elevilor nu au putut fi citite, așa că notarea e blocată (notele s-ar salva greșit). Reîncărcați pagina."
+          );
+        }
       })
       .catch((err) => {
         console.error(err);
@@ -153,6 +165,28 @@ function Grading({ onDashboard, stageBar }) {
     };
   }, []);
 
+  // mesajul apare doar dacă salvarea întârzie (altfel ar clipi la fiecare notă)
+  const [slowSave, setSlowSave] = useState(false);
+  const saving = pendingSaves > 0;
+  useEffect(() => {
+    if (!saving) {
+      setSlowSave(false);
+      return undefined;
+    }
+    const t = setTimeout(() => setSlowSave(true), 1500);
+    return () => clearTimeout(t);
+  }, [saving]);
+
+  useEffect(() => {
+    if (!saving) return undefined;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [saving]);
+
   const rows = useMemo(() => buildResults(students, grades), [students, grades]);
   const sortModeId = SORT_MODES.find((m) => m.sort.key === sort.key && m.sort.dir === sort.dir)?.id || null;
 
@@ -172,6 +206,7 @@ function Grading({ onDashboard, stageBar }) {
   const visible = useMemo(() => {
     const q = filters.q.trim().toLowerCase();
     const list = rows.filter((r) => {
+      if (pinned.has(r.id)) return true;
       if (q && !`${r.nume} ${r.cod || ""}`.toLowerCase().includes(q)) return false;
       if (filters.clasa && r.clasa !== filters.clasa) return false;
       if (filters.scoala && r.scoala !== filters.scoala) return false;
@@ -201,7 +236,7 @@ function Grading({ onDashboard, stageBar }) {
       return true;
     });
     return list.sort(sort.key === "clasament" ? compareRanking : compareBy(sort.key, sort.dir));
-  }, [rows, filters, sort]);
+  }, [rows, filters, sort, pinned]);
 
   const stats = useMemo(
     () =>
@@ -254,6 +289,10 @@ function Grading({ onDashboard, stageBar }) {
 
   // ====== SALVARE ======
   const save = async (row, fields) => {
+    if (codesFailed) return false;
+    setPinned((prev) => (prev.has(row.id) ? prev : new Set(prev).add(row.id)));
+    pendingRef.current += 1;
+    setPendingSaves(pendingRef.current);
     try {
       await setDoc(
         doc(db, GRADES_COLLECTION, row.gradeId),
@@ -266,6 +305,9 @@ function Grading({ onDashboard, stageBar }) {
       console.error("Eroare la salvarea notei:", err);
       setSaveError(`Nota pentru ${row.cod || row.nume} nu s-a salvat. Verificați conexiunea și încercați din nou.`);
       return false;
+    } finally {
+      pendingRef.current -= 1;
+      setPendingSaves(pendingRef.current);
     }
   };
 
@@ -301,12 +343,24 @@ function Grading({ onDashboard, stageBar }) {
     }
   };
 
+  // prima căsuță activă pe coloana dată, pornind de la rândul `from`, în direcția `step` (absenții sunt săriți)
+  const findCell = (from, step, col) => {
+    for (let r = from; r >= 0 && r < visible.length; r += step) {
+      const el = document.querySelector(`input[data-row="${r}"][data-col="${col}"]`);
+      if (el && !el.disabled) return el;
+    }
+    return null;
+  };
+
   const onCellKeyDown = (e, row, key, index) => {
     if (e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       commit(row, key);
-      const next = e.key === "ArrowUp" ? index - 1 : index + 1;
-      document.querySelector(`input[data-row="${next}"][data-col="${key}"]`)?.focus();
+      const step = e.key === "ArrowUp" ? -1 : 1;
+      const target = findCell(index + step, step, key);
+      // la capătul listei: ieșim din căsuță, ca cifrele următoare să nu se lipească de nota de aici
+      if (target) target.focus();
+      else e.target.blur();
     } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       // ← / → trec la subiectul vecin, dar doar când cursorul e la capătul textului
       // (sau tot textul e selectat), ca să se poată corecta și în interiorul notei
@@ -324,9 +378,11 @@ function Grading({ onDashboard, stageBar }) {
         nextCol = SUBJECTS.length - 1;
         nextRow = index - 1;
       }
-      const target = document.querySelector(
-        `input[data-row="${nextRow}"][data-col="${SUBJECTS[nextCol].key}"]`
-      );
+      const nextKey = SUBJECTS[nextCol].key;
+      const target =
+        nextRow === index
+          ? document.querySelector(`input[data-row="${index}"][data-col="${nextKey}"]`)
+          : findCell(nextRow, nextRow > index ? 1 : -1, nextKey);
       if (!target) return;
       e.preventDefault();
       commit(row, key);
@@ -357,7 +413,10 @@ function Grading({ onDashboard, stageBar }) {
   };
   const sortMark = (key) => (sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : "");
 
-  const setFilter = (field, value) => setFilters((prev) => ({ ...prev, [field]: value }));
+  const setFilter = (field, value) => {
+    setPinned(new Set());
+    setFilters((prev) => ({ ...prev, [field]: value }));
+  };
 
 
   // cele 4 liste de descărcat (din elevii afișați în tabel, în ordinea de acum)
@@ -436,6 +495,12 @@ function Grading({ onDashboard, stageBar }) {
 
       {loadError && <div className={styles.error}>❌ {loadError}</div>}
       {saveError && <div className={styles.error}>❌ {saveError}</div>}
+      {pendingSaves > 0 && slowSave && (
+        <div className={styles.pending} role="status">
+          ⏳ Se salvează {pendingSaves === 1 ? "o notă" : `${pendingSaves} note`}… Nu închideți pagina până dispare
+          mesajul (dacă nu dispare, verificați internetul).
+        </div>
+      )}
 
       {/* situația pe clase */}
       <div className={styles.stats}>
@@ -538,7 +603,10 @@ function Grading({ onDashboard, stageBar }) {
             </select>
           )}
           {filtersActive && (
-            <button className={styles.linkButton} onClick={() => setFilters(EMPTY_FILTERS)}>
+            <button className={styles.linkButton} onClick={() => {
+                setPinned(new Set());
+                setFilters(EMPTY_FILTERS);
+              }}>
               ✖ Șterge filtrele
             </button>
           )}
@@ -616,7 +684,7 @@ function Grading({ onDashboard, stageBar }) {
           </thead>
           <tbody>
             {visible.map((r, i) => {
-              const canEdit = !r.absent;
+              const canEdit = !r.absent && !codesFailed;
               return (
                 <tr key={r.id} className={r.absent ? styles.absentRow : ""}>
                   <td>{r.loc ?? ""}</td>
@@ -668,7 +736,7 @@ function Grading({ onDashboard, stageBar }) {
                     <select
                       className={styles.awardSelect}
                       value={r.premiu}
-                      disabled={r.absent}
+                      disabled={r.absent || codesFailed}
                       onChange={(e) => save(r, { premiu: e.target.value })}
                       title="Premiul (se alege manual)"
                     >
@@ -685,6 +753,7 @@ function Grading({ onDashboard, stageBar }) {
                       type="checkbox"
                       checked={r.absent}
                       onChange={(e) => save(r, { absent: e.target.checked })}
+                      disabled={codesFailed}
                       title="Absent"
                     />
                   </td>

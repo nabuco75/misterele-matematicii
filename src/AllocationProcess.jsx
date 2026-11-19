@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
     collection,
     doc,
@@ -63,6 +63,9 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
     const [reconcileChoice, setReconcileChoice] = useState({});
     const [reconciling, setReconciling] = useState(false);
     const [savingCodes, setSavingCodes] = useState(false);
+    // lacăt contra dublu-click: o singură repartizare de elevi noi / dare de coduri o dată
+    const busyRef = useRef(false);
+    const [placingNew, setPlacingNew] = useState(false);
     const [saved, setSaved] = useState(null); // repartizarea salvată + jurnalul
     const [studentStats, setStudentStats] = useState(
         CLASS_ORDER.reduce((acc, cls) => ({ ...acc, [cls]: 0 }), { total: 0 })
@@ -280,7 +283,18 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
     const pendingPairs = diff ? diff.pairs.length : 0;
 
     const handleKeepAllocation = async () => {
-        if (rooms.length === 0) return;
+        if (rooms.length === 0 || busyRef.current) return;
+        busyRef.current = true;
+        setPlacingNew(true);
+        try {
+            await placeNewStudents();
+        } finally {
+            busyRef.current = false;
+            setPlacingNew(false);
+        }
+    };
+
+    const placeNewStudents = async () => {
         if (pendingPairs > 0) {
             showMessage(
                 "warning",
@@ -318,7 +332,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
             (result.overflow ? ` ⚠️ ${result.overflow} peste numărul de locuri — adăugați scaune sau o sală.` : "");
         // dacă anonimizarea e deja în lucru (există coduri), elevii noi primesc cod imediat
         if (studentsWithCode > 0) {
-            await handleGenerateCodes(result.data, { ask: false, intro: placedMsg });
+            await handleGenerateCodes(result.data, { ask: false, intro: placedMsg, locked: true });
         } else {
             showMessage(result.overflow ? "warning" : "success", placedMsg);
         }
@@ -330,7 +344,19 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
         ? allocationResult.filter((s) => !s.cod).length
         : students.filter((s) => !s.cod).length;
 
-    const handleGenerateCodes = async (allocArg, { ask = true, intro = "" } = {}) => {
+    const handleGenerateCodes = async (allocArg, opts = {}) => {
+        // apelat din „elevi noi” lacătul e deja pus; altfel îl punem aici
+        if (opts.locked) return generateCodes(allocArg, opts);
+        if (busyRef.current) return;
+        busyRef.current = true;
+        try {
+            await generateCodes(allocArg, opts);
+        } finally {
+            busyRef.current = false;
+        }
+    };
+
+    const generateCodes = async (allocArg, { ask = true, intro = "" } = {}) => {
         const base = Array.isArray(allocArg) ? allocArg : allocationResult;
         const missing = base ? base.filter((s) => !s.cod).length : 0;
         if (!base || base.length === 0 || missing === 0) return;
@@ -736,7 +762,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                             <button
                                 onClick={handleKeepAllocation}
                                 className={styles.newStudentsButton}
-                                disabled={rooms.length === 0 || loading}
+                                disabled={rooms.length === 0 || loading || placingNew || savingCodes}
                                 title="Elevii care au cod rămân în sala lor; cei fără cod se pun pe locurile libere, începând cu ultima sală"
                             >
                                 {`➕ Repartizează elevii noi (${newStudents}) în ultima sală`}

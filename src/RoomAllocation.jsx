@@ -134,6 +134,13 @@ function RoomAllocation({ onNextStep, onCancel, stageBar }) {
             return;
         }
 
+        // numele sălii e cheia repartizării: două săli cu același nume ar dubla elevii pe liste
+        const norm = (s) => String(s || "").trim().replace(/\s+/g, " ").toLowerCase();
+        const clash = rooms.find((r) => r.id !== editingRoomId && norm(r.name) === norm(roomName));
+        if (clash) {
+            showMessage("error", `Există deja o sală cu numele „${clash.name}”. Alegeți alt nume.`);
+            return;
+        }
 
         try {
             const roomData = {
