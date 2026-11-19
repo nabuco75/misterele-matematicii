@@ -11,6 +11,7 @@ import {
   query,
   where,
   runTransaction,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import * as XLSX from "xlsx";
@@ -88,6 +89,9 @@ function AdminDashboard() {
   const [schoolRegs, setSchoolRegs] = useState([]);
   // școala-destinație aleasă pentru mutare, per înscriere: { regId: schoolId }
   const [moveTargets, setMoveTargets] = useState({});
+  // editarea profesorului îndrumător al unei înscrieri: { regId, nume, email, telefon, applyAll }
+  const [profEdit, setProfEdit] = useState(null);
+  const [profEditError, setProfEditError] = useState("");
 
   // —— Form de înscriere suplimentară (ADMIN)
   const [showAdminEnroll, setShowAdminEnroll] = useState(false);
@@ -909,6 +913,7 @@ function AdminDashboard() {
           class: d.class || "",
           profesor: d.profesorIndrumatorEmail || "",
           profesorEmail: d.profesorEmail || "",
+          telefon: d.telefon || "",
           count: arr.length,
           createdAt: d.createdAt || null,
         });
@@ -1202,6 +1207,120 @@ function AdminDashboard() {
           );
         }
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
+  // ====== PROFESOR ÎNDRUMĂTOR (nume, email, telefon) ======
+  const sameProf = (a, b) =>
+    String(a || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase() ===
+    String(b || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+
+  // celelalte înscrieri de la aceeași școală, cu același profesor
+  const otherRegsOfProf = (reg) =>
+    schoolRegs.filter((r) => r.id !== reg.id && r.profesor && sameProf(r.profesor, reg.profesor));
+
+  const startProfEdit = (reg) => {
+    setProfEdit({
+      regId: reg.id,
+      nume: reg.profesor || "",
+      email: reg.profesorEmail || "",
+      telefon: reg.telefon || "",
+      applyAll: true,
+    });
+    setProfEditError("");
+  };
+
+  const validateProfEdit = ({ nume, email, telefon }) => {
+    const v = nume.trim();
+    if (!v) return "Numele profesorului îndrumător este necesar.";
+    if (v.includes("@"))
+      return "Ați scris o adresă de email în câmpul pentru nume. Emailul se scrie în câmpul „Email”.";
+    if (/\d/.test(v)) return "Numele nu poate conține cifre.";
+    if (v.split(/\s+/).filter(Boolean).length < 2)
+      return "Scrieți numele și prenumele profesorului (ex: Popescu Maria).";
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      return "Adresa de email nu este validă.";
+    if (telefon.trim() && !/^[0-9+()\s.-]{6,20}$/.test(telefon.trim()))
+      return "Numărul de telefon nu este valid (doar cifre, spații, +, -).";
+    return "";
+  };
+
+  const handleSaveProfEdit = () => {
+    if (!profEdit) return;
+    const reg = schoolRegs.find((r) => r.id === profEdit.regId);
+    if (!reg) return;
+    const err = validateProfEdit(profEdit);
+    if (err) {
+      setProfEditError(err);
+      return;
+    }
+    const nume = profEdit.nume.trim().replace(/\s+/g, " ");
+    const email = profEdit.email.trim();
+    const telefon = profEdit.telefon.trim();
+    const others = otherRegsOfProf(reg);
+    const targets = profEdit.applyAll ? [reg, ...others] : [reg];
+    const changes = [
+      nume !== (reg.profesor || "") && `numele: „${reg.profesor || "—"}” → „${nume}”`,
+      email !== (reg.profesorEmail || "") && `emailul: ${reg.profesorEmail || "—"} → ${email || "—"}`,
+      telefon !== (reg.telefon || "") && `telefonul: ${reg.telefon || "—"} → ${telefon || "—"}`,
+    ].filter(Boolean);
+    if (changes.length === 0) {
+      setProfEditError("Nu ați modificat nimic.");
+      return;
+    }
+
+    setConfirmModal({
+      isOpen: true,
+      title: "Modificare profesor îndrumător",
+      message: `Se modifică ${changes.join("; ")}, pentru ${
+        targets.length === 1 ? "această înscriere" : `${targets.length} înscrieri (${targets.map((r) => `clasa ${r.class}`).join(", ")})`
+      }. Numele nou va apărea pe listele din săli, pe borderouri și la note. Continuați?`,
+      onConfirm: async () => {
+        try {
+          setIsSaving(true);
+          const batch = writeBatch(db);
+          targets.forEach((r) =>
+            batch.update(doc(db, "registration", r.id), {
+              profesorIndrumatorEmail: nume,
+              profesorEmail: email,
+              telefon,
+            })
+          );
+          // codurile de anonimizare păstrează și ele numele profesorului (pentru borderou)
+          for (const r of targets) {
+            const codesSnap = await getDocs(query(collection(db, "codes"), where("regId", "==", r.id)));
+            codesSnap.forEach((c) => batch.update(c.ref, { profesor: nume }));
+          }
+          await batch.commit();
+
+          const ids = new Set(targets.map((r) => r.id));
+          setSchoolRegs((prev) =>
+            prev.map((r) => (ids.has(r.id) ? { ...r, profesor: nume, profesorEmail: email, telefon } : r))
+          );
+          setProfEdit(null);
+          setProfEditError("");
+          showStudentEditorMessage(
+            `✅ Profesorul îndrumător a fost actualizat (${targets.length} ${targets.length === 1 ? "înscriere" : "înscrieri"}).`,
+            "success"
+          );
+        } catch (e) {
+          console.error("Eroare la modificarea profesorului:", e);
+          showStudentEditorMessage("❌ Eroare la modificarea profesorului!", "error");
+        } finally {
+          setIsSaving(false);
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        }
       },
     });
   };
@@ -1796,8 +1915,9 @@ function AdminDashboard() {
               <div className={styles.regList}>
                 <h3>Înscrieri ({schoolRegs.length})</h3>
                 <p className={styles.regHint}>
-                  Dacă un profesor a ales școala greșită, mutați
-                  înscrierea la școala corectă sau ștergeți-o.
+                  Puteți corecta profesorul îndrumător (nume, email, telefon). Dacă
+                  un profesor a ales școala greșită, mutați înscrierea la școala
+                  corectă sau ștergeți-o.
                 </p>
                 {schoolRegs.map((reg) => (
                   <div key={reg.id} className={styles.regItem}>
@@ -1817,8 +1937,105 @@ function AdminDashboard() {
                           · {reg.profesorEmail}
                         </span>
                       )}
+                      {reg.telefon && (
+                        <span className={styles.regDate}> · {reg.telefon}</span>
+                      )}
                     </div>
+
+                    {profEdit?.regId === reg.id && (
+                      <div className={styles.profEdit}>
+                        <div className={styles.profEditTitle}>
+                          ✏️ Profesor îndrumător — clasa {reg.class}
+                        </div>
+                        <div className={styles.profEditFields}>
+                          <label>
+                            Nume și prenume
+                            <input
+                              type="text"
+                              value={profEdit.nume}
+                              onChange={(e) => {
+                                setProfEdit((prev) => ({ ...prev, nume: e.target.value }));
+                                setProfEditError("");
+                              }}
+                              placeholder="ex: Popescu Maria"
+                              autoFocus
+                            />
+                          </label>
+                          <label>
+                            Email
+                            <input
+                              type="email"
+                              value={profEdit.email}
+                              onChange={(e) => {
+                                setProfEdit((prev) => ({ ...prev, email: e.target.value }));
+                                setProfEditError("");
+                              }}
+                              placeholder="ex: maria.popescu@gmail.com"
+                            />
+                          </label>
+                          <label>
+                            Telefon
+                            <input
+                              type="tel"
+                              value={profEdit.telefon}
+                              onChange={(e) => {
+                                setProfEdit((prev) => ({ ...prev, telefon: e.target.value }));
+                                setProfEditError("");
+                              }}
+                              placeholder="ex: 0740 123 456"
+                            />
+                          </label>
+                        </div>
+                        {otherRegsOfProf(reg).length > 0 && (
+                          <label className={styles.profEditAll}>
+                            <input
+                              type="checkbox"
+                              checked={profEdit.applyAll}
+                              onChange={(e) =>
+                                setProfEdit((prev) => ({ ...prev, applyAll: e.target.checked }))
+                              }
+                            />
+                            Aplică și la celelalte {otherRegsOfProf(reg).length}{" "}
+                            {otherRegsOfProf(reg).length === 1 ? "înscriere" : "înscrieri"} ale acestui profesor
+                            la această școală (
+                            {otherRegsOfProf(reg)
+                              .map((r) => `clasa ${r.class}`)
+                              .join(", ")}
+                            )
+                          </label>
+                        )}
+                        {profEditError && <p className={styles.profEditError}>⚠️ {profEditError}</p>}
+                        <div className={styles.regActions}>
+                          <button
+                            onClick={handleSaveProfEdit}
+                            disabled={isSaving}
+                            className={styles.profSaveButton}
+                          >
+                            💾 Salvează
+                          </button>
+                          <button
+                            onClick={() => {
+                              setProfEdit(null);
+                              setProfEditError("");
+                            }}
+                            className={styles.cancelButton}
+                          >
+                            Renunță
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     <div className={styles.regActions}>
+                      {profEdit?.regId !== reg.id && (
+                        <button
+                          onClick={() => startProfEdit(reg)}
+                          disabled={isSaving}
+                          className={styles.editButton}
+                        >
+                          ✏️ Editează profesorul
+                        </button>
+                      )}
                       <select
                         value={moveTargets[reg.id] || ""}
                         onChange={(e) =>
