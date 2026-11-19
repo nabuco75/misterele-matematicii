@@ -2,6 +2,10 @@
 import XLSX from "xlsx-js-style";
 import * as FileSaver from "file-saver";
 import { CLASS_ORDER } from "./allocation";
+import { withDisplayNames } from "./nameFormat";
+
+// la tipărire / descărcare numele apar uniform („Popescu Ana-Maria”), oricum au fost scrise la înscriere
+const withNames = (groups) => groups.map((g) => ({ ...g, students: g.students.map(withDisplayNames) }));
 
 export const CONTEST_TITLE = "CONCURS REGIONAL DE MATEMATICĂ - MISTERELE MATEMATICII";
 export const ORGANIZER = "Școala Gimnazială „Ștefan cel Mare” Vaslui";
@@ -147,7 +151,8 @@ export const fitSheetsToOnePage = (buffer) => {
   }
 };
 
-export const exportRoomsExcel = (groups, header, roomName = null) => {
+export const exportRoomsExcel = (rawGroups, header, roomName = null) => {
+  const groups = withNames(rawGroups);
   const workbook = XLSX.utils.book_new();
   const usedNames = new Set();
 
@@ -207,7 +212,8 @@ export const exportRoomsExcel = (groups, header, roomName = null) => {
 };
 
 // ====== PDF (pagina de printare → „Salvează ca PDF”) ======
-const buildRoomsHtml = (groups, header) => {
+const buildRoomsHtml = (rawGroups, header) => {
+  const groups = withNames(rawGroups);
   const edition = editionLine(header);
   const pages = groups
     .map(({ title, students }) => {
@@ -315,6 +321,7 @@ export const exportCodesExcel = (allocation, rooms, header) => {
   const rows = groupByRoom(allocation, rooms)
     .flatMap(({ students }) => students)
     .filter((s) => s.cod)
+    .map(withDisplayNames)
     .sort((a, b) => codeNumber(a.cod) - codeNumber(b.cod));
   const data = [
     [CONTEST_TITLE, "", "", "", "", ""],
@@ -347,7 +354,8 @@ export const exportCodesExcel = (allocation, rooms, header) => {
 };
 
 // bilețele de decupat: pe fiecare sală, câte un bilețel pe elev (nume, clasă, sală, cod)
-const buildCodesHtml = (groups, header) => {
+const buildCodesHtml = (rawGroups, header) => {
+  const groups = withNames(rawGroups);
   const edition = editionLine(header);
   const pages = groups
     .map(

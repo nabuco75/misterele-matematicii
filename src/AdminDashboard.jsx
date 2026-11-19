@@ -22,6 +22,7 @@ import Grading from "./Grading.jsx";
 import ClassForm from "./ClassForm.jsx";
 import { applyRemovals, applyRenames } from "./studentSync";
 import { cleanTeacherName, teacherKey, validateTeacher } from "./teachers";
+import { displayName } from "./nameFormat";
 import TeacherSearch from "./TeacherSearch.jsx";
 import styles from "./AdminDashboard.module.css";
 
@@ -459,11 +460,12 @@ function AdminDashboard() {
           const nume = typeof st === "string" ? st : st?.nume || "";
           rows.push({
             nrCurent: rowNumber++,
-            numePrenume: nume,
+            numePrenume: displayName(nume),
             clasa: data.class || "",
             scoala: sc.name,
-            profesorIndrumator:
-              data.profesorIndrumatorEmail || "",
+            profesorIndrumator: displayName(
+              data.profesorIndrumatorEmail || ""
+            ),
           });
         }
       }
@@ -572,7 +574,7 @@ function AdminDashboard() {
           scoala: row.scoala,
           localitate: row.localitate,
           judet: row.judet,
-          nume: row.nume,
+          nume: displayName(row.nume),
           email: row.email,
           telefon: row.telefon,
         })),
@@ -748,13 +750,14 @@ function AdminDashboard() {
               : data.telefon || "";
           rows.push({
             nrCrt: rowNumber++,
-            elev: nume,
+            elev: displayName(nume),
             clasa: data.class || "",
             scoala: sc.name,
             localitate: sc.locality,
             judet: sc.county,
-            profesorIndrumator:
-              data.profesorIndrumatorEmail || "",
+            profesorIndrumator: displayName(
+              data.profesorIndrumatorEmail || ""
+            ),
             telefon: tel,
           });
         }

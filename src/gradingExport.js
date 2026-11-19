@@ -3,6 +3,7 @@ import XLSX from "xlsx-js-style";
 import * as FileSaver from "file-saver";
 import { CONTEST_TITLE, ORGANIZER, editionLine, escapeHtml, openPrintWindow } from "./roomLists";
 import { SUBJECTS, formatScore, formatSuma, classRank } from "./grading";
+import { displayName } from "./nameFormat";
 
 // toate coloanele posibile; `numeric` → celulă număr în Excel (se poate sorta/calcula)
 export const EXPORT_COLUMNS = [
@@ -23,6 +24,8 @@ const cellValue = (row, key, index) => {
   if (key === "nr") return index + 1;
   if (key === "sala") return row.salaCod || "";
   if (key === "suma") return row.absent ? "absent" : row.suma;
+  // numele apar uniform („Popescu Ana-Maria”), oricum au fost scrise la înscriere
+  if (key === "nume" || key === "profesor") return displayName(row[key]);
   if (row.absent && SUBJECTS.some((s) => s.key === key)) return "";
   return row[key] ?? "";
 };
