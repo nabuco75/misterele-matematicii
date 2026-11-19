@@ -1,11 +1,19 @@
-// Căutare globală profesori îndrumători: găsește un profesor după orice știți despre el
-// (nume, email, telefon, școală, localitate, județ sau numele unui elev înscris de el) și îl corectează
-// în toate înscrierile lui, din toate școlile.
+// Căutare globală profesori îndrumători și elevi: găsește un profesor după orice știți despre el
+// (nume, email, telefon, școală, localitate, județ sau numele unui elev înscris de el), îl corectează
+// în toate înscrierile lui și permite corectarea / scoaterea elevilor din fiecare înscriere.
 import React, { useEffect, useMemo, useState } from "react";
-import { collection, doc, getDocs, query, where, writeBatch } from "firebase/firestore";
+import { collection, doc, getDocs, query, runTransaction, where, writeBatch } from "firebase/firestore";
 import { db } from "./firebase";
 import styles from "./TeacherSearch.module.css";
-import { cleanTeacherName, plainText, searchTeachers, teacherKey, validateTeacher } from "./teachers";
+import {
+  cleanTeacherName,
+  plainText,
+  searchTeachers,
+  teacherKey,
+  validateStudentName,
+  validateTeacher,
+} from "./teachers";
+import { applyRemovals, applyRenames } from "./studentSync";
 
 const MAX_RESULTS = 40;
 
@@ -73,6 +81,9 @@ function TeacherSearch() {
   const [editError, setEditError] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
+  // editarea elevilor unei înscrieri: { regId, rows: [{ orig, nume, removed }] }
+  const [studentsEdit, setStudentsEdit] = useState(null);
+  const [studentsError, setStudentsError] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -145,6 +156,104 @@ function TeacherSearch() {
   const otherResults = results && field === "all" ? results.filter((t) => t.tier > 0) : [];
 
   const duplicates = teachers.filter((t) => t.variants.length > 1);
+
+  // ====== ELEVII UNEI ÎNSCRIERI ======
+  const openStudents = (r) => {
+    setStudentsEdit({ regId: r.id, rows: r.students.map((nume) => ({ orig: nume, nume, removed: false })) });
+    setStudentsError("");
+    setMessage(null);
+  };
+
+  const updateRow = (i, patch) => {
+    setStudentsEdit((prev) => ({
+      ...prev,
+      rows: prev.rows.map((row, k) => (k === i ? { ...row, ...patch } : row)),
+    }));
+    setStudentsError("");
+  };
+
+  const handleSaveStudents = async (r) => {
+    const rows = studentsEdit.rows.map((row) => ({ ...row, nume: cleanTeacherName(row.nume) }));
+    for (const row of rows) {
+      if (row.removed) continue;
+      const err = validateStudentName(row.nume);
+      if (err) {
+        setStudentsError(`„${row.nume || row.orig}”: ${err}`);
+        return;
+      }
+    }
+    const kept = rows.filter((row) => !row.removed);
+    const seen = new Set();
+    for (const row of kept) {
+      const k = plainText(row.nume);
+      if (seen.has(k)) {
+        setStudentsError(`„${row.nume}” apare de două ori în aceeași înscriere.`);
+        return;
+      }
+      seen.add(k);
+    }
+    const renames = kept.filter((row) => row.nume !== row.orig);
+    const removed = rows.filter((row) => row.removed);
+    if (renames.length === 0 && removed.length === 0) {
+      setStudentsError("Nu ați modificat nimic.");
+      return;
+    }
+    const lines = [
+      ...renames.map((row) => `✏️ „${row.orig}” → „${row.nume}” (își păstrează sala, codul și notele)`),
+      ...removed.map((row) => `🗑️ „${row.orig}” — scos din concurs (se eliberează locul; codul devine retras)`),
+      kept.length === 0 ? "\n⚠️ Nu mai rămâne niciun elev: înscrierea va fi ștearsă." : "",
+    ].filter(Boolean);
+    if (!window.confirm(`${r.scoala} — clasa ${r.clasa}\n\nSalvați modificările?\n\n${lines.join("\n")}`)) return;
+
+    setSaving(true);
+    try {
+      const regRef = doc(db, "registration", r.id);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(regRef);
+        if (!snap.exists()) throw new Error("STALE");
+        const arr = Array.isArray(snap.data().students) ? snap.data().students : [];
+        const names = arr.map((st) => (typeof st === "string" ? st : st?.nume || ""));
+        // siguranță: lista din baza de date trebuie să fie cea afișată
+        if (names.length !== rows.length || names.some((n, i) => n !== rows[i].orig)) throw new Error("STALE");
+        const next = arr
+          .map((st, i) =>
+            rows[i].removed ? null : typeof st === "object" && st ? { ...st, nume: rows[i].nume } : rows[i].nume
+          )
+          .filter((st) => st !== null);
+        if (next.length === 0) tx.delete(regRef);
+        else tx.update(regRef, { students: next });
+      });
+
+      // elevii redenumiți își păstrează sala, codul și notele; cei scoși eliberează locul
+      let note = "";
+      try {
+        const rn = await applyRenames(renames.map((row) => ({ regId: r.id, oldName: row.orig, newName: row.nume })));
+        const rm = await applyRemovals(removed.map((row) => ({ regId: r.id, nume: row.orig })));
+        const kept2 = [rn.seats && `sala (${rn.seats})`, rn.codes && `codul (${rn.codes})`, rn.grades && `notele (${rn.grades})`].filter(Boolean);
+        if (kept2.length) note += ` Elevii redenumiți și-au păstrat ${kept2.join(", ")}.`;
+        if (rm.seats || rm.codes) note += ` Locuri eliberate: ${rm.seats}.`;
+      } catch (syncErr) {
+        console.error("Eroare la actualizarea repartizării/codurilor:", syncErr);
+        note = " ⚠️ Repartizarea/codurile nu s-au actualizat — confirmați numele corectate în pagina Repartizare.";
+      }
+
+      setStudentsEdit(null);
+      setMessage({
+        type: "success",
+        text: `✅ Elevii au fost actualizați (${r.scoala}, clasa ${r.clasa}): ${renames.length} corectați, ${removed.length} scoși.${note}`,
+      });
+      await load();
+    } catch (e) {
+      console.error("Eroare la salvarea elevilor:", e);
+      setStudentsError(
+        e?.message === "STALE"
+          ? "Lista de elevi s-a schimbat între timp. Închideți, căutați din nou și reîncercați."
+          : "Modificările nu au putut fi salvate. Încercați din nou."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const startEdit = (t) => {
     setEdit({
@@ -310,6 +419,77 @@ function TeacherSearch() {
                     </span>
                   )}
                 </span>
+                {studentsEdit?.regId !== r.id && (
+                  <button
+                    className={styles.studentsBtn}
+                    onClick={() => openStudents(r)}
+                    disabled={saving}
+                    title="Corectați numele elevilor sau scoateți un elev"
+                  >
+                    👥 Elevii ({r.students.length})
+                  </button>
+                )}
+                {studentsEdit?.regId === r.id && (
+                  <div className={styles.studentsEditor}>
+                    <div className={styles.studentsTitle}>
+                      👥 Elevii înscriși — {r.scoala}, clasa {r.clasa}
+                    </div>
+                    {studentsEdit.rows.map((row, i) => (
+                      <div
+                        key={row.orig + i}
+                        className={`${styles.studentRow} ${row.removed ? styles.studentRemoved : ""} ${
+                          !row.removed && row.nume !== row.orig ? styles.studentChanged : ""
+                        }`}
+                      >
+                        <span className={styles.studentNr}>{i + 1}.</span>
+                        <input
+                          type="text"
+                          value={row.nume}
+                          disabled={row.removed || saving}
+                          onChange={(e) => updateRow(i, { nume: e.target.value })}
+                          placeholder="Nume și prenume elev"
+                        />
+                        {row.removed ? (
+                          <button className={styles.undoBtn} onClick={() => updateRow(i, { removed: false })}>
+                            ↩️ Păstrează
+                          </button>
+                        ) : (
+                          <button
+                            className={styles.removeBtn}
+                            onClick={() => updateRow(i, { removed: true, nume: row.orig })}
+                            title="Scoate elevul din concurs"
+                          >
+                            🗑️
+                          </button>
+                        )}
+                        {!row.removed && row.nume !== row.orig && (
+                          <span className={styles.wasName}>era: „{row.orig}”</span>
+                        )}
+                        {row.removed && <span className={styles.wasName}>va fi scos</span>}
+                      </div>
+                    ))}
+                    <p className={styles.formHint}>
+                      Elevul redenumit își păstrează sala, codul de anonimizare și notele. Elevul scos își
+                      eliberează locul din sală, iar codul lui nu se mai dă nimănui.
+                    </p>
+                    {studentsError && <p className={styles.error}>⚠️ {studentsError}</p>}
+                    <div className={styles.actions}>
+                      <button className={styles.saveBtn} onClick={() => handleSaveStudents(r)} disabled={saving}>
+                        {saving ? "Se salvează..." : "💾 Salvează elevii"}
+                      </button>
+                      <button
+                        className={styles.cancelBtn}
+                        onClick={() => {
+                          setStudentsEdit(null);
+                          setStudentsError("");
+                        }}
+                        disabled={saving}
+                      >
+                        Renunță
+                      </button>
+                    </div>
+                  </div>
+                )}
               </li>
             );
           })}
@@ -389,10 +569,11 @@ function TeacherSearch() {
 
   return (
     <div className={styles.panel}>
-      <h2 className={styles.title}>🔎 Caută profesor îndrumător</h2>
+      <h2 className={styles.title}>🔎 Caută profesor sau elev</h2>
       <p className={styles.intro}>
         Scrieți orice știți: o parte din numele profesorului, emailul, telefonul, școala, localitatea,
         județul sau <b>numele unui elev</b> înscris de el. Nu contează diacriticele sau literele mari.
+        Profesorul se corectează cu „Editează”, iar elevii fiecărei înscrieri cu „👥 Elevii”.
       </p>
 
       <input

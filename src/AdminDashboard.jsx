@@ -1516,8 +1516,8 @@ function AdminDashboard() {
               tiles: [
                 {
                   icon: showTeacherSearch ? "✖️" : "🔎",
-                  label: showTeacherSearch ? "Închide căutarea" : "Caută profesor îndrumător",
-                  sub: "După nume, email, telefon, școală sau elev",
+                  label: showTeacherSearch ? "Închide căutarea" : "Caută profesor sau elev",
+                  sub: "Corectează profesori și elevi, din orice școală",
                   color: "indigo",
                   active: showTeacherSearch,
                   onClick: () => setShowTeacherSearch((v) => !v),

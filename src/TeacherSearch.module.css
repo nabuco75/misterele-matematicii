@@ -345,3 +345,100 @@
   padding: 0 1px;
   border-radius: 3px;
 }
+
+/* editarea elevilor unei înscrieri */
+.regs li {
+  flex-wrap: wrap;
+}
+
+.studentsBtn {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: #fff;
+  color: #2980b9;
+  border: 1px solid #2980b9;
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.studentsBtn:hover:not(:disabled) {
+  background: #2980b9;
+  color: #fff;
+}
+
+.studentsEditor {
+  flex-basis: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 2px solid #2980b9;
+  border-radius: 10px;
+  background: #f4f9fd;
+}
+
+.studentsTitle {
+  font-weight: 800;
+  margin-bottom: 8px;
+  color: #1f3864;
+}
+
+.studentRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.studentRow input {
+  flex: 1 1 260px;
+  padding: 7px 10px;
+  border: 1px solid #bdc3c7;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.studentChanged input {
+  border-color: #f39c12;
+  background: #fffaf0;
+}
+
+.studentRemoved input {
+  text-decoration: line-through;
+  color: #999;
+  background: #f4f4f4;
+}
+
+.studentNr {
+  width: 24px;
+  text-align: right;
+  color: #777;
+  font-weight: 700;
+}
+
+.removeBtn,
+.undoBtn {
+  border: 1px solid #e0b4b4;
+  background: #fff;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.removeBtn:hover {
+  background: #fdecea;
+}
+
+.undoBtn {
+  border-color: #b4d4e0;
+  font-weight: 600;
+}
+
+.wasName {
+  flex-basis: 100%;
+  margin-left: 32px;
+  font-size: 0.85rem;
+  color: #b9770e;
+}

@@ -42,6 +42,16 @@ export const validateTeacher = ({ nume = "", email = "", telefon = "" }) => {
 // numele curățat pentru salvare: spații simple, fără spații la capete
 export const cleanTeacherName = (nume) => String(nume || "").trim().replace(/\s+/g, " ");
 
+// numele unui elev (aceleași reguli ca la formularul de înscriere)
+export const validateStudentName = (value) => {
+  const v = String(value || "").trim();
+  if (!v) return "Numele elevului nu poate fi gol (pentru a-l scoate, folosiți butonul 🗑️).";
+  if (v.includes("@")) return "Numele elevului nu poate conține @.";
+  if (/\d/.test(v)) return "Numele elevului nu poate conține cifre.";
+  if (v.split(/\s+/).filter(Boolean).length < 2) return "Scrieți numele și prenumele elevului.";
+  return "";
+};
+
 const digitsOf = (s) => String(s || "").replace(/\D/g, "");
 
 // ordinea de importanță a locului unde s-a găsit textul (numele profesorului primul)
