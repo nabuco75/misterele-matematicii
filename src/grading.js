@@ -40,12 +40,20 @@ export const parseScore = (raw) => {
   return { value: Math.round(value * 100) / 100 };
 };
 
-// media mereu cu 2 zecimale: 8 → „8,00”, 7.6667 → „7,67”
-export const formatMedia = (v) =>
-  typeof v === "number" && !Number.isNaN(v) ? v.toFixed(2).replace(".", ",") : "";
+// punctajul maxim (suma maximă): 3 subiecte × 10 = 30
+export const MAX_SUM = MAX_PER_SUBJECT * SUBJECTS.length;
 
-// treapta mediei, pentru culoare: ≥ 9, ≥ 7, ≥ 5, sub 5
-export const mediaTier = (v) => (v >= 9 ? "top" : v >= 7 ? "good" : v >= 5 ? "mid" : "low");
+// suma punctajelor, fără zecimale inutile: 27 → „27”, 25.5 → „25,5”, 24.25 → „24,25”
+export const formatSuma = (v) =>
+  typeof v === "number" && !Number.isNaN(v)
+    ? String(Math.round(v * 100) / 100).replace(".", ",")
+    : "";
+
+// treapta sumei, pentru culoare (din punctajul maxim): ≥ 90%, ≥ 70%, ≥ 50%, sub 50%
+export const sumaTier = (v) => {
+  const p = v / MAX_SUM;
+  return p >= 0.9 ? "top" : p >= 0.7 ? "good" : p >= 0.5 ? "mid" : "low";
+};
 
 // 8.5 → „8,5”
 export const formatScore = (v) =>
@@ -53,7 +61,7 @@ export const formatScore = (v) =>
 
 const isNum = (v) => typeof v === "number" && !Number.isNaN(v);
 
-// Combină elevii cu notele și calculează totalul, media, starea și locul în clasă.
+// Combină elevii cu notele și calculează suma (totalul punctajelor), starea și locul în clasă.
 //   stare: „nenotat” (nicio notă), „incomplet” (lipsesc subiecte), „notat”, „absent”
 // Premiul nu se calculează: e cel ales manual din listă.
 export const buildResults = (students, gradesByCode) => {
@@ -72,13 +80,14 @@ export const buildResults = (students, gradesByCode) => {
       filled > 0 && !absent
         ? Math.round(SUBJECTS.reduce((sum, { key }) => sum + (scores[key] || 0), 0) * 100) / 100
         : null;
-    const media = filled === SUBJECTS.length && !absent ? Math.round((total / SUBJECTS.length) * 100) / 100 : null;
+    // suma se afișează doar când toate subiectele sunt notate (altfel „incomplet”)
+    const suma = filled === SUBJECTS.length && !absent ? total : null;
     return {
       ...s,
       ...scores,
       gradeId: gradeId(s),
       total,
-      media,
+      suma,
       absent,
       stare,
       premiu: !absent && AWARD_VALUES.includes(g.premiu) ? g.premiu : "",

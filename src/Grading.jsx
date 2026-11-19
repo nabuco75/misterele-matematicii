@@ -14,8 +14,9 @@ import {
   classRank,
   compareRanking,
   formatScore,
-  formatMedia,
-  mediaTier,
+  formatSuma,
+  sumaTier,
+  MAX_SUM,
   parseScore,
 } from "./grading";
 import { exportResultsExcel, printResultsPdf } from "./gradingExport";
@@ -62,10 +63,10 @@ const compareBy = (key, dir) => (a, b) => {
 // butoanele mari de ordonare
 const SORT_MODES = [
   {
-    id: "medie",
+    id: "suma",
     icon: "🏆",
-    label: "După medie",
-    title: "Pe fiecare clasă, de la media cea mai mare la cea mai mică",
+    label: "După sumă",
+    title: "Pe fiecare clasă, de la suma cea mai mare la cea mai mică",
     sort: { key: "clasament", dir: "asc" },
   },
   {
@@ -90,7 +91,7 @@ const TABLE_COLUMNS = [
   { key: "nume", label: "Nume și prenume", defaultDir: "asc" },
   { key: "clasa", label: "Clasa", defaultDir: "asc" },
   ...SUBJECTS.map((s) => ({ key: s.key, label: s.label, defaultDir: "desc", input: true })),
-  { key: "media", label: "Media", defaultDir: "desc" },
+  { key: "suma", label: "Suma", defaultDir: "desc" },
   { key: "premiu", label: "Premiu", defaultDir: "asc" },
   { key: "absent", label: "Abs.", title: "Absent", noSort: true },
   { key: "scoala", label: "Școala", defaultDir: "asc" },
@@ -357,24 +358,24 @@ function Grading({ onDashboard }) {
       id: "avizier",
       icon: "📢",
       title: "Avizier – cu coduri",
-      hint: "Cod, note, medie, premiu – fără nume (anonim), pentru afișat la avizier",
-      columns: ["nr", "cod", "s1", "s2", "s3", "media", "premiu"],
+      hint: "Cod, note, sumă, premiu – fără nume (anonim), pentru afișat la avizier",
+      columns: ["nr", "cod", "s1", "s2", "s3", "suma", "premiu"],
       subtitle: "Rezultate – cu nume",
     },
     {
       id: "rezultate",
       icon: "🧑‍🎓",
       title: "Rezultate",
-      hint: "Nume, note, medie, premiu, școală, profesor – fără coduri",
-      columns: ["nr", "nume", "s1", "s2", "s3", "media", "premiu", "scoala", "profesor"],
+      hint: "Nume, note, sumă, premiu, școală, profesor – fără coduri",
+      columns: ["nr", "nume", "s1", "s2", "s3", "suma", "premiu", "scoala", "profesor"],
       subtitle: "Rezultate",
     },
     {
       id: "borderou",
       icon: "📋",
       title: "Borderou – cod + nume",
-      hint: "Cod + nume + note, medie, premiu, școală, profesor, sală – pentru comisie",
-      columns: ["nr", "cod", "nume", "s1", "s2", "s3", "media", "premiu", "scoala", "profesor", "sala"],
+      hint: "Cod + nume + note, sumă, premiu, școală, profesor, sală – pentru comisie",
+      columns: ["nr", "cod", "nume", "s1", "s2", "s3", "suma", "premiu", "scoala", "profesor", "sala"],
       subtitle: "Borderou",
     },
     {
@@ -382,7 +383,7 @@ function Grading({ onDashboard }) {
       icon: "🏆",
       title: "Premianți",
       hint: "Doar elevii cu premiu (I – M), cu școala și profesorul – pentru diplome",
-      columns: ["nr", "nume", "premiu", "media", "scoala", "profesor"],
+      columns: ["nr", "nume", "premiu", "suma", "scoala", "profesor"],
       subtitle: "Lista premianților",
       onlyAwarded: true,
     },
@@ -398,7 +399,7 @@ function Grading({ onDashboard }) {
     const notDone = rowsOut.filter((r) => r.stare === "nenotat" || r.stare === "incomplet").length;
     if (
       notDone > 0 &&
-      !window.confirm(`${notDone} elevi din listă nu sunt notați complet (vor apărea fără medie). Descărcați oricum?`)
+      !window.confirm(`${notDone} elevi din listă nu sunt notați complet (vor apărea fără sumă). Descărcați oricum?`)
     ) {
       return;
     }
@@ -571,7 +572,7 @@ function Grading({ onDashboard }) {
             )}
           </span>
           <span className={styles.hint}>
-            Fiecare rând se mută întreg (elev, note, medie, premiu). Poți sorta și cu clic pe capul unei coloane.
+            Fiecare rând se mută întreg (elev, note, sumă, premiu). Poți sorta și cu clic pe capul unei coloane.
             La note: ← / → subiectul vecin, Enter / ↓ elevul următor, Esc anulează.
           </span>
         </div>
@@ -630,12 +631,12 @@ function Grading({ onDashboard }) {
                   <td className={styles.total}>
                     {r.absent ? (
                       <span className={styles.mediaAbsent}>absent</span>
-                    ) : r.media !== null ? (
+                    ) : r.suma !== null ? (
                       <span
-                        className={`${styles.mediaPill} ${styles[`media_${mediaTier(r.media)}`]}`}
-                        title={`Media ${formatMedia(r.media)} (din ${SUBJECTS.length} subiecte)`}
+                        className={`${styles.mediaPill} ${styles[`media_${sumaTier(r.suma)}`]}`}
+                        title={`Suma: ${formatSuma(r.suma)} puncte din ${MAX_SUM} (${SUBJECTS.length} subiecte)`}
                       >
-                        {formatMedia(r.media)}
+                        {formatSuma(r.suma)}
                       </span>
                     ) : r.stare === "incomplet" ? (
                       <span className={styles.mediaPending} title="Lipsesc note la unele subiecte">

@@ -2,7 +2,7 @@
 import XLSX from "xlsx-js-style";
 import * as FileSaver from "file-saver";
 import { CONTEST_TITLE, ORGANIZER, editionLine, escapeHtml, openPrintWindow } from "./roomLists";
-import { SUBJECTS, formatScore, formatMedia, classRank } from "./grading";
+import { SUBJECTS, formatScore, formatSuma, classRank } from "./grading";
 
 // toate coloanele posibile; `numeric` → celulă număr în Excel (se poate sorta/calcula)
 export const EXPORT_COLUMNS = [
@@ -12,7 +12,7 @@ export const EXPORT_COLUMNS = [
   { key: "nume", label: "Numele și prenumele", wch: 30, left: true },
   { key: "clasa", label: "Clasa", wch: 9 },
   ...SUBJECTS.map((s) => ({ key: s.key, label: s.label, wch: 8, numeric: true })),
-  { key: "media", label: "Media", wch: 9, numeric: true, bold: true },
+  { key: "suma", label: "Suma", wch: 8, numeric: true, bold: true },
   { key: "premiu", label: "Premiul", wch: 9, bold: true },
   { key: "scoala", label: "Numele școlii participante", wch: 40 },
   { key: "profesor", label: "Profesor îndrumător", wch: 28 },
@@ -22,7 +22,7 @@ export const EXPORT_COLUMNS = [
 const cellValue = (row, key, index) => {
   if (key === "nr") return index + 1;
   if (key === "sala") return row.salaCod || "";
-  if (key === "media") return row.absent ? "absent" : row.media;
+  if (key === "suma") return row.absent ? "absent" : row.suma;
   if (row.absent && SUBJECTS.some((s) => s.key === key)) return "";
   return row[key] ?? "";
 };
@@ -91,8 +91,6 @@ export const exportResultsExcel = (rows, { columns, byClass, header, subtitle, f
             bold: !!col.bold,
             left: !!col.left,
           });
-          // media cu 2 zecimale în Excel (rămâne număr, se poate sorta / calcula)
-          if (col.key === "media" && ws[ref].t === "n") ws[ref].z = "0.00";
         }
       })
     );
@@ -118,7 +116,7 @@ export const printResultsPdf = (rows, { columns, byClass, header, subtitle, file
   const cols = EXPORT_COLUMNS.filter((c) => columns.includes(c.key));
   const landscape = cols.length >= 9;
   const fmt = (v, key) =>
-    typeof v === "number" ? (key === "media" ? formatMedia(v) : formatScore(v)) : escapeHtml(v);
+    typeof v === "number" ? (key === "suma" ? formatSuma(v) : formatScore(v)) : escapeHtml(v);
 
   const pages = splitGroups(rows, byClass)
     .map(
