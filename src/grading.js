@@ -49,11 +49,8 @@ export const formatSuma = (v) =>
     ? String(Math.round(v * 100) / 100).replace(".", ",")
     : "";
 
-// treapta sumei, pentru culoare (din punctajul maxim): ≥ 90%, ≥ 70%, ≥ 50%, sub 50%
-export const sumaTier = (v) => {
-  const p = v / MAX_SUM;
-  return p >= 0.9 ? "top" : p >= 0.7 ? "good" : p >= 0.5 ? "mid" : "low";
-};
+// treapta sumei, pentru culoare: 20–30 verde, 15–19,99 albastru, 10–14,99 auriu, sub 10 roșu
+export const sumaTier = (v) => (v >= 20 ? "top" : v >= 15 ? "good" : v >= 10 ? "mid" : "low");
 
 // 8.5 → „8,5”
 export const formatScore = (v) =>
