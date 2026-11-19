@@ -106,3 +106,86 @@ h2 {
     font-size: 1.5rem;
   }
 }
+
+/* ======================================================================
+   AURORA – pagina de login (doar aspect)
+   ====================================================================== */
+.loginContainer {
+  width: 100%;
+  height: auto;
+  min-height: calc(100vh - 120px);
+  background: transparent;
+  padding: 24px 16px;
+}
+.loginForm {
+  max-width: 400px;
+  padding: clamp(28px, 6vw, 40px);
+  gap: 16px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 30px 70px rgba(3, 6, 25, 0.5), 0 2px 8px rgba(3, 6, 25, 0.2);
+  color: #141a3a;
+}
+.loginForm:hover {
+  transform: none;
+  box-shadow: 0 30px 70px rgba(3, 6, 25, 0.5), 0 2px 8px rgba(3, 6, 25, 0.2);
+}
+.loginForm h2 {
+  margin: 0;
+  color: #141a3a;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.badge {
+  align-self: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1, #a21caf);
+  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.hint {
+  margin: -8px 0 6px;
+  text-align: center;
+  color: #6b7390;
+  font-size: 0.92rem;
+}
+.inputField {
+  min-height: 54px;
+  border-radius: 14px;
+  border: 1.5px solid #e2e5f0;
+  background: #f7f8fc;
+  color: #141a3a;
+  font-family: inherit;
+  font-size: 16px;
+}
+.inputField:focus {
+  border-color: #6366f1;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.16);
+}
+.submitButton {
+  min-height: 54px;
+  border-radius: 14px;
+  background: linear-gradient(120deg, #6366f1 0%, #7c3aed 100%);
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 800;
+  box-shadow: 0 14px 30px rgba(99, 102, 241, 0.4);
+}
+.submitButton:hover {
+  background: linear-gradient(120deg, #6366f1 0%, #6d28d9 100%);
+}
+.error {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+}

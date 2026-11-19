@@ -3,6 +3,7 @@ import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } f
 import { auth } from "./firebase"; // Importă Authentication din Firebase
 import { useNavigate } from "react-router-dom"; // Importă useNavigate pentru redirecționare
 import styles from "./LoginForm.module.css"; // Importă stilurile
+import AuroraStage from "./Aurora";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
@@ -28,9 +29,12 @@ function LoginForm() {
   };
 
   return (
+    <AuroraStage>
     <div className={styles.loginContainer}>
       <form className={styles.loginForm} onSubmit={handleLogin}>
-        <h2>Autentificare Admin</h2>
+        <span className={styles.badge} aria-hidden="true">∑</span>
+        <h2>Autentificare admin</h2>
+        <p className={styles.hint}>Panoul organizatorilor concursului Misterele Matematicii.</p>
         {error && <p className={styles.error}>{error}</p>}
         <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className={styles.inputField} required />
         <input type="password" placeholder="Parola" value={password} onChange={(e) => setPassword(e.target.value)} className={styles.inputField} required />
@@ -39,6 +43,7 @@ function LoginForm() {
         </button>
       </form>
     </div>
+    </AuroraStage>
   );
 }
 

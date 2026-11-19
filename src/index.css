@@ -32,7 +32,8 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh; /* Schimbat de la height: 100% */
-  background-color: #f0f0f0;
+  /* noaptea „Aurora”: fără fâșii deschise sub pagini */
+  background-color: #0d0a2b;
   /* ❌ ȘTERS display: flex, justify-content, align-items */
   overflow-x: hidden; /* Previne scroll orizontal */
 }

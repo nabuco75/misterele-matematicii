@@ -98,3 +98,93 @@ option[disabled] {
     font-size: 0.9rem;
   }
 }
+
+/* ======================================================================
+   AURORA – cardul de alegere a școlii (foaie albă, câmpuri mari, ușor de atins pe telefon)
+   ====================================================================== */
+.selectionContainer {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: clamp(22px, 4vw, 34px);
+  border-radius: 26px;
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 30px 70px rgba(3, 6, 25, 0.45), 0 2px 8px rgba(3, 6, 25, 0.2);
+  color: #141a3a;
+  text-align: left;
+  box-sizing: border-box;
+}
+.selectionContainer:hover {
+  transform: none;
+  box-shadow: 0 30px 70px rgba(3, 6, 25, 0.45), 0 2px 8px rgba(3, 6, 25, 0.2);
+}
+.cardHead {
+  margin-bottom: 20px;
+}
+.cardTitle {
+  margin: 0;
+  font-size: clamp(1.3rem, 3vw, 1.6rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #141a3a;
+  text-align: left;
+}
+.cardHint {
+  margin: 4px 0 0;
+  color: #6b7390;
+  font-size: 0.95rem;
+}
+.selectionContainer label {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6366f1;
+}
+.selectionContainer label:hover {
+  color: #6366f1;
+}
+.selectionContainer .selectField {
+  width: 100%;
+  min-height: 54px;
+  margin: 0 0 18px;
+  padding: 0 46px 0 16px;
+  border-radius: 14px;
+  border: 1.5px solid #e2e5f0;
+  background: #f7f8fc
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>")
+    no-repeat right 16px center;
+  box-shadow: none;
+  color: #141a3a;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+  box-sizing: border-box;
+}
+.selectionContainer .selectField:hover {
+  border-color: #c7cbe0;
+  background-color: #fff;
+}
+.selectionContainer .selectField:focus {
+  outline: none;
+  border-color: #6366f1;
+  background-color: #fff;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.16);
+}
+.selectionContainer .selectField:last-child {
+  margin-bottom: 0;
+}
+@media (max-width: 768px) {
+  .selectionContainer {
+    max-width: 100%;
+  }
+  .selectionContainer .selectField {
+    font-size: 1rem;
+  }
+}

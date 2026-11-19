@@ -62,7 +62,11 @@ function SchoolSelection({ setSelectedSchool }) {
 
   return (
     <div className={styles.selectionContainer}>
-      <label htmlFor="countySelect">Alege județul:</label>
+      <div className={styles.cardHead}>
+        <h2 className={styles.cardTitle}>Alegeți școala</h2>
+        <p className={styles.cardHint}>Județul, apoi localitatea și școala la care predați.</p>
+      </div>
+      <label htmlFor="countySelect">Județul</label>
       <select
         id="countySelect"
         value={selectedCounty}
@@ -86,7 +90,7 @@ function SchoolSelection({ setSelectedSchool }) {
 
       {selectedCounty && (
         <>
-          <label htmlFor="localitySelect">Alege localitatea:</label>
+          <label htmlFor="localitySelect">Localitatea</label>
           <select
             id="localitySelect"
             value={selectedLocality}
@@ -110,7 +114,7 @@ function SchoolSelection({ setSelectedSchool }) {
 
       {selectedLocality && (
         <>
-          <label htmlFor="schoolSelect">Alege școala:</label>
+          <label htmlFor="schoolSelect">Școala</label>
           <select
             id="schoolSelect"
             value={selectedSchoolId}

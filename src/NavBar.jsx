@@ -45,6 +45,14 @@ function NavBar() {
 
   return (
     <div className={styles.navbar}>
+      {/* numele concursului: duce la pagina de start */}
+      <button className={styles.brand} onClick={handleHomeClick} aria-label="Misterele Matematicii – pagina de start">
+        <span className={styles.brandMark} aria-hidden="true">∑</span>
+        <span className={styles.brandText}>
+          Misterele <b>Matematicii</b>
+        </span>
+      </button>
+
       {/* Hamburger Icon - vizibil doar pe mobil */}
       <button className={styles.hamburger} onClick={toggleMenu} aria-label="Toggle menu">
         <span className={styles.hamburgerLine}></span>

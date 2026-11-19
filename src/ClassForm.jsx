@@ -173,7 +173,7 @@ const downloadReceipt = (r) => {
 const barColor = (pct) =>
   pct < 60 ? "#22c55e" : pct < 100 ? "#f59e0b" : "#ef4444";
 
-function ClassForm({ selectedSchool, isAdminOverride = false }) {
+function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated }) {
   const schoolId = selectedSchool?.id || "";
   const schoolName = selectedSchool?.name || "";
 
@@ -260,6 +260,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
       setIsAuthenticated(true);
       setAuthError("");
       setAccessCode("");
+      if (onAuthenticated) onAuthenticated();
     } else {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);

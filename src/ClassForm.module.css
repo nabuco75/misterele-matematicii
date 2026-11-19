@@ -752,3 +752,313 @@
   font-size: 1.1rem;
   text-align: center;
 }
+
+/* ======================================================================
+   AURORA – formularul de înscriere (doar aspect; mobil, tabletă, desktop)
+   ====================================================================== */
+.form-container {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: clamp(20px, 4vw, 36px);
+  border-radius: 28px;
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  /* fără backdrop-filter: ferestrele de confirmare sunt fixe pe ecran, nu în card */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 30px 70px rgba(3, 6, 25, 0.45), 0 2px 8px rgba(3, 6, 25, 0.2);
+  color: #141a3a;
+  text-align: left;
+  box-sizing: border-box;
+}
+.form-container > h2 {
+  margin: 0 0 6px;
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #141a3a;
+}
+.schoolBanner {
+  max-width: none;
+  margin: 0 0 22px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid #ddd6fe;
+  background: linear-gradient(135deg, #f5f3ff, #eef2ff);
+  color: #2e1065;
+  font-size: 1.05rem;
+  text-align: left;
+}
+.schoolBanner strong {
+  color: #4c1d95;
+}
+.infoMessage {
+  border-radius: 16px;
+  border-width: 1px;
+}
+
+/* cele 4 clase */
+.class-groups {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.class-group {
+  background: #f8f9fd;
+  border: 1px solid #eceef6;
+  border-radius: 22px;
+  box-shadow: none;
+  overflow: hidden;
+  transition: box-shadow 0.25s ease, transform 0.25s ease, background 0.25s ease;
+}
+.class-group:focus-within {
+  background: #fff;
+  box-shadow: 0 16px 36px rgba(20, 26, 58, 0.14);
+  transform: translateY(-2px);
+}
+.statChip {
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 0;
+  padding: 16px 16px 14px;
+  align-items: flex-start;
+}
+.statTitle {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.statNum {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.statMeta {
+  font-size: 0.82rem;
+  opacity: 0.92;
+}
+.cardHeader {
+  margin: 12px 14px 10px;
+}
+.classBadge {
+  background: #eef0ff;
+  border-color: #e0e3ff;
+  color: #4338ca;
+}
+.input-field {
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1.5px solid #e2e5f0;
+  font-family: inherit;
+  /* 16px: pe telefon nu se mai face zoom la atingere */
+  font-size: 16px;
+  color: #141a3a;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-field::placeholder {
+  color: #9aa1bd;
+}
+.input-field:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.16);
+}
+.quota-inline {
+  color: #6b7390;
+  font-size: 0.82rem;
+}
+
+/* profesorul îndrumător */
+.email-container {
+  margin: 4px 0 6px;
+  padding: clamp(16px, 3vw, 22px);
+  border-radius: 22px;
+  background: #f8f9fd;
+  border: 1px solid #eceef6;
+}
+.email-container::before {
+  content: "Profesorul îndrumător";
+  display: block;
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6366f1;
+}
+.guide-container {
+  gap: 14px;
+}
+.email-container .input-field {
+  margin: 0;
+  width: 100%;
+}
+.input-group {
+  min-width: 220px;
+}
+
+/* butonul de trimitere */
+.submit-button {
+  max-width: 380px;
+  min-height: 58px;
+  padding: 16px 28px;
+  border-radius: 16px;
+  background: linear-gradient(120deg, #6366f1 0%, #7c3aed 55%, #a21caf 100%);
+  font-family: inherit;
+  font-size: 1.12rem;
+  font-weight: 800;
+  box-shadow: 0 18px 40px rgba(99, 102, 241, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.submit-button:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+}
+.submit-button:disabled {
+  background: #c7cbe0;
+  box-shadow: none;
+  transform: none;
+}
+
+/* mesajele după trimitere */
+.message {
+  margin-top: 6px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+.warning {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+.gdprNotice {
+  border-radius: 14px;
+  border-width: 1px;
+  font-size: 1rem;
+}
+
+/* fereastra de confirmare */
+.modalOverlay {
+  background: rgba(8, 10, 32, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.confirmationModal {
+  width: min(92vw, 440px);
+  padding: 28px 24px 22px;
+  border-radius: 24px;
+  box-shadow: 0 40px 90px rgba(3, 6, 25, 0.55);
+}
+.confirmationModal p {
+  color: #141a3a;
+  font-size: 1.08rem;
+  line-height: 1.5;
+}
+.confirmButton,
+.cancelButton {
+  min-width: 120px;
+  min-height: 48px;
+  padding: 12px 22px;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+}
+.confirmButton {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.4);
+}
+.confirmButton:hover {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+}
+.cancelButton {
+  background: #f1f2f8;
+  color: #3b4263;
+}
+.cancelButton:hover {
+  background: #e4e6f0;
+}
+
+/* fereastra codului de acces */
+.authOverlay {
+  background: rgba(8, 12, 38, 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 16px;
+  box-sizing: border-box;
+}
+.authModal {
+  border-radius: 28px;
+  box-shadow: 0 50px 110px rgba(3, 6, 25, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+.authHeader {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 60%, #a21caf 100%);
+}
+.authTitle {
+  letter-spacing: -0.02em;
+}
+.authInput {
+  min-height: 56px;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 16px;
+}
+.authInput:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.16);
+}
+.authButton {
+  min-height: 56px;
+  border-radius: 14px;
+  font-family: inherit;
+  background: linear-gradient(120deg, #6366f1 0%, #7c3aed 100%);
+  box-shadow: 0 14px 30px rgba(99, 102, 241, 0.4);
+}
+.authFooter a {
+  color: #6366f1;
+}
+
+/* tabletă / telefon */
+@media (max-width: 1100px) {
+  .class-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .class-groups {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .form-container {
+    margin-top: 0;
+    border-radius: 24px;
+  }
+  .input-field {
+    font-size: 16px;
+  }
+  .submit-button {
+    max-width: none;
+  }
+}
+/* desktop (4 coloane înguste): textul din căsuțe încape întreg */
+@media (min-width: 1101px) {
+  .class-group .input-field {
+    font-size: 15px;
+    padding: 12px;
+  }
+}
+/* butonul codului, cât e inactiv: fără banda luminoasă */
+.authButton:disabled::before {
+  display: none;
+}
