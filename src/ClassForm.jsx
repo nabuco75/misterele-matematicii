@@ -378,6 +378,19 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
       return;
     }
 
+    // cel puțin un elev completat
+    const totalProposed = Object.keys(studentsByClass).reduce(
+      (n, c) => n + localProposedCount(c),
+      0
+    );
+    if (totalProposed === 0) {
+      setMessage({
+        type: "error",
+        content: "Completați numele a cel puțin unui elev.",
+      });
+      return;
+    }
+
     const profesorError = validateProfesor(profesorIndrumator);
     if (profesorError) {
       setErrors((p) => ({ ...p, profesorIndrumator: profesorError }));
@@ -679,6 +692,11 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
   return (
     <div className={styles["form-container"]}>
       <h2>Înscriere elevi</h2>
+      {schoolName && (
+        <div className={styles.schoolBanner}>
+          🏫 Înscrieți elevi pentru: <strong>{schoolName}</strong>
+        </div>
+      )}
 
       {isAdminOverride && (
         <div className={styles.infoMessage}>
@@ -961,7 +979,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false }) {
           <div className={styles.modalOverlay} />
           <div className={styles.confirmationModal}>
             <p>
-              Confirmi înscrierea elevilor?
+              Confirmi înscrierea elevilor la <strong>{schoolName}</strong>?
               {!isUnlimited &&
                 " (Limita este 5 elevi/școală pentru fiecare ciclu.)"}
             </p>

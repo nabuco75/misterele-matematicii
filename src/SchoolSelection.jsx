@@ -70,6 +70,7 @@ function SchoolSelection({ setSelectedSchool }) {
           setSelectedCounty(e.target.value);
           setSelectedLocality("");
           setSelectedSchoolId("");
+          setSelectedSchool(null);
           setSchools([]);
           setLocalities([]);
         }}
@@ -92,6 +93,7 @@ function SchoolSelection({ setSelectedSchool }) {
             onChange={(e) => {
               setSelectedLocality(e.target.value);
               setSelectedSchoolId("");
+              setSelectedSchool(null);
               setSchools([]);
             }}
             className={styles.selectField}
@@ -118,7 +120,7 @@ function SchoolSelection({ setSelectedSchool }) {
               
               
               setSelectedSchoolId(schoolId);
-              setSelectedSchool({ id: schoolId, name: schoolName });
+              setSelectedSchool(schoolId ? { id: schoolId, name: schoolName } : null);
             }}
             className={styles.selectField}
           >

@@ -56,6 +56,8 @@ function AdminDashboard() {
 
   const [showAddSchoolForm, setShowAddSchoolForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  // școala deschisă la „Editează” (nu cea selectată acum în listă)
+  const [editingSchoolId, setEditingSchoolId] = useState("");
   const [schoolName, setSchoolName] = useState("");
   const [judet, setJudet] = useState("");
   const [localitate, setLocalitate] = useState("");
@@ -164,6 +166,7 @@ function AdminDashboard() {
     setLocalitate("");
     setSelectedSchoolId("");
     setIsEditing(false);
+    setEditingSchoolId("");
     setShowAddSchoolForm(false);
   };
 
@@ -172,8 +175,8 @@ function AdminDashboard() {
     if (!schoolName || !judet || !localitate) return;
 
     try {
-      if (isEditing && selectedSchoolId) {
-        await updateDoc(doc(db, "schools", selectedSchoolId), {
+      if (isEditing && editingSchoolId) {
+        await updateDoc(doc(db, "schools", editingSchoolId), {
           name: schoolName,
           county: judet,
           locality: localitate,
@@ -201,15 +204,16 @@ function AdminDashboard() {
     setSchoolName(sc.name || "");
     setJudet(sc.county || "");
     setLocalitate(sc.locality || "");
+    setEditingSchoolId(sc.id);
     setIsEditing(true);
     setShowAddSchoolForm(true);
   };
 
   const handleSaveEdit = async () => {
-    if (!selectedSchoolId || !schoolName || !judet || !localitate)
+    if (!editingSchoolId || !schoolName || !judet || !localitate)
       return;
     try {
-      await updateDoc(doc(db, "schools", selectedSchoolId), {
+      await updateDoc(doc(db, "schools", editingSchoolId), {
         name: schoolName,
         county: judet,
         locality: localitate,
@@ -1809,6 +1813,15 @@ function AdminDashboard() {
             value={selectedSchoolId}
             onChange={(e) => {
               setSelectedSchoolId(e.target.value);
+              // altă școală aleasă → editarea școlii anterioare se închide
+              if (isEditing) {
+                setIsEditing(false);
+                setEditingSchoolId("");
+                setShowAddSchoolForm(false);
+                setSchoolName("");
+                setJudet("");
+                setLocalitate("");
+              }
               setShowStudentEditor(false);
               setShowAdminEnroll(false);
               setStudents([]);

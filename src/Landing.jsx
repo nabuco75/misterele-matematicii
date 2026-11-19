@@ -5,7 +5,7 @@ import styles from "./Landing.module.css";
 import { useAppStatus } from "./hooks/useAppStatus";
 
 function Landing() {
-  const [selectedSchool, setSelectedSchool] = useState("");
+  const [selectedSchool, setSelectedSchool] = useState(null);
   const [showClassForm, setShowClassForm] = useState(false);
 
   // Hook pentru status (citește din Firebase)
@@ -13,7 +13,7 @@ function Landing() {
 
   // Resetări la montare
   useEffect(() => {
-    setSelectedSchool("");
+    setSelectedSchool(null);
     setShowClassForm(false);
   }, []);
 
@@ -82,8 +82,10 @@ function Landing() {
       {isActive && (
         <>
           <SchoolSelection
-            setSelectedSchool={(schoolId) => {
-              setSelectedSchool(schoolId);
+            setSelectedSchool={(school) => {
+              setSelectedSchool(school);
+              // fără școală aleasă, formularul se închide
+              if (!school) setShowClassForm(false);
             }}
           />
 
@@ -94,9 +96,9 @@ function Landing() {
           )}
 
           {/* ClassForm cu modal de autentificare integrat */}
-          {showClassForm && (
+          {showClassForm && selectedSchool && (
             <div style={{ paddingTop: "100px" }}>
-              <ClassForm selectedSchool={selectedSchool} schoolId={selectedSchool} />
+              <ClassForm selectedSchool={selectedSchool} />
             </div>
           )}
         </>
