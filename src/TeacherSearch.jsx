@@ -5,12 +5,55 @@ import React, { useEffect, useMemo, useState } from "react";
 import { collection, doc, getDocs, query, where, writeBatch } from "firebase/firestore";
 import { db } from "./firebase";
 import styles from "./TeacherSearch.module.css";
-import { cleanTeacherName, plainText, teacherKey, validateTeacher } from "./teachers";
+import { cleanTeacherName, plainText, searchTeachers, teacherKey, validateTeacher } from "./teachers";
 
 const MAX_RESULTS = 40;
 
+// unde se caută; „Oriunde” arată întâi potrivirile pe numele profesorului, apoi restul, separat
+const FIELDS = [
+  { id: "all", label: "Oriunde" },
+  { id: "nume", label: "Nume profesor" },
+  { id: "contact", label: "Email / telefon" },
+  { id: "elev", label: "Elev" },
+  { id: "scoala", label: "Școală / localitate" },
+];
+const FOUND_IN = {
+  contact: "email / telefon",
+  elev: "numele unui elev",
+  scoala: "școală / localitate",
+  combinat: "mai multe câmpuri",
+};
+
+// un caracter fără diacritice și cu literă mică (păstrează lungimea textului, pentru evidențiere)
+const plainChar = (c) => c.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() || c;
+
+// evidențiază cuvintele căutate în text, fără să țină cont de diacritice sau litere mari
+function Highlight({ text, words }) {
+  const str = String(text || "");
+  if (!words?.length || !str) return str;
+  const plain = [...str].map(plainChar).join("");
+  if (plain.length !== str.length) return str;
+  const marks = new Array(str.length).fill(false);
+  words.forEach((w) => {
+    let i = plain.indexOf(w);
+    while (w && i !== -1) {
+      for (let k = i; k < i + w.length; k++) marks[k] = true;
+      i = plain.indexOf(w, i + w.length);
+    }
+  });
+  const parts = [];
+  let start = 0;
+  for (let i = 1; i <= str.length; i++) {
+    if (i === str.length || marks[i] !== marks[start]) {
+      const piece = str.slice(start, i);
+      parts.push(marks[start] ? <mark key={start}>{piece}</mark> : piece);
+      start = i;
+    }
+  }
+  return <>{parts}</>;
+}
+
 const studentName = (st) => (typeof st === "string" ? st : st?.nume || "");
-const digitsOf = (s) => String(s || "").replace(/\D/g, "");
 
 // cel mai des întâlnit text nevid dintr-o listă (pentru valorile propuse la editare)
 const mostCommon = (values) => {
@@ -24,6 +67,8 @@ function TeacherSearch() {
   const [regs, setRegs] = useState([]);
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [field, setField] = useState("all");
+  const [showOther, setShowOther] = useState(false);
   const [edit, setEdit] = useState(null); // { key, nume, email, telefon, initialEmail, initialTelefon, selected: Set }
   const [editError, setEditError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -91,29 +136,13 @@ function TeacherSearch() {
       .sort((a, b) => a.nume.localeCompare(b.nume, "ro", { sensitivity: "base" }));
   }, [regs]);
 
-  // căutare: toate cuvintele căutate trebuie să apară în aceeași înscriere
-  const results = useMemo(() => {
-    const words = plainText(search).split(" ").filter(Boolean);
-    if (words.length === 0) return null;
-    const qDigits = digitsOf(search);
-    return teachers
-      .map((t) => {
-        const hits = [];
-        t.regs.forEach((r) => {
-          const hay = plainText(
-            [r.profesor, r.email, r.telefon, r.scoala, r.localitate, r.judet, r.clasa, ...r.students].join(" ")
-          );
-          const textMatch = words.every((w) => hay.includes(w));
-          const phoneMatch = qDigits.length >= 4 && digitsOf(r.telefon).includes(qDigits);
-          if (textMatch || phoneMatch) {
-            const matchedStudents = r.students.filter((st) => words.some((w) => plainText(st).includes(w)));
-            hits.push({ reg: r, matchedStudents });
-          }
-        });
-        return hits.length ? { ...t, hits } : null;
-      })
-      .filter(Boolean);
-  }, [search, teachers]);
+  const words = useMemo(() => plainText(search).split(" ").filter(Boolean), [search]);
+
+  const results = useMemo(() => searchTeachers(teachers, search, field), [search, field, teachers]);
+
+  // în modul „Oriunde”: întâi profesorii al căror nume se potrivește, apoi (separat) celelalte potriviri
+  const mainResults = results ? (field === "all" ? results.filter((t) => t.tier === 0) : results) : null;
+  const otherResults = results && field === "all" ? results.filter((t) => t.tier > 0) : [];
 
   const duplicates = teachers.filter((t) => t.variants.length > 1);
 
@@ -205,14 +234,29 @@ function TeacherSearch() {
       <div key={t.key} className={`${styles.card} ${isEditing ? styles.cardEditing : ""}`}>
         <div className={styles.cardHead}>
           <div>
-            <div className={styles.name}>👩‍🏫 {t.nume}</div>
+            <div className={styles.name}>
+              👩‍🏫 <Highlight text={t.nume} words={words} />
+            </div>
+            {t.reasons && t.reasons.some((r) => r !== "nume") && (
+              <div className={styles.reasons}>
+                găsit în:{" "}
+                {t.reasons
+                  .filter((r) => r !== "nume")
+                  .map((r) => (
+                    <span key={r} className={styles.reasonChip}>
+                      {FOUND_IN[r]}
+                    </span>
+                  ))}
+              </div>
+            )}
             {t.variants.length > 1 && (
               <div className={styles.variants}>
                 ⚠️ Scris în {t.variants.length} feluri: {t.variants.map((v) => `„${v}”`).join(", ")}
               </div>
             )}
             <div className={styles.contact}>
-              {t.email ? `✉️ ${t.email}` : "✉️ fără email"} · {t.telefon ? `📞 ${t.telefon}` : "📞 fără telefon"}
+              ✉️ {t.email ? <Highlight text={t.email} words={words} /> : "fără email"} · 📞{" "}
+              {t.telefon ? <Highlight text={t.telefon} words={words} /> : "fără telefon"}
             </div>
           </div>
           {!isEditing && (
@@ -236,13 +280,34 @@ function TeacherSearch() {
                   />
                 )}
                 <span>
-                  <b>{r.scoala}</b>
-                  {r.localitate && `, ${r.localitate}`}
-                  {r.judet && ` (${r.judet})`} — clasa {r.clasa}, {r.students.length}{" "}
+                  <b>
+                    <Highlight text={r.scoala} words={words} />
+                  </b>
+                  {r.localitate && (
+                    <>
+                      , <Highlight text={r.localitate} words={words} />
+                    </>
+                  )}
+                  {r.judet && (
+                    <>
+                      {" "}
+                      (<Highlight text={r.judet} words={words} />)
+                    </>
+                  )}{" "}
+                  — clasa {r.clasa}, {r.students.length}{" "}
                   {r.students.length === 1 ? "elev" : "elevi"}
                   {r.profesor.trim() !== t.nume && <span className={styles.spelling}> · scris „{r.profesor}”</span>}
                   {hit?.matchedStudents.length > 0 && (
-                    <span className={styles.studentHit}> · elev: {hit.matchedStudents.join(", ")}</span>
+                    <span className={styles.studentHit}>
+                      {" "}
+                      · elev:{" "}
+                      {hit.matchedStudents.map((st, i) => (
+                        <React.Fragment key={st}>
+                          {i > 0 && ", "}
+                          <Highlight text={st} words={words} />
+                        </React.Fragment>
+                      ))}
+                    </span>
                   )}
                 </span>
               </li>
@@ -319,7 +384,7 @@ function TeacherSearch() {
 
   if (loading) return <div className={styles.panel}>Se încarcă profesorii îndrumători...</div>;
 
-  const list = results ? results : showAll ? teachers : [];
+  const list = mainResults ? mainResults : showAll ? teachers : [];
   const shown = list.slice(0, MAX_RESULTS);
 
   return (
@@ -338,6 +403,22 @@ function TeacherSearch() {
         placeholder="ex: leoreanu · gmail · 0740 · Moinești · Mereuta Delia"
         autoFocus
       />
+
+      <div className={styles.fieldChips} role="group" aria-label="Unde se caută">
+        <span className={styles.fieldLabel}>Caută în:</span>
+        {FIELDS.map((f) => (
+          <button
+            key={f.id}
+            className={`${styles.fieldChip} ${field === f.id ? styles.fieldChipActive : ""}`}
+            onClick={() => {
+              setField(f.id);
+              setShowOther(false);
+            }}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
 
       {message && (
         <p className={message.type === "success" ? styles.success : styles.error}>{message.text}</p>
@@ -363,24 +444,54 @@ function TeacherSearch() {
       )}
 
       {results && results.length === 0 && (
-        <p className={styles.empty}>Nu s-a găsit niciun profesor pentru „{search}”.</p>
+        <p className={styles.empty}>
+          Nu s-a găsit nimic pentru „{search}”
+          {field !== "all" && ` în „${FIELDS.find((f) => f.id === field).label}”`}.
+        </p>
       )}
 
-      {list.length > 0 && (
-        <>
-          {results && (
-            <p className={styles.count}>
-              {results.length} {results.length === 1 ? "profesor găsit" : "profesori găsiți"}
-              {results.length > MAX_RESULTS && ` — se afișează primii ${MAX_RESULTS}; restrângeți căutarea`}
-            </p>
+      {results && results.length > 0 && (
+        <p className={styles.count}>
+          {mainResults.length > 0 ? (
+            <>
+              <b>{mainResults.length}</b>{" "}
+              {field === "all"
+                ? mainResults.length === 1
+                  ? "profesor cu acest nume"
+                  : "profesori cu acest nume"
+                : mainResults.length === 1
+                ? "profesor găsit"
+                : "profesori găsiți"}
+              {mainResults.length > MAX_RESULTS && ` — se afișează primii ${MAX_RESULTS}; restrângeți căutarea`}
+            </>
+          ) : (
+            "Niciun profesor cu acest nume."
           )}
-          {shown.map((t) => renderTeacher(t, t.hits))}
-          {!results && list.length > MAX_RESULTS && (
-            <p className={styles.count}>
-              Se afișează primii {MAX_RESULTS} din {list.length}. Folosiți căutarea pentru ceilalți.
-            </p>
-          )}
-        </>
+        </p>
+      )}
+
+      {shown.map((t) => renderTeacher(t, t.hits))}
+
+      {!results && list.length > MAX_RESULTS && (
+        <p className={styles.count}>
+          Se afișează primii {MAX_RESULTS} din {list.length}. Folosiți căutarea pentru ceilalți.
+        </p>
+      )}
+
+      {otherResults.length > 0 && (
+        <div className={styles.otherBox}>
+          <button
+            className={styles.otherToggle}
+            onClick={() => setShowOther((v) => !v)}
+            aria-expanded={showOther || mainResults.length === 0}
+          >
+            {showOther || mainResults.length === 0 ? "▾" : "▸"} Alte potriviri: <b>{otherResults.length}</b>{" "}
+            {otherResults.length === 1 ? "profesor" : "profesori"} la care „{search}” apare în email, telefon,
+            numele unui elev sau al școlii
+          </button>
+          {(showOther || mainResults.length === 0) &&
+            otherResults.slice(0, MAX_RESULTS).map((t) => renderTeacher(t, t.hits))}
+        </div>
       )}
     </div>
   );
