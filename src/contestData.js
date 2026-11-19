@@ -76,12 +76,23 @@ export const attachCodes = (students, allCodeDocs) => {
   return { students: result, renamed, orphans };
 };
 
+// numele școlii pentru liste: dacă localitatea nu apare deja în nume, o adăugăm
+// („Școala Gimnazială „Ștefan Luchian”” → „Școala Gimnazială „Ștefan Luchian”, Moinești”)
+export const schoolWithLocality = (school) => {
+  const name = String(school?.name || "").trim() || "Școală Necunoscută";
+  const locality = String(school?.locality || "").trim();
+  if (!locality) return name;
+  const plain = (s) => normName(s).replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  const words = ` ${plain(name)} `;
+  return words.includes(` ${plain(locality)} `) ? name : `${name}, ${locality}`;
+};
+
 // toți elevii înscriși, sortați pe clasă + nume, cu codurile atașate
 export const loadContestStudents = async () => {
   const schoolsSnap = await getDocs(collection(db, "schools"));
   const schoolsMap = {};
   schoolsSnap.forEach((d) => {
-    schoolsMap[d.id] = d.data().name || "Școală Necunoscută";
+    schoolsMap[d.id] = schoolWithLocality(d.data());
   });
 
   const regsSnap = await getDocs(collection(db, "registration"));

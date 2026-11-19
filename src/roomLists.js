@@ -113,6 +113,40 @@ const sheetName = (name, used) => {
   return candidate;
 };
 
+// Setarea de printare „încadrează pe o pagină” (A4, portret) pentru fiecare foaie.
+// Biblioteca nu o scrie, așa că o adăugăm direct în XML-ul foilor din fișierul .xlsx (care e o arhivă zip).
+const PRINT_SETUP_XML =
+  '<printOptions horizontalCentered="1"/>' +
+  '<pageMargins left="0.4" right="0.4" top="0.4" bottom="0.4" header="0.2" footer="0.2"/>' +
+  '<pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="1"/>';
+
+export const fitSheetsToOnePage = (buffer) => {
+  try {
+    const zip = XLSX.CFB.read(new Uint8Array(buffer), { type: "array" });
+    zip.FullPaths.forEach((path, i) => {
+      if (!/xl\/worksheets\/sheet\d+\.xml$/.test(path)) return;
+      const entry = zip.FileIndex[i];
+      let xml = new TextDecoder().decode(entry.content);
+      if (xml.includes("<pageSetup")) return;
+      // <sheetPr> trebuie să fie primul element din <worksheet>
+      xml = xml.includes("<sheetPr")
+        ? xml.replace(/<sheetPr([^>]*?)\/>/, '<sheetPr$1><pageSetUpPr fitToPage="1"/></sheetPr>')
+        : xml.replace(/(<worksheet[^>]*>)/, '$1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');
+      // setările de pagină vin după celule/îmbinări și înainte de <ignoredErrors>
+      xml = xml.replace(/<pageMargins[^>]*\/>/, "");
+      xml = xml.includes("<ignoredErrors")
+        ? xml.replace("<ignoredErrors", `${PRINT_SETUP_XML}<ignoredErrors`)
+        : xml.replace("</worksheet>", `${PRINT_SETUP_XML}</worksheet>`);
+      entry.content = new TextEncoder().encode(xml);
+      entry.size = entry.content.length;
+    });
+    return XLSX.CFB.write(zip, { type: "array", fileType: "zip" });
+  } catch (err) {
+    console.error("Setarea de printare pe o pagină nu a putut fi adăugată:", err);
+    return buffer;
+  }
+};
+
 export const exportRoomsExcel = (groups, header, roomName = null) => {
   const workbook = XLSX.utils.book_new();
   const usedNames = new Set();
@@ -161,7 +195,7 @@ export const exportRoomsExcel = (groups, header, roomName = null) => {
     XLSX.utils.book_append_sheet(workbook, ws, sheetName(room.name, usedNames));
   });
 
-  const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const buffer = fitSheetsToOnePage(XLSX.write(workbook, { bookType: "xlsx", type: "array" }));
   FileSaver.saveAs(
     new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8",
@@ -207,28 +241,42 @@ const buildRoomsHtml = (groups, header) => {
 @page { size: A4 portrait; margin: 10mm; }
 * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
 body { font-family: Calibri, "Segoe UI", Arial, sans-serif; margin: 0; color: #000; }
-.page { break-after: page; page-break-after: always; }
+/* o sală = o pagină A4 (277 mm înălțime utilă); --k micșorează totul dacă lista nu încape */
+.page { --k: 1; height: 276mm; overflow: hidden; break-after: page; page-break-after: always; }
 .page:last-child { break-after: auto; page-break-after: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 11pt; line-height: 1.2; }
-th, td { border: 1px solid #000; padding: 3px 5px; text-align: center; vertical-align: middle; }
-th.title { background: #${TITLE_FILL}; font-size: 13pt; padding: 6px; }
-.edition { font-size: 11.5pt; margin-top: 3px; }
-.org { font-size: 10pt; font-weight: normal; font-style: italic; margin-top: 2px; }
-th.room { background: #${ROOM_FILL}; color: #${ROOM_TEXT}; font-size: 16pt; padding: 6px; letter-spacing: 1px; }
-tr.head th { background: #${HEADER_FILL}; font-size: 10pt; }
+table { width: 100%; border-collapse: collapse; font-size: calc(11pt * var(--k)); line-height: 1.2; }
+th, td { border: 1px solid #000; padding: calc(3px * var(--k)) 5px; text-align: center; vertical-align: middle; }
+th.title { background: #${TITLE_FILL}; font-size: calc(13pt * var(--k)); padding: calc(6px * var(--k)); }
+.edition { font-size: calc(11.5pt * var(--k)); margin-top: 3px; }
+.org { font-size: calc(10pt * var(--k)); font-weight: normal; font-style: italic; margin-top: 2px; }
+th.room { background: #${ROOM_FILL}; color: #${ROOM_TEXT}; font-size: calc(16pt * var(--k)); padding: calc(6px * var(--k)); letter-spacing: 1px; }
+tr.head th { background: #${HEADER_FILL}; font-size: calc(10pt * var(--k)); }
 tbody tr:nth-child(even) { background: #${ZEBRA_FILL}; }
 td.name { text-align: left; }
 td.cls { font-weight: bold; }
 td:first-child { width: 7%; } td.name { width: 26%; } td:nth-child(3) { width: 8%; } td:nth-child(4) { width: 35%; }
 tr { break-inside: avoid; page-break-inside: avoid; }
-.total { font-size: 10pt; margin: 6px 2px 0; }
-.toolbar { position: sticky; top: 0; background: #2c3e50; color: #fff; padding: 10px; text-align: center; font-family: Arial, sans-serif; }
+.total { font-size: calc(10pt * var(--k)); margin: 6px 2px 0; }
+.toolbar { position: sticky; top: 0; z-index: 1; background: #2c3e50; color: #fff; padding: 10px; text-align: center; font-family: Arial, sans-serif; }
 .toolbar button { font-size: 15px; padding: 8px 18px; margin-left: 10px; cursor: pointer; }
+@media screen { body { background: #e5e7eb; } .page { width: 190mm; margin: 12px auto; padding: 0; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.2); } }
 @media print { .toolbar { display: none; } }
 </style></head><body>
-<div class="toolbar">La „Destinație” alegeți <b>Salvează ca PDF</b> (sau imprimanta).
+<div class="toolbar">La „Destinație” alegeți <b>Salvează ca PDF</b> (sau imprimanta). Fiecare sală încape pe o singură pagină.
 <button onclick="window.print()">🖨️ Printează / Salvează ca PDF</button></div>
 ${pages}
+<script>
+// fiecare sală pe o singură pagină: micșorăm scrisul (și spațierea) până când lista încape
+(function () {
+  document.querySelectorAll(".page").forEach(function (page) {
+    var k = 1;
+    for (var i = 0; i < 60 && page.scrollHeight > page.clientHeight + 1 && k > 0.5; i++) {
+      k -= 0.02;
+      page.style.setProperty("--k", k.toFixed(2));
+    }
+  });
+})();
+</script>
 </body></html>`;
 };
 
