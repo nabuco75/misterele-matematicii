@@ -1257,3 +1257,29 @@
 .aurora .buttonGroup .editButton:disabled {
   opacity: 0.4;
 }
+
+/* înscrierea suplimentară (ADMIN): lată, direct pe fundal, formularul e foaia albă */
+.adminEnroll {
+  width: 100%;
+  max-width: 1160px;
+  margin-top: 34px;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+.adminEnrollEyebrow {
+  margin: 0 0 6px;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #a5b4fc;
+}
+.adminEnrollTitle {
+  margin: 0 0 20px;
+  text-align: center;
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}

@@ -861,7 +861,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated })
             <div className={styles["input-group"]}>
               <input
                 type="text"
-                placeholder="Nume și prenume profesor îndrumător"
+                placeholder="Nume și prenume profesor"
                 value={profesorIndrumator}
                 onChange={(e) => {
                   const v = e.target.value;

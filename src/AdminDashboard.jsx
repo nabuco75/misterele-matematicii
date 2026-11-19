@@ -2155,11 +2155,9 @@ function AdminDashboard() {
         )}
 
         {showAdminEnroll && selectedSchool && (
-          <div className={styles.studentEditorContainer}>
-            <h2>
-              Înscriere suplimentară (ADMIN) pentru:{" "}
-              {selectedSchool.name}
-            </h2>
+          <div className={styles.adminEnroll}>
+            <p className={styles.adminEnrollEyebrow}>Înscriere suplimentară · ADMIN</p>
+            <h2 className={styles.adminEnrollTitle}>{selectedSchool.name}</h2>
             <ClassForm
               selectedSchool={selectedSchool}
               isAdminOverride={true}

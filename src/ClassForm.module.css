@@ -1062,3 +1062,26 @@
 .authButton:disabled::before {
   display: none;
 }
+
+/* coloanele claselor după lățimea formularului (nu a ecranului):
+   4 coloane doar când e loc, altfel 2 sau 1 – și în caseta îngustă din panoul de admin */
+.form-container {
+  container-type: inline-size;
+}
+@container (max-width: 880px) {
+  .class-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .class-group .input-field {
+    font-size: 16px;
+  }
+}
+@container (max-width: 560px) {
+  .class-groups {
+    grid-template-columns: 1fr;
+  }
+}
+/* modul admin (fără bara de progres): spațiu între antetul clasei și prima căsuță */
+.statChip + .input-field {
+  margin-top: 14px;
+}
