@@ -441,3 +441,157 @@
   background-color: #7f8c8d;
   transform: translateY(-2px);
 }
+
+/* ===== Butonul „Următorul pas: Repartizare elevi” ===== */
+.nextStepContainer {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin: 30px 0 40px;
+  padding: 0 16px;
+}
+
+.nextStepButton {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 30px 18px 22px;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #fff;
+  text-align: left;
+  background: linear-gradient(120deg, #1abc9c 0%, #16a085 35%, #2980b9 100%);
+  background-size: 160% 160%;
+  box-shadow: 0 10px 28px rgba(22, 160, 133, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background-position 0.6s ease;
+  animation: nextStepGlow 2.6s ease-in-out infinite;
+}
+
+/* lumina care trece peste buton */
+.nextStepButton::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  transform: skewX(-20deg);
+  animation: nextStepShine 3.2s ease-in-out infinite;
+}
+
+.nextStepButton:hover {
+  transform: translateY(-4px) scale(1.02);
+  background-position: 100% 50%;
+  box-shadow: 0 16px 38px rgba(41, 128, 185, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.nextStepButton:active {
+  transform: translateY(-1px) scale(0.99);
+}
+
+.nextStepButton:focus-visible {
+  outline: 3px solid #f39c12;
+  outline-offset: 4px;
+}
+
+.nextStepIcon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-size: 1.7rem;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+  transition: transform 0.4s ease;
+}
+
+.nextStepButton:hover .nextStepIcon {
+  transform: rotate(-12deg) scale(1.08);
+}
+
+.nextStepText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.nextStepLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.nextStepTitle {
+  font-size: 1.45rem;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.nextStepArrow {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  margin-left: 6px;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #16a085;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  transition: transform 0.3s ease;
+}
+
+.nextStepButton:hover .nextStepArrow {
+  transform: translateX(6px);
+}
+
+@keyframes nextStepShine {
+  0%, 55% { left: -60%; }
+  100% { left: 130%; }
+}
+
+@keyframes nextStepGlow {
+  0%, 100% { box-shadow: 0 10px 28px rgba(22, 160, 133, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+  50% { box-shadow: 0 10px 34px rgba(26, 188, 156, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nextStepButton,
+  .nextStepButton::before {
+    animation: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .nextStepButton {
+    width: 100%;
+    gap: 12px;
+    padding: 14px 18px 14px 14px;
+  }
+
+  .nextStepIcon {
+    width: 44px;
+    height: 44px;
+    font-size: 1.4rem;
+  }
+
+  .nextStepTitle {
+    font-size: 1.15rem;
+  }
+
+  .nextStepArrow {
+    width: 38px;
+    height: 38px;
+    margin-left: auto;
+  }
+}

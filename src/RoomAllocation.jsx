@@ -284,9 +284,14 @@ function RoomAllocation({ onNextStep, onCancel }) {
 
             {/* BUTON URMĂTORUL PAS */}
             {roomsCount > 0 ? (
-                <div className={styles.buttonContainer}>
+                <div className={styles.nextStepContainer}>
                     <button onClick={onNextStep} className={styles.nextStepButton}>
-                        Următorul Pas: Repartizare Elevi →
+                        <span className={styles.nextStepIcon} aria-hidden="true">🎯</span>
+                        <span className={styles.nextStepText}>
+                            <span className={styles.nextStepLabel}>Următorul pas</span>
+                            <span className={styles.nextStepTitle}>Repartizare elevi în săli</span>
+                        </span>
+                        <span className={styles.nextStepArrow} aria-hidden="true">→</span>
                     </button>
                 </div>
             ) : (
