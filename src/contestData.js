@@ -50,7 +50,8 @@ export const attachCodes = (students, allCodeDocs) => {
     const c = byKey.get(`${s.regId}|${normName(s.nume)}`);
     if (c && !used.has(c.cod)) {
       used.add(c.cod);
-      return { ...s, cod: c.cod, salaCod: c.salaLaAtribuire || "" };
+      // numeAnterior: numele de pe bilețelul tipărit înainte de corectare (pentru retipărire)
+      return { ...s, cod: c.cod, salaCod: c.salaLaAtribuire || "", numeAnterior: c.numeAnterior || "" };
     }
     return s;
   });
@@ -67,7 +68,7 @@ export const attachCodes = (students, allCodeDocs) => {
     const free = freeByReg[regId] || [];
     if (idxs.length === 1 && free.length === 1) {
       const c = free[0];
-      result[idxs[0]] = { ...result[idxs[0]], cod: c.cod, salaCod: c.salaLaAtribuire || "" };
+      result[idxs[0]] = { ...result[idxs[0]], cod: c.cod, salaCod: c.salaLaAtribuire || "", numeAnterior: c.nume };
       used.add(c.cod);
       renamed.push({ cod: c.cod, regId, oldName: c.nume, newName: result[idxs[0]].nume });
     }

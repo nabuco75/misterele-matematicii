@@ -475,6 +475,23 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
         }
     };
 
+    // elevii cu numele corectat după ce li s-a dat codul: același cod, bilețel nou cu numele corect
+    const renamedWithCode = (allocationResult || [])
+        .filter(
+            (s) =>
+                s.cod &&
+                s.numeAnterior &&
+                s.numeAnterior.trim().toLocaleLowerCase("ro") !== s.nume.trim().toLocaleLowerCase("ro")
+        )
+        .sort((a, b) => a.cod.localeCompare(b.cod, "ro", { numeric: true }));
+    const handleRenamedSlips = (list) => {
+        printCodesPdf(
+            groupByRoom(list, rooms),
+            header,
+            list.length === 1 ? `Bilet_corectat_${list[0].cod}` : "Bilete_nume_corectate"
+        );
+    };
+
     // ====== NUME CORECTATE / ELEVI SCOȘI DUPĂ REPARTIZARE ======
     const ghostId = (g) => `${g.regId}|${g.nume}`;
     const suggested = new Map((diff?.pairs || []).map((p) => [ghostId(p.ghost), p.student.id]));
@@ -1145,6 +1162,41 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                         </div>
 
                     <>
+                        {hasCodes && renamedWithCode.length > 0 && (
+                            <div className={styles.batchCard}>
+                                <h3>✏️ Nume corectate după anonimizare ({renamedWithCode.length})</h3>
+                                <p className={styles.reconcileIntro}>
+                                    Elevul își păstrează <b>același cod</b>, aceeași sală și notele; doar numele de pe
+                                    bilețel se schimbă. Tipăriți bilețelul nou și înlocuiți-l pe cel vechi.
+                                </p>
+                                <ul className={styles.batchList}>
+                                    {renamedWithCode.map((s) => (
+                                        <li key={s.cod} className={styles.batchPending}>
+                                            <div className={styles.batchInfo}>
+                                                <span className={styles.reconcileCode}>{s.cod}</span>{" "}
+                                                <s>{s.numeAnterior}</s> → <b>{s.nume}</b>
+                                                <div className={styles.batchWhen}>
+                                                    clasa {s.clasa} · {s.sala || "fără sală"} · {s.scoala}
+                                                </div>
+                                            </div>
+                                            <button onClick={() => handleRenamedSlips([s])} className={styles.batchButton}>
+                                                ✂️ Bilețel nou
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                                {renamedWithCode.length > 1 && (
+                                    <button
+                                        onClick={() => handleRenamedSlips(renamedWithCode)}
+                                        className={styles.batchButton}
+                                        style={{ marginTop: 10 }}
+                                    >
+                                        ✂️ Toate bilețelele corectate ({renamedWithCode.length})
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
                         {hasCodes && codeBatches.length > 0 && (
                             <div className={styles.batchCard}>
                                 <h3>✂️ Tranșe de coduri ({codeBatches.length})</h3>

@@ -254,6 +254,7 @@ function TeacherSearch({ onClose }) {
         const rm = await applyRemovals(removed.map((row) => ({ regId: r.id, nume: row.orig })));
         const kept2 = [rn.seats && `sala (${rn.seats})`, rn.codes && `codul (${rn.codes})`, rn.grades && `notele (${rn.grades})`].filter(Boolean);
         if (kept2.length) note += ` Elevii redenumiți și-au păstrat ${kept2.join(", ")}.`;
+        if (rn.codes) note += ` Bilețelul cu numele nou: Coduri › „✏️ Nume corectate” › ✂️ Bilețel nou.`;
         if (rm.seats || rm.codes) note += ` Locuri eliberate: ${rm.seats}.`;
       } catch (syncErr) {
         console.error("Eroare la actualizarea repartizării/codurilor:", syncErr);
