@@ -24,6 +24,7 @@ import { applyRemovals, applyRenames } from "./studentSync";
 import { cleanTeacherName, teacherKey, validateTeacher } from "./teachers";
 import { displayName } from "./nameFormat";
 import TeacherSearch from "./TeacherSearch.jsx";
+import AttendanceView from "./AttendanceView.jsx";
 import { StageBar, useStageStatus } from "./StageNav.jsx";
 import DashboardHero from "./DashboardHero.jsx";
 import AuroraStage from "./Aurora.jsx";
@@ -102,6 +103,7 @@ function AdminDashboard() {
   // editarea profesorului îndrumător al unei înscrieri: { regId, nume, email, telefon, applyAll }
   const [profEdit, setProfEdit] = useState(null);
   const [showTeacherSearch, setShowTeacherSearch] = useState(false);
+  const [showAttendance, setShowAttendance] = useState(false);
   const [profEditError, setProfEditError] = useState("");
 
   // —— Form de înscriere suplimentară (ADMIN)
@@ -1541,6 +1543,14 @@ function AdminDashboard() {
               title: "Înscrieri și liste",
               tiles: [
                 {
+                  icon: "✅",
+                  svg: "check",
+                  label: "Prezența la concurs",
+                  sub: "Înscriși, prezenți, absenți — total și pe clase",
+                  color: "green",
+                  onClick: () => setShowAttendance(true),
+                },
+                {
                   icon: showTeacherSearch ? "✖️" : "🔎",
                   svg: showTeacherSearch ? "close" : "search",
                   label: showTeacherSearch ? "Închide căutarea" : "Caută profesor sau elev",
@@ -1757,6 +1767,7 @@ function AdminDashboard() {
         )}
 
         {showTeacherSearch && <TeacherSearch onClose={() => setShowTeacherSearch(false)} />}
+        {showAttendance && <AttendanceView onClose={() => setShowAttendance(false)} />}
 
         {showRegisteredSchools && (
           <div className={styles.registeredSchoolsContainer}>

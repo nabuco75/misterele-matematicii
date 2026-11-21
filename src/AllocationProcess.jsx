@@ -33,7 +33,7 @@ import {
 } from "./studentSync";
 import { AllocationLogCard, AllocationStatsView } from "./AllocationLog";
 import { GRADES_COLLECTION, nameGradeId } from "./grading";
-import { buildAttendance, exportAttendanceExcel, printAttendancePdf } from "./attendanceReport";
+import AttendanceView from "./AttendanceView.jsx";
 import {
     exportRoomsExcel,
     groupByRoom,
@@ -66,6 +66,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
     const [absentIds, setAbsentIds] = useState(new Set());
     const [placeChoice, setPlaceChoice] = useState({});
     const [walkInLog, setWalkInLog] = useState([]);
+    const [showAttendance, setShowAttendance] = useState(false);
     const [roomSummaries, setRoomSummaries] = useState([]);
     const [message, setMessage] = useState(null);
     const [lastCodeN, setLastCodeN] = useState(0);
@@ -1485,58 +1486,17 @@ th, td { border: 1px solid #000; padding: 5px 6px; text-align: center; } th { ba
                     <>
                         {todoBanner(false)}
 
-                        {(() => {
-                            const rep = buildAttendance(markedList(), rooms);
-                            return (
-                                <div className={styles.walkInCard}>
-                                    <h3>📊 Raport de prezență pe clase</h3>
-                                    <p className={styles.reconcileIntro}>
-                                        <b>{rep.prezenti}</b> prezenți din <b>{rep.total}</b> · <b>{rep.absenti}</b> absenți
-                                        {rep.veniti > 0 && <> · <b>{rep.veniti}</b> veniți pe loc</>} — absenții se bifează la
-                                        Notare.{" "}
-                                        <button type="button" className={styles.linkButton} onClick={loadAbsents}>
-                                            🔄 Actualizează
-                                        </button>
-                                    </p>
-                                    <div className={styles.resultsTableWrapper}>
-                                        <table className={styles.reconcileTable}>
-                                            <thead>
-                                                <tr>
-                                                    <th>Clasa</th>
-                                                    <th>Repartizați</th>
-                                                    <th>Prezenți</th>
-                                                    <th>Absenți</th>
-                                                    <th>Veniți pe loc</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {rep.byClass.map((t) => (
-                                                    <tr key={t.key}>
-                                                        <td>
-                                                            <b>Clasa {t.key}</b>
-                                                        </td>
-                                                        <td>{t.total}</td>
-                                                        <td>
-                                                            <b>{t.prezenti}</b>
-                                                        </td>
-                                                        <td>{t.absenti || "—"}</td>
-                                                        <td>{t.veniti || "—"}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-                                        <button className={styles.batchButton} onClick={() => printAttendancePdf(rep, header)}>
-                                            📄 Raport de prezență (PDF)
-                                        </button>
-                                        <button className={styles.batchButton} onClick={() => exportAttendanceExcel(rep, header)}>
-                                            📥 Raport de prezență (Excel)
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })()}
+                        <div className={styles.attendanceLaunch}>
+                            <button className={styles.attendanceButton} onClick={() => setShowAttendance(true)}>
+                                <span className={styles.attendanceIcon}>📊</span>
+                                <span>
+                                    <b>Prezența la concurs</b>
+                                    <small>Înscriși, prezenți și absenți — total și pe clase · raport PDF cu antet</small>
+                                </span>
+                                <span className={styles.attendanceArrow}>→</span>
+                            </button>
+                        </div>
+                        {showAttendance && <AttendanceView onClose={() => setShowAttendance(false)} />}
 
                     <>
                         <div className={styles.headerSettings}>

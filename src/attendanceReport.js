@@ -26,13 +26,15 @@ const tally = (list, keyOf) => {
 };
 
 // students: elevii repartizați, cu { absent, walkIn } deja marcați; rooms: în ordinea sălilor
-export const buildAttendance = (students, rooms) => {
+export const buildAttendance = (students, rooms, { registered = null, registeredTotal = null } = {}) => {
   const total = students.length;
   const absenti = students.filter((s) => s.absent).length;
   const veniti = students.filter((s) => s.walkIn).length;
   const roomOrder = new Map(rooms.map((r, i) => [r.name, i]));
   const byNameRo = (a, b) => a.localeCompare(b, "ro", { sensitivity: "base" });
   return {
+    registered,
+    registeredTotal,
     total,
     prezenti: total - absenti,
     absenti,
@@ -93,7 +95,8 @@ const classSections = (report) =>
       const abs = students.filter((s) => s.absent);
       const walk = students.filter((s) => s.walkIn);
       const pres = students.length - abs.length;
-      return `<section class="cls"><h3>Clasa ${escapeHtml(clasa)} — ${pres} prezenți din ${students.length} (${pct(pres, students.length)}) · ${abs.length} ${abs.length === 1 ? "absent" : "absenți"}${walk.length ? ` · ${walk.length} ${walk.length === 1 ? "venit pe loc" : "veniți pe loc"}` : ""}</h3>${
+      const [c1, c2] = CLASS_COLOR[clasa] || ["#475569", "#64748b"];
+      return `<section class="cls"><h4 style="background:linear-gradient(90deg,${c1},${c2})">Clasa ${escapeHtml(clasa)} — ${pres} prezenți din ${students.length} (${pct(pres, students.length)}) · ${abs.length} ${abs.length === 1 ? "absent" : "absenți"}${walk.length ? ` · ${walk.length} ${walk.length === 1 ? "venit pe loc" : "veniți pe loc"}` : ""}</h4>${
         abs.length
           ? table(
               ["Nr.", "Cod", "Elev absent", "Sala", "Școala", "Profesor îndrumător"],
@@ -113,41 +116,100 @@ const classSections = (report) =>
     })
     .join("");
 
+const CLASS_COLOR = {
+  "a IV-a": ["#5b21b6", "#a855f7"],
+  "a V-a": ["#1e40af", "#3b82f6"],
+  "a VI-a": ["#c2410c", "#fb923c"],
+  "a VII-a": ["#047857", "#34d399"],
+};
+const ROMAN = { "a IV-a": "IV", "a V-a": "V", "a VI-a": "VI", "a VII-a": "VII" };
+
 export const printAttendancePdf = (report, header) => {
   const edition = editionLine(header);
-  const html = `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Raport de prezență</title><style>
-@page { size: A4 portrait; margin: 12mm; }
+  const reg = report.registered || {};
+  const regTotal = report.registeredTotal ?? report.total;
+  const p = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+
+  const classCards = report.byClass
+    .map((t) => {
+      const [c1, c2] = CLASS_COLOR[t.key] || ["#475569", "#64748b"];
+      const v = p(t.prezenti, t.total);
+      return `<div class="ccard" style="background:linear-gradient(135deg,${c1},${c2})">
+<span class="roman">${ROMAN[t.key] || ""}</span>
+<div class="cname">Clasa ${escapeHtml(t.key)}</div>
+<div class="cbig"><b>${t.prezenti}</b> prezenți</div>
+<div class="cbar"><div style="width:${v}%"></div></div>
+<div class="crow"><span>Înscriși <b>${reg[t.key] ?? t.total}</b></span><span>Absenți <b>${t.absenti}</b></span><span>Prezență <b>${pct(t.prezenti, t.total)}</b></span></div>
+${t.veniti ? `<div class="cwalk">+ ${t.veniti} ${t.veniti === 1 ? "venit" : "veniți"} pe loc</div>` : ""}
+</div>`;
+    })
+    .join("");
+
+  const html = `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Raport de prezență${edition ? ` - ${escapeHtml(edition)}` : ""}</title><style>
+@page { size: A4 portrait; margin: 10mm; }
 * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
-body { font-family: Calibri, "Segoe UI", Arial, sans-serif; color: #000; margin: 0; font-size: 10.5pt; }
-.head { text-align: center; border: 1px solid #000; padding: 8px; background: #dbeafe; }
-.head h1 { font-size: 14pt; margin: 0; } .head .ed { font-weight: bold; margin-top: 2px; } .head .org { font-style: italic; font-size: 9.5pt; }
-h2 { font-size: 13pt; text-align: center; margin: 12px 0 6px; letter-spacing: 1px; }
-h3 { font-size: 11pt; margin: 14px 0 4px; border-bottom: 2px solid #1e3a8a; color: #1e3a8a; }
-.kpis { display: flex; gap: 8px; margin: 8px 0; }
-.kpi { flex: 1; border: 1px solid #000; text-align: center; padding: 6px; }
-.kpi b { display: block; font-size: 18pt; } .kpi.ok { background: #dcfce7; } .kpi.abs { background: #fee2e2; } .kpi.walk { background: #fef9c3; }
-table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #000; padding: 3px 5px; text-align: center; }
-th { background: #e5e7eb; font-size: 9.5pt; } td.l { text-align: left; } tr.tot td { font-weight: bold; background: #f3f4f6; }
-tr { break-inside: avoid; } .note { font-size: 9pt; color: #374151; margin-top: 4px; }
-.sign { margin-top: 30px; display: flex; justify-content: space-between; }
-.toolbar { position: sticky; top: 0; background: #2c3e50; color: #fff; padding: 10px; text-align: center; font-family: Arial; }
+body { font-family: Calibri, "Segoe UI", Arial, sans-serif; color: #0f172a; margin: 0; font-size: 10.5pt; }
+.band { border-radius: 10px; padding: 14px 18px; color: #fff; text-align: center;
+  background: radial-gradient(circle at 10% 0%, #a855f7 0%, transparent 45%), radial-gradient(circle at 95% 130%, #06b6d4 0%, transparent 45%), linear-gradient(135deg, #1e1b4b, #312e81 55%, #4c1d95); }
+.band h1 { margin: 0; font-size: 15pt; letter-spacing: .5px; }
+.band .ed { font-weight: bold; font-size: 11.5pt; margin-top: 3px; }
+.band .org { font-style: italic; font-size: 9.5pt; opacity: .9; margin-top: 2px; }
+.title { text-align: center; margin: 12px 0 2px; font-size: 17pt; font-weight: 900; letter-spacing: 3px; color: #312e81; }
+.stamp { text-align: center; font-size: 9pt; color: #475569; margin-bottom: 10px; }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.kpi { border-radius: 10px; color: #fff; padding: 8px 10px; }
+.kpi span { display: block; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; opacity: .92; }
+.kpi b { display: block; font-size: 22pt; line-height: 1.1; }
+.kpi small { font-size: 8.5pt; opacity: .92; }
+.k1 { background: linear-gradient(135deg, #334155, #64748b); } .k2 { background: linear-gradient(135deg, #059669, #34d399); }
+.k3 { background: linear-gradient(135deg, #b91c1c, #f87171); } .k4 { background: linear-gradient(135deg, #b45309, #fbbf24); }
+h3 { font-size: 11.5pt; margin: 14px 0 6px; color: #312e81; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 2px solid #c7d2fe; padding-bottom: 2px; }
+.cgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.ccard { position: relative; overflow: hidden; border-radius: 10px; color: #fff; padding: 9px 12px; break-inside: avoid; }
+.roman { position: absolute; right: 8px; bottom: -14px; font-size: 44pt; font-weight: 900; color: rgba(255,255,255,.16); }
+.cname { font-weight: 900; font-size: 12.5pt; }
+.cbig b { font-size: 19pt; }
+.cbar { height: 6px; border-radius: 9px; background: rgba(255,255,255,.3); margin: 4px 0 5px; overflow: hidden; }
+.cbar div { height: 100%; background: #fff; border-radius: 9px; }
+.crow { display: flex; gap: 12px; font-size: 9.5pt; position: relative; }
+.cwalk { font-size: 9pt; margin-top: 2px; position: relative; }
+table { width: 100%; border-collapse: collapse; margin-top: 2px; }
+th, td { border: 1px solid #94a3b8; padding: 3px 5px; text-align: center; font-size: 9.5pt; }
+th { background: #e0e7ff; color: #1e1b4b; } td.l { text-align: left; } tr.tot td { font-weight: bold; background: #eef2ff; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+tr { break-inside: avoid; }
+section.cls h4 { margin: 10px 0 3px; font-size: 10.5pt; padding: 3px 8px; border-radius: 6px; color: #fff; }
+.note { font-size: 9pt; color: #334155; margin: 3px 0; }
+.sign { margin-top: 28px; display: flex; justify-content: space-between; font-size: 10.5pt; }
+.toolbar { position: sticky; top: 0; z-index: 1; background: #2c3e50; color: #fff; padding: 10px; text-align: center; font-family: Arial; }
 .toolbar button { font-size: 15px; padding: 8px 18px; margin-left: 10px; cursor: pointer; }
-@media screen { body { background: #e5e7eb; } .sheet { width: 190mm; margin: 12px auto; background: #fff; padding: 10mm; } }
+@media screen { body { background: #e5e7eb; } .sheet { width: 190mm; margin: 12px auto; background: #fff; padding: 8mm; box-shadow: 0 2px 8px rgba(0,0,0,.2); } }
 @media print { .toolbar { display: none; } }
 </style></head><body>
 <div class="toolbar">La „Destinație” alegeți <b>Salvează ca PDF</b> (sau imprimanta).<button onclick="window.print()">🖨️ Printează / Salvează ca PDF</button></div>
 <div class="sheet">
-<div class="head"><h1>${escapeHtml(CONTEST_TITLE)}</h1>${edition ? `<div class="ed">${escapeHtml(edition)}</div>` : ""}<div class="org">${escapeHtml(ORGANIZER)}</div></div>
-<h2>RAPORT DE PREZENȚĂ</h2>
-<div class="note" style="text-align:center">Situația la ${escapeHtml(stamp())}</div>
+<div class="band"><h1>${escapeHtml(CONTEST_TITLE)}</h1>${edition ? `<div class="ed">${escapeHtml(edition)}</div>` : ""}<div class="org">${escapeHtml(ORGANIZER)}</div></div>
+<div class="title">RAPORT DE PREZENȚĂ</div>
+<div class="stamp">Situația la ${escapeHtml(stamp())}</div>
 <div class="kpis">
-<div class="kpi">Repartizați<b>${report.total}</b></div>
-<div class="kpi ok">Prezenți<b>${report.prezenti}</b>${pct(report.prezenti, report.total)}</div>
-<div class="kpi abs">Absenți<b>${report.absenti}</b>${pct(report.absenti, report.total)}</div>
-<div class="kpi walk">Veniți pe loc<b>${report.veniti}</b>(incluși la prezenți)</div>
+<div class="kpi k1"><span>Înscriși</span><b>${regTotal}</b><small>${report.total} repartizați în săli</small></div>
+<div class="kpi k2"><span>Prezenți</span><b>${report.prezenti}</b><small>${pct(report.prezenti, report.total)} din repartizați</small></div>
+<div class="kpi k3"><span>Absenți</span><b>${report.absenti}</b><small>${pct(report.absenti, report.total)}</small></div>
+<div class="kpi k4"><span>Veniți pe loc</span><b>${report.veniti}</b><small>incluși la prezenți</small></div>
 </div>
-<h3>Sumar pe clase</h3>
-${table(TALLY_HEAD("Clasa"), tallyRows(report.byClass, (k) => `Clasa ${k}`, report))}
+<h3>Prezența pe clase</h3>
+<div class="cgrid">${classCards}</div>
+<h3>Sumar</h3>
+${table(
+  ["Clasa", "Înscriși", "Repartizați", "Prezenți", "Absenți", "Veniți pe loc", "Prezență"],
+  [
+    ...report.byClass.map((t) => ({
+      cells: [`Clasa ${escapeHtml(t.key)}`, reg[t.key] ?? t.total, t.total, `<b>${t.prezenti}</b>`, t.absenti || "—", t.veniti || "—", pct(t.prezenti, t.total)],
+    })),
+    { cls: "tot", cells: ["TOTAL", regTotal, report.total, report.prezenti, report.absenti, report.veniti, pct(report.prezenti, report.total)] },
+  ]
+)}
+<h3>Elevii absenți, pe clase</h3>
 ${classSections(report)}
 <div class="sign"><span>Președinte comisie: ____________________</span><span>Secretar: ____________________</span></div>
 </div></body></html>`;
