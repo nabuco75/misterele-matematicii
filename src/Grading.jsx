@@ -225,7 +225,7 @@ function Grading({ onDashboard, stageBar }) {
           if (!["I", "II", "III"].includes(r.premiu)) return false;
           break;
         case "mentiuni":
-          if (!["M1", "M2", "M3", "M"].includes(r.premiu)) return false;
+          if (!["M1", "M2", "M3", "M", "SSMR"].includes(r.premiu)) return false;
           break;
         case "fara":
           if (r.premiu || r.absent) return false;
@@ -573,7 +573,7 @@ function Grading({ onDashboard, stageBar }) {
             <option value="">Toate premiile</option>
             <option value="premiati">Doar premiații (I – M)</option>
             <option value="I-III">Premiile I, II, III</option>
-            <option value="mentiuni">Doar mențiunile (M1 – M)</option>
+            <option value="mentiuni">Doar mențiunile (M1 – M, SSMR)</option>
             {AWARDS.map((a) => (
               <option key={a.value} value={a.value}>
                 Doar {a.label}
