@@ -14,6 +14,20 @@ const CLASS_COLOR = {
   "a VII-a": ["#047857", "#34d399"],
 };
 
+// culori deschise ale clasei (capul de tabel) și culorile subiectelor
+const CLASS_TINT = { "a IV-a": "#f3e8ff", "a V-a": "#dbeafe", "a VI-a": "#ffedd5", "a VII-a": "#d1fae5" };
+const SUBJECT_COLOR = {
+  I: { c: "#be123c", tint: "#fff1f2" },
+  II: { c: "#b45309", tint: "#fffbeb" },
+  III: { c: "#0f766e", tint: "#f0fdfa" },
+};
+// simboluri matematice discrete în banda de antet
+const MATH_DECOR = [
+  ["π", 3, 8], ["Σ", 12, 55], ["√", 22, 15], ["∞", 78, 12], ["÷", 87, 58], ["×", 94, 18], ["%", 70, 62], ["∫", 31, 62],
+]
+  .map(([ch, x, y]) => `<span class="m" style="left:${x}%;top:${y}%">${ch}</span>`)
+  .join("");
+
 const codeNumber = (cod) => parseInt(String(cod || "").replace(/\D+/g, ""), 10) || 0;
 
 // lucrările unei clase: elevii prezenți, în ordinea codurilor
@@ -35,21 +49,24 @@ const tableHtml = (rows, start) =>
 
 const pageHtml = ({ clasa, subject, papers, pageNo, pages, edition }) => {
   const [c1, c2] = CLASS_COLOR[clasa] || ["#334155", "#64748b"];
+  const tint = CLASS_TINT[clasa] || "#e5e7eb";
+  const sc = SUBJECT_COLOR[subject] || { c: "#334155", tint: "#f8fafc" };
   const offset = (pageNo - 1) * ROWS_PER_COLUMN * 2;
   const cols = chunk(papers, ROWS_PER_COLUMN);
   return `<section class="page">
-<div class="band" style="background:linear-gradient(135deg,${c1},${c2})">
+<div class="band" style="background:linear-gradient(135deg,${c1},${c2})">${MATH_DECOR}
 <div class="t1">Concursul Regional „Misterele Matematicii”</div>
 <div class="t2">${escapeHtml(edition)}</div>
 <div class="org">${escapeHtml(ORGANIZER)}</div>
 </div>
 <div class="titles">
-<div class="doc">BORDEROU INDIVIDUAL</div>
-<div class="meta"><span class="pill" style="background:${c1}">Clasa ${escapeHtml(clasa)}</span><span class="pill subj">SUBIECTUL ${subject}</span>${
-    pages > 1 ? `<span class="pill part">fila ${pageNo} din ${pages}</span>` : ""
+<div class="side"><span class="pill" style="background:linear-gradient(135deg,${c1},${c2})">Clasa ${escapeHtml(clasa)}</span>${
+    pages > 1 ? `<span class="part">fila ${pageNo} din ${pages}</span>` : ""
   }</div>
+<div class="doc">Borderou individual<div class="rule" style="background:linear-gradient(90deg,transparent,${c1},${sc.c},transparent)"></div></div>
+<div class="side right"><span class="subj" style="color:${sc.c};border-color:${sc.c};background:${sc.tint}"><small>SUBIECTUL</small><b>${subject}</b></span></div>
 </div>
-<div class="cols${cols.length > 1 ? " two" : ""}">${cols.map((rows, i) => tableHtml(rows, offset + i * ROWS_PER_COLUMN)).join("")}</div>
+<div class="cols${cols.length > 1 ? " two" : ""}" style="--th:${tint};--thc:${c1}">${cols.map((rows, i) => tableHtml(rows, offset + i * ROWS_PER_COLUMN)).join("")}</div>
 <div class="foot">
 <div>Lucrări: <b>${papers.length}</b>${pages > 1 ? " pe această filă" : ""}</div>
 <div class="sign"><span>Profesor evaluator: ______________________________</span><span>Semnătura: ________________</span></div>
@@ -76,20 +93,26 @@ export const printBorderouri = ({ classes, subjects, header, fileLabel }) => {
 body { font-family: "Times New Roman", Times, serif; color: #000; margin: 0; }
 .page { height: 276mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
 .page:last-child { break-after: auto; page-break-after: auto; }
-.band { color: #fff; text-align: center; border-radius: 8px; padding: 7px 10px; }
+.band { position: relative; overflow: hidden; color: #fff; text-align: center; border-radius: 10px; padding: 7px 10px; }
+.band .m { position: absolute; font-size: 20pt; font-weight: bold; color: rgba(255,255,255,.18); transform: translate(-50%, -50%) rotate(-12deg); }
+.band > div { position: relative; }
 .band .t1 { font-weight: bold; font-size: 13.5pt; }
 .band .t2 { font-weight: bold; font-size: 11.5pt; margin-top: 1px; }
 .band .org { font-style: italic; font-size: 9.5pt; opacity: .92; }
-.titles { text-align: center; margin: 7px 0 6px; }
-.doc { font-weight: bold; font-size: 15pt; letter-spacing: 3px; }
-.meta { margin-top: 4px; display: flex; gap: 6px; justify-content: center; }
-.pill { color: #fff; font-weight: bold; font-size: 11pt; padding: 2px 12px; border-radius: 999px; }
-.pill.subj { background: #111827; letter-spacing: 1px; }
-.pill.part { background: #6b7280; font-weight: normal; }
+.titles { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin: 6px 4mm 6px; }
+.side { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.side.right { align-items: flex-end; }
+.doc { text-align: center; font-weight: bold; font-size: 17pt; font-variant: small-caps; letter-spacing: 2px; }
+.rule { height: 3px; border-radius: 3px; margin: 3px auto 0; width: 80%; }
+.pill { color: #fff; font-weight: bold; font-size: 12pt; padding: 3px 14px; border-radius: 999px; }
+.part { font-size: 9.5pt; color: #4b5563; font-style: italic; padding-left: 4px; }
+.subj { display: inline-flex; flex-direction: column; align-items: center; border: 2.5px solid; border-radius: 12px; padding: 2px 14px 1px; line-height: 1; }
+.subj small { font-size: 8pt; font-weight: bold; letter-spacing: 2px; }
+.subj b { font-size: 22pt; font-weight: 900; }
 .cols { display: flex; justify-content: center; gap: 14mm; flex: 1; align-items: flex-start; }
 table { border-collapse: collapse; width: 62mm; font-size: 11pt; }
-th, td { border: 1px solid #000; height: 5.45mm; padding: 0 4px; text-align: center; }
-th { background: #e5e7eb; font-size: 10pt; height: 6.5mm; }
+th, td { border: 1px solid #000; height: 5.3mm; padding: 0 4px; text-align: center; }
+th { background: var(--th); color: var(--thc); font-size: 10pt; height: 6.5mm; }
 td.nr { width: 26mm; }
 tbody tr:nth-child(5n) td { border-bottom: 1.6px solid #000; }
 .foot { font-size: 10.5pt; margin-top: 6px; }
