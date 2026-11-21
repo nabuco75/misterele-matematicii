@@ -20,6 +20,7 @@ import {
   parseScore,
 } from "./grading";
 import { exportResultsExcel, printResultsPdf } from "./gradingExport";
+import { PRIZE_AMOUNTS, SPONSOR, exportPrizesExcel, printPrizesPdf, prizeRows, prizeSummary } from "./prizeMoney";
 
 const EMPTY_FILTERS = { q: "", clasa: "", scoala: "", profesor: "", sala: "", premiu: "", stare: "" };
 
@@ -489,6 +490,17 @@ function Grading({ onDashboard, stageBar }) {
     else printResultsPdf(rowsOut, opts);
   };
 
+  // premiile în bani (Asociația „Arcașii lui Ștefan”): din TOȚI elevii, indiferent de filtre
+  const prizeInfo = useMemo(() => prizeSummary(prizeRows(rows)), [rows]);
+  const doPrizes = (kind) => {
+    if (prizeInfo.count === 0) {
+      window.alert("Nu există încă premianți (I, II, III, M1, M2, M3).");
+      return;
+    }
+    if (kind === "excel") exportPrizesExcel(rows, header);
+    else printPrizesPdf(rows, header);
+  };
+
   // ====== RENDER ======
   if (loading) return <div className={styles.loading}>Se încarcă elevii și notele...</div>;
 
@@ -655,6 +667,32 @@ function Grading({ onDashboard, stageBar }) {
               </button>
             </div>
           ))}
+        </div>
+        <div className={styles.prizeCard}>
+          <div className={styles.prizeHead}>
+            <span className={styles.prizeIcon}>💰</span>
+            <div>
+              <b>Premii în bani — {SPONSOR}</b>
+              <small>
+                Tabel nominal cu antet: nume, școală, premiu, sumă, semnătură · fără mențiunile SSMR · toți elevii, indiferent de filtre
+              </small>
+            </div>
+            <div className={styles.prizeTotal}>
+              <b>{prizeInfo.total.toLocaleString("ro-RO")} lei</b>
+              <small>{prizeInfo.count} premianți</small>
+            </div>
+          </div>
+          <div className={styles.prizeChips}>
+            {prizeInfo.byPrize.map((p) => (
+              <span key={p.premiu} className={styles.prizeChip}>
+                {p.premiu}: <b>{p.count}</b> × {PRIZE_AMOUNTS[p.premiu]} lei
+              </span>
+            ))}
+          </div>
+          <div className={styles.prizeBtns}>
+            <button onClick={() => doPrizes("pdf")}>📄 Tabel premii (PDF)</button>
+            <button onClick={() => doPrizes("excel")}>📥 Tabel premii (Excel)</button>
+          </div>
         </div>
         <p className={styles.dlHint}>
           Se descarcă elevii afișați în tabel ({filters.clasa ? `clasa ${filters.clasa}` : "toate clasele, câte o foaie / pagină pe clasă"}), în ordinea aleasă. Țineți mouse-ul pe o listă ca să vedeți ce conține.
