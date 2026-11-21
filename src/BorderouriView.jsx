@@ -4,7 +4,7 @@ import { CLASS_ORDER } from "./allocation";
 import { loadHeader } from "./contestData";
 import { loadPresence } from "./presenceData";
 import { editionLine } from "./roomLists";
-import { papersOfClass, printBorderouri, SUBJECT_NAMES } from "./borderouri";
+import { papersOfClass, printBorderouFinal, printBorderouri, SUBJECT_NAMES } from "./borderouri";
 import base from "./AttendanceView.module.css";
 import styles from "./BorderouriView.module.css";
 
@@ -143,6 +143,20 @@ export default function BorderouriView({ onClose }) {
                     >
                       📚 Toate cele 3 subiecte
                     </button>
+                    <button
+                      className={styles.finalBtn}
+                      disabled={c.papers.length === 0}
+                      onClick={() =>
+                        printBorderouFinal({
+                          classes: [{ clasa: c.clasa, papers: c.papers }],
+                          header,
+                          fileLabel: `Borderou_final_${fileClass(c.clasa)}`,
+                        })
+                      }
+                      title={`Borderoul final al clasei ${c.clasa}: Subiectul I, II, III și Total`}
+                    >
+                      🏁 Borderou final
+                    </button>
                   </div>
                 );
               })}
@@ -154,7 +168,20 @@ export default function BorderouriView({ onClose }) {
                 disabled={totalPapers === 0}
                 onClick={() => download(classes, SUBJECT_NAMES, "Borderouri_toate_clasele")}
               >
-                🗂️ Toate borderourile (toate clasele, toate subiectele)
+                🗂️ Toate borderourile individuale (toate clasele, toate subiectele)
+              </button>
+              <button
+                className={base.xlsBtn}
+                disabled={totalPapers === 0}
+                onClick={() =>
+                  printBorderouFinal({
+                    classes: classes.map(({ clasa, papers }) => ({ clasa, papers })),
+                    header,
+                    fileLabel: "Borderouri_finale_toate_clasele",
+                  })
+                }
+              >
+                🏁 Toate borderourile finale
               </button>
             </div>
           </>

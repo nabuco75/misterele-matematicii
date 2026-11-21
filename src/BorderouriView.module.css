@@ -90,3 +90,26 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+.finalBtn {
+  position: relative;
+  width: 100%;
+  margin-top: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  padding: 8px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.finalBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: rgba(0, 0, 0, 0.35);
+}
+.finalBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

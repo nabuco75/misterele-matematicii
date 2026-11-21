@@ -54,18 +54,7 @@ const pageHtml = ({ clasa, subject, papers, pageNo, pages, edition }) => {
   const offset = (pageNo - 1) * ROWS_PER_COLUMN * 2;
   const cols = chunk(papers, ROWS_PER_COLUMN);
   return `<section class="page">
-<div class="band" style="background:linear-gradient(135deg,${c1},${c2})">${MATH_DECOR}
-<div class="t1">Concursul Regional „Misterele Matematicii”</div>
-<div class="t2">${escapeHtml(edition)}</div>
-<div class="org">${escapeHtml(ORGANIZER)}</div>
-</div>
-<div class="titles">
-<div class="side"><span class="pill" style="background:linear-gradient(135deg,${c1},${c2})">Clasa ${escapeHtml(clasa)}</span>${
-    pages > 1 ? `<span class="part">fila ${pageNo} din ${pages}</span>` : ""
-  }</div>
-<div class="doc">Borderou individual<div class="rule" style="background:linear-gradient(90deg,transparent,${c1},${sc.c},transparent)"></div></div>
-<div class="side right"><span class="subj" style="color:${sc.c};border-color:${sc.c};background:${sc.tint}"><small>SUBIECTUL</small><b>${subject}</b></span></div>
-</div>
+${headHtml({ clasa, title: "Borderou individual", badge: { ...sc, small: "SUBIECTUL", big: subject }, pageNo, pages, edition })}
 <div class="cols${cols.length > 1 ? " two" : ""}" style="--th:${tint};--thc:${c1}">${cols.map((rows, i) => tableHtml(rows, offset + i * ROWS_PER_COLUMN)).join("")}</div>
 <div class="foot">
 <div>Lucrări: <b>${papers.length}</b>${pages > 1 ? " pe această filă" : ""}</div>
@@ -74,21 +63,7 @@ const pageHtml = ({ clasa, subject, papers, pageNo, pages, edition }) => {
 </section>`;
 };
 
-// classes: [{ clasa, papers }] ; subjects: ["I","II","III"]
-export const printBorderouri = ({ classes, subjects, header, fileLabel }) => {
-  const edition = editionLine(header);
-  const pages = [];
-  classes.forEach(({ clasa, papers }) =>
-    subjects.forEach((subject) => {
-      const parts = chunk(papers, ROWS_PER_COLUMN * 2);
-      parts.forEach((part, i) => pages.push(pageHtml({ clasa, subject, papers: part, pageNo: i + 1, pages: parts.length, edition })));
-    })
-  );
-
-  const html = `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Borderouri individuale${
-    edition ? ` - ${escapeHtml(edition)}` : ""
-  }</title><style>
-@page { size: A4 portrait; margin: 10mm; }
+const BORDEROU_CSS = `@page { size: A4 portrait; margin: 10mm; }
 * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
 body { font-family: "Times New Roman", Times, serif; color: #000; margin: 0; }
 .page { height: 276mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
@@ -115,16 +90,90 @@ th, td { border: 1px solid #000; height: 5.3mm; padding: 0 4px; text-align: cent
 th { background: var(--th); color: var(--thc); font-size: 10pt; height: 6.5mm; }
 td.nr { width: 26mm; }
 tbody tr:nth-child(5n) td { border-bottom: 1.6px solid #000; }
+table.final { width: 160mm; }
+table.final th { height: 10mm; line-height: 1.15; }
+table.final td.fnr, table.final th.fnr { width: 22mm; }
+table.final th.fs { width: 32mm; }
+table.final td.ftot { background: #f8fafc; border-left: 2px solid #000; }
+table.final th.ftot { border-left: 2px solid #000; width: 40mm; font-size: 11pt; letter-spacing: 1px; }
 .foot { font-size: 10.5pt; margin-top: 6px; }
 .sign { display: flex; justify-content: space-between; margin-top: 10px; }
 .toolbar { position: sticky; top: 0; z-index: 1; background: #2c3e50; color: #fff; padding: 10px; text-align: center; font-family: Arial, sans-serif; }
 .toolbar button { font-size: 15px; padding: 8px 18px; margin-left: 10px; cursor: pointer; }
 @media screen { body { background: #e5e7eb; } .page { width: 190mm; margin: 12px auto; background: #fff; padding: 6mm; box-shadow: 0 2px 8px rgba(0,0,0,.2); height: 289mm; } }
 @media print { .toolbar { display: none; } }
-</style></head><body>
+`;
+
+const wrapDoc = (title, edition, pages) => `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>${title}${
+  edition ? ` - ${escapeHtml(edition)}` : ""
+}</title><style>
+${BORDEROU_CSS}</style></head><body>
 <div class="toolbar">${pages.length} ${pages.length === 1 ? "pagină" : "pagini"} — la „Destinație” alegeți <b>Salvează ca PDF</b> (sau imprimanta).
 <button onclick="window.print()">🖨️ Printează / Salvează ca PDF</button></div>
 ${pages.join("")}
 </body></html>`;
-  openPrintWindow(html, fileLabel || "Borderouri_individuale");
+
+// antetul comun (banda concursului + titlul + clasa + insigna din dreapta)
+const headHtml = ({ clasa, title, badge, pageNo, pages, edition }) => {
+  const [c1, c2] = CLASS_COLOR[clasa] || ["#334155", "#64748b"];
+  return `<div class="band" style="background:linear-gradient(135deg,${c1},${c2})">${MATH_DECOR}
+<div class="t1">Concursul Regional „Misterele Matematicii”</div>
+<div class="t2">${escapeHtml(edition)}</div>
+<div class="org">${escapeHtml(ORGANIZER)}</div>
+</div>
+<div class="titles">
+<div class="side"><span class="pill" style="background:linear-gradient(135deg,${c1},${c2})">Clasa ${escapeHtml(clasa)}</span>${
+    pages > 1 ? `<span class="part">fila ${pageNo} din ${pages}</span>` : ""
+  }</div>
+<div class="doc">${title}<div class="rule" style="background:linear-gradient(90deg,transparent,${c1},${badge.c},transparent)"></div></div>
+<div class="side right"><span class="subj" style="color:${badge.c};border-color:${badge.c};background:${badge.tint}"><small>${badge.small}</small><b>${badge.big}</b></span></div>
+</div>`;
+};
+
+// ====== BORDEROU FINAL: Nr. teză | Subiectul I | II | III | Total ======
+const FINAL_ROWS_PER_PAGE = 40;
+const FINAL_BADGE = { c: "#4338ca", tint: "#eef2ff", small: "PUNCTAJ", big: "Σ" };
+
+const finalPageHtml = ({ clasa, papers, pageNo, pages, edition }) => {
+  const tint = CLASS_TINT[clasa] || "#e5e7eb";
+  const [c1] = CLASS_COLOR[clasa] || ["#334155"];
+  const offset = (pageNo - 1) * FINAL_ROWS_PER_PAGE;
+  const subjTh = SUBJECT_NAMES.map((n) => {
+    const sc = SUBJECT_COLOR[n];
+    return `<th class="fs" style="background:${sc.tint};color:${sc.c}">Subiectul<br>${n}</th>`;
+  }).join("");
+  return `<section class="page">
+${headHtml({ clasa, title: "Borderou final", badge: FINAL_BADGE, pageNo, pages, edition })}
+<div class="cols"><table class="final" style="--th:${tint};--thc:${c1}"><thead><tr><th class="fnr">Nr.<br>teză</th>${subjTh}<th class="ftot" style="background:${c1};color:#fff">Total</th></tr></thead><tbody>${papers
+    .map((_, i) => `<tr><td class="fnr">${offset + i + 1}.</td><td></td><td></td><td></td><td class="ftot"></td></tr>`)
+    .join("")}</tbody></table></div>
+<div class="foot">
+<div>Lucrări: <b>${papers.length}</b>${pages > 1 ? " pe această filă" : ""}</div>
+<div class="sign"><span>Președinte comisie: ______________________</span><span>Membri: ______________________</span></div>
+</div>
+</section>`;
+};
+
+export const printBorderouFinal = ({ classes, header, fileLabel }) => {
+  const edition = editionLine(header);
+  const pages = [];
+  classes.forEach(({ clasa, papers }) => {
+    const parts = chunk(papers, FINAL_ROWS_PER_PAGE);
+    parts.forEach((part, i) => pages.push(finalPageHtml({ clasa, papers: part, pageNo: i + 1, pages: parts.length, edition })));
+  });
+  openPrintWindow(wrapDoc("Borderouri finale", edition, pages), fileLabel || "Borderouri_finale");
+};
+
+// classes: [{ clasa, papers }] ; subjects: ["I","II","III"]
+export const printBorderouri = ({ classes, subjects, header, fileLabel }) => {
+  const edition = editionLine(header);
+  const pages = [];
+  classes.forEach(({ clasa, papers }) =>
+    subjects.forEach((subject) => {
+      const parts = chunk(papers, ROWS_PER_COLUMN * 2);
+      parts.forEach((part, i) => pages.push(pageHtml({ clasa, subject, papers: part, pageNo: i + 1, pages: parts.length, edition })));
+    })
+  );
+
+  openPrintWindow(wrapDoc("Borderouri individuale", edition, pages), fileLabel || "Borderouri_individuale");
 };
