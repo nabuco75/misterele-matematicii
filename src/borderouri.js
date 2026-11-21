@@ -1,6 +1,7 @@
 // Borderouri individuale de corectare: pe fiecare clasă și pe fiecare subiect (I, II, III),
-// câte un rând pentru fiecare lucrare a unui elev PREZENT (codul de anonimizare + loc pentru punctaj).
-// Absenții (bifați la Notare) nu apar; elevii veniți pe loc apar cu codul lor.
+// câte un rând numerotat pentru fiecare lucrare a unui elev PREZENT, cu loc pentru punctaj.
+// Fără coduri: evaluatorii nu au acces la anonimizare (numărul de pe borderou se trece pe lucrare).
+// Absenții (bifați la Notare) nu se numără; elevii veniți pe loc da.
 import { ORGANIZER, editionLine, escapeHtml, openPrintWindow } from "./roomLists";
 
 export const SUBJECT_NAMES = ["I", "II", "III"];
@@ -28,11 +29,8 @@ const chunk = (list, size) => {
 };
 
 const tableHtml = (rows, start) =>
-  `<table><thead><tr><th class="nr">Nr.</th><th class="cod">Cod lucrare</th><th class="pct">Punctaj</th></tr></thead><tbody>${rows
-    .map(
-      (s, i) =>
-        `<tr><td class="nr">${start + i + 1}.</td><td class="cod">${escapeHtml(s.cod || "")}</td><td class="pct"></td></tr>`
-    )
+  `<table><thead><tr><th class="nr">Nr. lucrare</th><th class="pct">Punctaj</th></tr></thead><tbody>${rows
+    .map((_, i) => `<tr><td class="nr">${start + i + 1}.</td><td class="pct"></td></tr>`)
     .join("")}</tbody></table>`;
 
 const pageHtml = ({ clasa, subject, papers, pageNo, pages, edition }) => {
@@ -89,10 +87,10 @@ body { font-family: "Times New Roman", Times, serif; color: #000; margin: 0; }
 .pill.subj { background: #111827; letter-spacing: 1px; }
 .pill.part { background: #6b7280; font-weight: normal; }
 .cols { display: flex; justify-content: center; gap: 14mm; flex: 1; align-items: flex-start; }
-table { border-collapse: collapse; width: 72mm; font-size: 11pt; }
+table { border-collapse: collapse; width: 62mm; font-size: 11pt; }
 th, td { border: 1px solid #000; height: 5.45mm; padding: 0 4px; text-align: center; }
 th { background: #e5e7eb; font-size: 10pt; height: 6.5mm; }
-td.nr { width: 14mm; } td.cod { width: 28mm; font-weight: bold; font-family: Calibri, Arial, sans-serif; letter-spacing: .3px; }
+td.nr { width: 26mm; }
 tbody tr:nth-child(5n) td { border-bottom: 1.6px solid #000; }
 .foot { font-size: 10.5pt; margin-top: 6px; }
 .sign { display: flex; justify-content: space-between; margin-top: 10px; }

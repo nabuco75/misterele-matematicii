@@ -53,7 +53,6 @@ export default function BorderouriView({ onClose }) {
         .filter((c) => c.papers.length + c.absent > 0)
     : [];
   const totalPapers = classes.reduce((n, c) => n + c.papers.length, 0);
-  const withoutCode = pres ? pres.students.filter((s) => !s.absent && !s.cod).length : 0;
 
   const download = (list, subjects, label) =>
     printBorderouri({
@@ -71,8 +70,8 @@ export default function BorderouriView({ onClose }) {
             <div className={base.kicker}>Misterele Matematicii · {editionLine(header)}</div>
             <h2 className={base.title}>📝 Borderouri de corectare</h2>
             <div className={base.sub}>
-              Câte un borderou individual pe clasă și subiect, doar cu lucrările <b>elevilor prezenți</b> (în ordinea
-              codurilor).
+              Câte un borderou individual pe clasă și subiect, cu câte un rând numerotat pentru fiecare lucrare a
+              unui <b>elev prezent</b> (fără coduri).
             </div>
           </div>
           <div className={base.heroActions}>
@@ -105,12 +104,6 @@ export default function BorderouriView({ onClose }) {
               <p className={base.warn}>
                 ⚠️ Nu este bifat niciun absent. Bifați absenții la <b>Notare</b> înainte de a tipări borderourile,
                 altfel apar și lucrările lor.
-              </p>
-            )}
-            {withoutCode > 0 && (
-              <p className={base.warn}>
-                ⚠️ {withoutCode} {withoutCode === 1 ? "elev prezent nu are" : "elevi prezenți nu au"} cod de
-                anonimizare — dați codurile din pagina Coduri.
               </p>
             )}
 
