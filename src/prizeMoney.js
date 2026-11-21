@@ -9,7 +9,7 @@ import { displayName } from "./nameFormat";
 
 export const SPONSOR = "Asociația „Arcașii lui Ștefan”";
 
-export const PRIZE_AMOUNTS = { I: 300, II: 200, III: 100, M1: 50, M2: 40, M3: 40 };
+export const PRIZE_AMOUNTS = { I: 300, II: 200, III: 100, M1: 50, M2: 40, M3: 30 };
 const PRIZE_LABEL = {
   I: "Premiul I",
   II: "Premiul II",
@@ -57,6 +57,16 @@ export const prizeSummary = (list) => {
   return { byPrize, count: list.length, total: list.reduce((n, r) => n + r.bani, 0) };
 };
 
+// premianții împărțiți pe clase, cu totalul fiecărei clase
+export const prizeClasses = (list) => {
+  const map = new Map();
+  list.forEach((r) => {
+    if (!map.has(r.clasa)) map.set(r.clasa, []);
+    map.get(r.clasa).push(r);
+  });
+  return [...map.entries()].map(([clasa, rows]) => ({ clasa, rows, total: rows.reduce((n, r) => n + r.bani, 0) }));
+};
+
 const stamp = () => new Date().toISOString().slice(0, 10);
 
 // ====== PDF ======
@@ -65,18 +75,16 @@ export const printPrizesPdf = (rows, header) => {
   const sum = prizeSummary(list);
   const edition = editionLine(header);
 
-  let lastClass = null;
+  const classes = prizeClasses(list);
   let nr = 0;
-  const body = list
-    .map((r) => {
-      const [c, tint] = PRIZE_COLOR[r.premiu];
-      const sep =
-        r.clasa !== lastClass
-          ? `<tr class="cls"><td colspan="6">Clasa ${escapeHtml(r.clasa)}</td></tr>`
-          : "";
-      lastClass = r.clasa;
-      nr += 1;
-      return `${sep}<tr>
+  const body = classes
+    .map(
+      ({ clasa, rows: cr, total }) =>
+        `<tr class="cls"><td colspan="6">Clasa ${escapeHtml(clasa)}</td></tr>${cr
+          .map((r) => {
+            const [c, tint] = PRIZE_COLOR[r.premiu];
+            nr += 1;
+            return `<tr>
 <td class="nr">${nr}.</td>
 <td class="name">${escapeHtml(r.nume)}</td>
 <td class="school">${escapeHtml(r.scoala)}</td>
@@ -84,7 +92,14 @@ export const printPrizesPdf = (rows, header) => {
 <td class="money">${lei(r.bani)}</td>
 <td class="sign"></td>
 </tr>`;
-    })
+          })
+          .join("")}<tr class="sub"><td colspan="4">Total clasa ${escapeHtml(clasa)} (${cr.length} ${
+          cr.length === 1 ? "premiant" : "premianți"
+        })</td><td class="money">${lei(total)}</td><td></td></tr>`
+    )
+    .join("");
+  const classRows = classes
+    .map((g) => `<tr><td class="l">Clasa ${escapeHtml(g.clasa)}</td><td>${g.rows.length}</td><td class="money">${lei(g.total)}</td></tr>`)
     .join("");
 
   const summaryRows = sum.byPrize
@@ -124,8 +139,11 @@ tr.cls td { height: auto !important; background: #fef3c7; color: #7f1d1d; font-w
 table.main td.name { text-align: left; font-weight: bold; padding-left: 7px; } table.main td.school { text-align: left; font-size: 9.5pt; line-height: 1.15; }
 td.money { font-weight: bold; white-space: nowrap; }
 .prize { display: inline-block; border: 1.5px solid; border-radius: 999px; padding: 0 7px; font-size: 9pt; font-weight: bold; white-space: nowrap; }
+tr.sub td { height: 8mm !important; background: #fef3c7; color: #7f1d1d; font-weight: bold; text-align: right; }
+tr.sub td.money { text-align: center; font-size: 11.5pt; }
 tr.total td { background: #fee2e2; font-weight: bold; font-size: 11.5pt; height: 9mm; }
 .sumbox { display: flex; gap: 10mm; margin-top: 8mm; align-items: flex-start; break-inside: avoid; page-break-inside: avoid; }
+.sumcol { display: flex; flex-direction: column; gap: 5mm; }
 table.sum { width: 105mm; font-size: 10.5pt; }
 table.sum th, table.sum td { border: 1px solid #000; padding: 3px 6px; text-align: center; }
 table.sum th { background: #fef3c7; color: #7f1d1d; }
@@ -136,7 +154,7 @@ table.sum tr.t td { background: #1e3a8a; color: #fff; font-weight: bold; }
 .big b { display: block; font-size: 24pt; color: #b91c1c; }
 .big span { font-size: 10pt; }
 .signs { display: flex; justify-content: space-between; margin-top: 12mm; font-size: 11pt; text-align: center; break-inside: avoid; page-break-inside: avoid; }
-.signs div { width: 30%; } .signs i { display: block; margin-top: 12mm; border-top: 1px dotted #000; }
+.signs div { width: 30%; display: flex; flex-direction: column; } .signs i { display: block; margin-top: auto; padding-top: 12mm; border-bottom: 1px dotted #000; }
 .toolbar { position: sticky; top: 0; z-index: 1; background: #2c3e50; color: #fff; padding: 10px; text-align: center; font-family: Arial, sans-serif; }
 .toolbar button { font-size: 15px; padding: 8px 18px; margin-left: 10px; cursor: pointer; }
 @media screen { body { background: #e5e7eb; } .doc { background: #fff; padding: 8mm; margin: 12px auto; box-shadow: 0 2px 8px rgba(0,0,0,.2); } }
@@ -167,8 +185,12 @@ table.sum tr.t td { background: #1e3a8a; color: #fff; font-weight: bold; }
 <tr class="total"><td colspan="4" style="text-align:right">TOTAL (${list.length} premianți)</td><td class="money">${lei(sum.total)}</td><td></td></tr>
 </tbody></table>
 <div class="sumbox">
+<div class="sumcol">
 <table class="sum"><thead><tr><th>Premiul</th><th>Elevi</th><th>Suma / elev</th><th>Total</th></tr></thead>
 <tbody>${summaryRows}<tr class="t"><td class="l">Total</td><td>${list.length}</td><td></td><td>${lei(sum.total)}</td></tr></tbody></table>
+<table class="sum"><thead><tr><th>Pe clase</th><th>Premianți</th><th>Total</th></tr></thead>
+<tbody>${classRows}<tr class="t"><td class="l">Total</td><td>${list.length}</td><td>${lei(sum.total)}</td></tr></tbody></table>
+</div>
 <div class="big"><small>Total premii acordate</small><b>${lei(sum.total)}</b><span>${list.length} elevi premiați</span></div>
 </div>
 <div class="signs">
@@ -202,11 +224,14 @@ export const exportPrizesExcel = (rows, header) => {
     ["TABEL NOMINAL CU ELEVII PREMIAȚI — PREMII ÎN BANI", ...blank],
     ["Nr. crt.", "Numele și prenumele elevului", "Clasa", "Școala", "Premiul", "Suma (lei)", "Semnătura"],
   ];
-  const styles = [];
   const HEAD = 5;
-  list.forEach((r, i) =>
-    data.push([i + 1, r.nume, r.clasa, r.scoala, r.premiuText, r.bani, ""])
-  );
+  const subRows = new Set();
+  let nr = 0;
+  prizeClasses(list).forEach(({ clasa, rows: cr, total }) => {
+    cr.forEach((r) => data.push([++nr, r.nume, r.clasa, r.scoala, r.premiuText, r.bani, ""]));
+    subRows.add(data.length);
+    data.push(["", `Total clasa ${clasa} (${cr.length} ${cr.length === 1 ? "premiant" : "premianți"})`, "", "", "", total, ""]);
+  });
   const totalRow = data.length;
   data.push(["", "", "", "", "TOTAL", sum.total, ""]);
   data.push(Array(N).fill(""));
@@ -218,7 +243,10 @@ export const exportPrizesExcel = (rows, header) => {
   const sumEnd = data.length - 1;
 
   const ws = XLSX.utils.aoa_to_sheet(data);
-  ws["!merges"] = [0, 1, 2, 3].map((r) => ({ s: { r, c: 0 }, e: { r, c: N - 1 } }));
+  ws["!merges"] = [
+    ...[0, 1, 2, 3].map((r) => ({ s: { r, c: 0 }, e: { r, c: N - 1 } })),
+    ...[...subRows].map((r) => ({ s: { r, c: 1 }, e: { r, c: 4 } })),
+  ];
   ws["!cols"] = [{ wch: 7 }, { wch: 30 }, { wch: 9 }, { wch: 40 }, { wch: 17 }, { wch: 11 }, { wch: 20 }];
   ws["!rows"] = data.map((_, r) => ({ hpt: r < 4 ? 22 : r === 4 ? 30 : r > HEAD - 1 && r < totalRow ? 30 : 20 }));
   data.forEach((row, r) =>
@@ -230,7 +258,10 @@ export const exportPrizesExcel = (rows, header) => {
       else if (r === 2) ws[ref].s = st({ fill: "1E3A8A", size: 11, color: "FFFFFF" });
       else if (r === 3) ws[ref].s = st({ fill: "FEF3C7", bold: true, size: 13, color: "7F1D1D" });
       else if (r === 4) ws[ref].s = st({ fill: "1E3A8A", bold: true, color: "FFFFFF" });
-      else if (r < totalRow) {
+      else if (subRows.has(r)) {
+        ws[ref].s = st({ fill: "FEF3C7", bold: true, color: "7F1D1D", left: c === 1 });
+        if (c === 5) ws[ref].z = '#,##0 "lei"';
+      } else if (r < totalRow) {
         ws[ref].s = st({ fill: (r - HEAD) % 2 ? "F8FAFC" : "FFFFFF", bold: c === 1 || c === 5, left: c === 1 || c === 3 });
         if (c === 5) ws[ref].z = '#,##0 "lei"';
       } else if (r === totalRow) {
