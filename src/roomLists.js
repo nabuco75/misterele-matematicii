@@ -24,6 +24,8 @@ const COLUMNS = [
   "Numele Școlii Participante",
   "Profesor îndrumător",
 ];
+const CODE_COLUMNS = ["Nr. Curent", "Cod", ...COLUMNS.slice(1)];
+const CODE_FILL = "FFF4CC";
 
 // culori pe clase, ca în listele din anii trecuți
 export const CLASS_COLORS = {
@@ -164,23 +166,36 @@ export const fitSheetsToOnePage = (buffer) => {
   }
 };
 
-export const exportRoomsExcel = (rawGroups, header, roomName = null) => {
+// opts.withCode: coloană „Cod” după Nr.; opts.label: textul din banda sălii; opts.fileBase: numele fișierului
+export const exportRoomsExcel = (rawGroups, header, roomName = null, opts = {}) => {
+  const { withCode = false, label = "", fileBase = null } = opts;
   const groups = withNames(rawGroups);
+  const cols = withCode ? CODE_COLUMNS : COLUMNS;
+  const n = cols.length;
+  const nameCol = withCode ? 2 : 1;
+  const clsCol = nameCol + 1;
+  const blank = Array(n - 1).fill("");
   const workbook = XLSX.utils.book_new();
   const usedNames = new Set();
 
   groups.forEach(({ room, title, students }) => {
     const rows = [
-      [CONTEST_TITLE, "", "", "", ""],
-      [editionLine(header), "", "", "", ""],
-      [title, "", "", "", ""],
-      COLUMNS,
-      ...students.map((s, i) => [i + 1, s.nume + statusSuffix(s), s.clasa, s.scoala, s.profesor]),
+      [CONTEST_TITLE, ...blank],
+      [editionLine(header), ...blank],
+      [label ? `${title} — ${label}` : title, ...blank],
+      cols,
+      ...students.map((s, i) =>
+        withCode
+          ? [i + 1, s.cod || "—", s.nume + statusSuffix(s), s.clasa, s.scoala, s.profesor]
+          : [i + 1, s.nume + statusSuffix(s), s.clasa, s.scoala, s.profesor]
+      ),
     ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
 
-    ws["!merges"] = [0, 1, 2].map((r) => ({ s: { r, c: 0 }, e: { r, c: 4 } }));
-    ws["!cols"] = [{ wch: 8 }, { wch: 32 }, { wch: 9 }, { wch: 42 }, { wch: 30 }];
+    ws["!merges"] = [0, 1, 2].map((r) => ({ s: { r, c: 0 }, e: { r, c: n - 1 } }));
+    ws["!cols"] = withCode
+      ? [{ wch: 7 }, { wch: 12 }, { wch: 30 }, { wch: 9 }, { wch: 38 }, { wch: 28 }]
+      : [{ wch: 8 }, { wch: 32 }, { wch: 9 }, { wch: 42 }, { wch: 30 }];
     ws["!rows"] = [{ hpt: 28 }, { hpt: 20 }, { hpt: 24 }, { hpt: 32 }, ...students.map(() => ({ hpt: 30 }))];
 
     const headerStyles = [
@@ -190,7 +205,7 @@ export const exportRoomsExcel = (rawGroups, header, roomName = null) => {
       cellStyle(HEADER_FILL, { bold: true }),
     ];
     for (let r = 0; r < headerStyles.length; r++) {
-      for (let c = 0; c < 5; c++) {
+      for (let c = 0; c < n; c++) {
         const ref = XLSX.utils.encode_cell({ r, c });
         ws[ref] = { ...(ws[ref] || { t: "s", v: "" }), s: headerStyles[r] };
       }
@@ -198,13 +213,21 @@ export const exportRoomsExcel = (rawGroups, header, roomName = null) => {
     students.forEach((s, i) => {
       const fill = i % 2 ? ZEBRA_FILL : "FFFFFF";
       const accent = accentOf(s.clasa);
-      for (let c = 0; c < 5; c++) {
+      for (let c = 0; c < n; c++) {
         const ref = XLSX.utils.encode_cell({ r: i + headerStyles.length, c });
-        ws[ref].s = cellStyle(fill, {
+        const isCode = withCode && c === 1;
+        ws[ref].s = cellStyle(isCode ? CODE_FILL : fill, {
           size: 12,
-          align: c === 1 ? "left" : "center",
-          bold: c === 2,
-          color: c === 2 ? accent.text : c === 1 && s.absent ? "9CA3AF" : c === 1 && s.walkIn ? "047857" : "000000",
+          align: c === nameCol ? "left" : "center",
+          bold: c === clsCol || isCode,
+          color:
+            c === clsCol
+              ? accent.text
+              : c === nameCol && s.absent
+              ? "9CA3AF"
+              : c === nameCol && s.walkIn
+              ? "047857"
+              : "000000",
           leftBorder: c === 0 ? { style: "thick", color: { rgb: accent.strip } } : null,
         });
       }
@@ -219,13 +242,15 @@ export const exportRoomsExcel = (rawGroups, header, roomName = null) => {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8",
     }),
     roomName
-      ? `Lista_${roomName.replace(/\s+/g, "_")}.xlsx`
-      : `Repartizare_pe_Sali_${new Date().toISOString().slice(0, 10)}.xlsx`
+      ? `${fileBase ? `${fileBase}_` : "Lista_"}${roomName.replace(/\s+/g, "_")}.xlsx`
+      : `${fileBase || "Repartizare_pe_Sali"}_${new Date().toISOString().slice(0, 10)}.xlsx`
   );
 };
 
 // ====== PDF (pagina de printare → „Salvează ca PDF”) ======
-const buildRoomsHtml = (rawGroups, header) => {
+const buildRoomsHtml = (rawGroups, header, opts = {}) => {
+  const { withCode = false, label = "" } = opts;
+  const cols = withCode ? CODE_COLUMNS : COLUMNS;
   const groups = withNames(rawGroups);
   const edition = editionLine(header);
   const pages = groups
@@ -235,17 +260,21 @@ const buildRoomsHtml = (rawGroups, header) => {
           (s, i) => {
             const accent = accentOf(s.clasa);
             return `<tr${s.absent ? ' class="absent"' : ""}>
-<td style="border-left:6px solid #${accent.strip}">${i + 1}</td><td class="name">${escapeHtml(s.nume)}${statusTag(s)}</td><td class="cls" style="color:#${accent.text}">${escapeHtml(s.clasa)}</td>
+<td style="border-left:6px solid #${accent.strip}">${i + 1}</td>${
+              withCode ? `<td class="cod">${escapeHtml(s.cod || "—")}</td>` : ""
+            }<td class="name">${escapeHtml(s.nume)}${statusTag(s)}</td><td class="cls" style="color:#${accent.text}">${escapeHtml(s.clasa)}</td>
 <td>${escapeHtml(s.scoala)}</td><td>${escapeHtml(s.profesor)}</td></tr>`;
           }
         )
         .join("");
       return `<section class="page">
-<table>
+<table${withCode ? ' class="withcode"' : ""}>
 <thead>
-<tr><th colspan="5" class="title">${escapeHtml(CONTEST_TITLE)}${edition ? `<div class="edition">${escapeHtml(edition)}</div>` : ""}<div class="org">${escapeHtml(ORGANIZER)}</div></th></tr>
-<tr><th colspan="5" class="room">${escapeHtml(title)}</th></tr>
-<tr class="head">${COLUMNS.map((c) => `<th>${c}</th>`).join("")}</tr>
+<tr><th colspan="${cols.length}" class="title">${escapeHtml(CONTEST_TITLE)}${edition ? `<div class="edition">${escapeHtml(edition)}</div>` : ""}<div class="org">${escapeHtml(ORGANIZER)}</div></th></tr>
+<tr><th colspan="${cols.length}" class="room">${escapeHtml(title)}${
+        label ? `<span class="label">${escapeHtml(label)}</span>` : ""
+      }</th></tr>
+<tr class="head">${cols.map((c) => `<th>${c}</th>`).join("")}</tr>
 </thead>
 <tbody>${rows}</tbody>
 </table>
@@ -278,7 +307,11 @@ tr.absent td.name { text-decoration: line-through; }
 .tag { display: inline-block; font-size: 0.75em; font-weight: bold; padding: 0 5px; border-radius: 4px; margin-left: 4px; text-decoration: none; }
 .tag.abs { border: 1px solid #9ca3af; color: #6b7280; }
 .tag.walk { border: 1px solid #047857; color: #047857; }
-td:first-child { width: 7%; } td.name { width: 26%; } td:nth-child(3) { width: 8%; } td:nth-child(4) { width: 35%; }
+table:not(.withcode) td:first-child { width: 7%; } table:not(.withcode) td.name { width: 26%; } table:not(.withcode) td:nth-child(3) { width: 8%; } table:not(.withcode) td:nth-child(4) { width: 35%; }
+table.withcode td:first-child { width: 6%; } table.withcode td.cod { width: 12%; } table.withcode td.name { width: 25%; } table.withcode td:nth-child(4) { width: 8%; } table.withcode td:nth-child(5) { width: 29%; }
+td.cod { font-family: Consolas, "Courier New", monospace; font-weight: bold; letter-spacing: .5px; background: #fff4cc; white-space: nowrap; }
+tbody tr:nth-child(even) td.cod { background: #ffeaa0; }
+th.room .label { display: inline-block; margin-left: 10px; vertical-align: middle; font-size: .6em; letter-spacing: .5px; background: #fde68a; color: #1f3864; border-radius: 999px; padding: 2px 10px; }
 tr { break-inside: avoid; page-break-inside: avoid; }
 .total { font-size: calc(10pt * var(--k)); margin: 6px 2px 0; }
 .toolbar { position: sticky; top: 0; z-index: 1; background: #2c3e50; color: #fff; padding: 10px; text-align: center; font-family: Arial, sans-serif; }
@@ -304,8 +337,8 @@ ${pages}
 </body></html>`;
 };
 
-export const printRoomsPdf = (groups, header, fileLabel = "Repartizare_pe_Sali") =>
-  openPrintWindow(buildRoomsHtml(groups, header), fileLabel);
+export const printRoomsPdf = (groups, header, fileLabel = "Repartizare_pe_Sali", opts = {}) =>
+  openPrintWindow(buildRoomsHtml(groups, header, opts), fileLabel);
 
 // ====== ANONIMIZARE: coduri MMVS_01, MMVS_02 ... ======
 export const CODE_PREFIX = "MMVS";

@@ -303,6 +303,34 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
         );
     };
 
+    // ====== LISTE CU CODURI (pentru comisie) ======
+    // mode "toti": toți elevii, fără nicio marcare (absenții apar ca prezenți)
+    // mode "prezenti": absenții (bifați la Notare) sunt scoși din liste
+    const codeListGroups = (mode) => {
+        const list = (allocationResult || [])
+            .filter((st) => mode !== "prezenti" || !isAbsent(st))
+            .map((st) => ({ ...st, absent: false, walkIn: false, inLocul: null }));
+        return groupByRoom(list, rooms);
+    };
+    const codeListOpts = (mode) =>
+        mode === "prezenti"
+            ? { withCode: true, label: "LISTĂ CU CODURI · FĂRĂ ABSENȚI", fileBase: "Lista_coduri_fara_absenti" }
+            : { withCode: true, label: "LISTĂ CU CODURI", fileBase: "Lista_coduri" };
+    const handleCodeList = (mode, kind) => {
+        const groups = codeListGroups(mode);
+        if (groups.length === 0) {
+            showMessage("warning", "Nu există elevi pentru listă!");
+            return;
+        }
+        const opts = codeListOpts(mode);
+        if (kind === "excel") {
+            exportRoomsExcel(groups, header, null, opts);
+            showMessage("success", "✅ Lista cu coduri a fost descărcată!");
+        } else {
+            printRoomsPdf(groups, header, opts.fileBase, opts);
+        }
+    };
+
     // ====== ELEVI NOI: ceilalți rămân în sala lor, noii merg în ultima sală ======
     const studentsWithCode = students.filter((s) => s.cod).length;
     // elevii care nu apar în repartizarea afișată (înscriși după ea)
@@ -1511,6 +1539,42 @@ th, td { border: 1px solid #000; padding: 5px 6px; text-align: center; } th { ba
                                 <span className={styles.attendanceArrow}>→</span>
                             </button>
                         </div>
+                        {hasCodes && (
+                            <div className={styles.codeListCard}>
+                                <div className={styles.codeListHead}>
+                                    <span className={styles.codeListIcon}>🔐</span>
+                                    <div>
+                                        <h3>Liste pe săli cu coduri</h3>
+                                        <p>Pentru comisie · cu antetul concursului · coloana „Cod” evidențiată</p>
+                                    </div>
+                                </div>
+                                <div className={styles.codeListGrid}>
+                                    <div className={styles.codeListOption}>
+                                        <div className={styles.codeListTitle}>
+                                            <b>Toți elevii</b>
+                                            <span>{allocationResult.length} elevi · fără marcaje</span>
+                                        </div>
+                                        <div className={styles.codeListBtns}>
+                                            <button onClick={() => handleCodeList("toti", "pdf")}>📄 PDF</button>
+                                            <button onClick={() => handleCodeList("toti", "excel")}>📥 Excel</button>
+                                        </div>
+                                    </div>
+                                    <div className={`${styles.codeListOption} ${styles.codeListPresent}`}>
+                                        <div className={styles.codeListTitle}>
+                                            <b>✅ Fără absenți</b>
+                                            <span>
+                                                {allocationResult.filter((st) => !isAbsent(st)).length} elevi prezenți
+                                                {absentIds.size > 0 ? ` · ${allocationResult.filter(isAbsent).length} absenți scoși` : " · niciun absent bifat"}
+                                            </span>
+                                        </div>
+                                        <div className={styles.codeListBtns}>
+                                            <button onClick={() => handleCodeList("prezenti", "pdf")}>📄 PDF</button>
+                                            <button onClick={() => handleCodeList("prezenti", "excel")}>📥 Excel</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {showAttendance && <AttendanceView onClose={() => setShowAttendance(false)} />}
                         {showBorderouri && <BorderouriView onClose={() => setShowBorderouri(false)} />}
 
