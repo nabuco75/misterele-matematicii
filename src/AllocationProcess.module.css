@@ -1059,3 +1059,13 @@
 :global(.aurora-stage) .retiredNote {
   color: rgba(226, 232, 255, 0.8);
 }
+
+.slipSearch {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 1.05rem;
+  border: 2px solid #8b5cf6;
+  border-radius: 10px;
+  margin: 4px 0 10px;
+}
