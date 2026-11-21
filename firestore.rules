@@ -20,7 +20,8 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // inscrierile sunt deschise (butonul din Panoul admin → config/appStatus.isActive)
+    // inscrierile sunt deschise: config/appStatus.isActive == true (boolean), setat manual
+    // din consola Firebase → Firestore → Data → config → appStatus
     function inscrieriDeschise() {
       let st = /databases/$(database)/documents/config/appStatus;
       return exists(st) && get(st).data.get('isActive', false) == true;
