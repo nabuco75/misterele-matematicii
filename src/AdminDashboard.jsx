@@ -21,7 +21,13 @@ import AllocationProcess from "./AllocationProcess.jsx";
 import Grading from "./Grading.jsx";
 import ClassForm from "./ClassForm.jsx";
 import { applyRemovals, applyRenames } from "./studentSync";
-import { cleanTeacherName, teacherKey, validateTeacher } from "./teachers";
+import {
+  cleanTeacherName,
+  plainText,
+  teacherKey,
+  validateStudentName,
+  validateTeacher,
+} from "./teachers";
 import { displayName } from "./nameFormat";
 import TeacherSearch from "./TeacherSearch.jsx";
 import AttendanceView from "./AttendanceView.jsx";
@@ -253,15 +259,35 @@ function AdminDashboard() {
             where("schoolId", "==", selectedSchoolId)
           );
           const qSnap = await getDocs(qReg);
+          // elevii școlii, ca să le eliberăm locurile din săli și să le retragem codurile
+          const removed = [];
+          qSnap.docs.forEach((regDoc) => {
+            const arr = Array.isArray(regDoc.data().students) ? regDoc.data().students : [];
+            arr.forEach((st) => {
+              const nume = typeof st === "string" ? st : st?.nume || "";
+              if (nume) removed.push({ regId: regDoc.id, nume });
+            });
+          });
           for (const regDoc of qSnap.docs) {
             await deleteDoc(regDoc.ref);
           }
           await deleteDoc(doc(db, "schools", selectedSchoolId));
+          let syncNote = "";
+          try {
+            const r = await applyRemovals(removed);
+            if (r.seats || r.codes) {
+              syncNote = ` Locuri eliberate în săli: ${r.seats}${r.codes ? `, coduri retrase: ${r.codes}` : ""}.`;
+            }
+          } catch (syncErr) {
+            console.error("Eroare la eliberarea locurilor:", syncErr);
+            syncNote =
+              " ⚠️ Locurile din săli/codurile elevilor nu s-au putut elibera — verificați „Nume corectate sau elevi scoși” în pagina Repartizare.";
+          }
           setSelectedSchoolId("");
           setShowStudentEditor(false);
           setShowAdminEnroll(false);
           setStudents([]);
-          showSuccessMessage("Școala a fost ștearsă cu succes!");
+          showSuccessMessage(`Școala a fost ștearsă cu succes!${syncNote}`);
 
           // Actualizare date
           fetchSchools();
@@ -973,64 +999,114 @@ function AdminDashboard() {
   const handleSaveStudentChanges = () => {
     if (!hasUnsavedChanges) return;
 
+    // numele curățate (fără spații în plus) și doar cele schimbate efectiv
+    const cleaned = students.map((s) => ({ ...s, nume: cleanTeacherName(s.nume) }));
+    const changed = cleaned.filter((st) => {
+      const before = originalStudents.find((o) => o.id === st.id);
+      return before && before.nume !== st.nume;
+    });
+    if (changed.length === 0) {
+      setStudents(cleaned);
+      setHasUnsavedChanges(false);
+      showStudentEditorMessage("Nu ați modificat niciun nume.", "error");
+      return;
+    }
+    // aceleași reguli ca la înscriere și la Căutare
+    for (const st of changed) {
+      const err = validateStudentName(st.nume);
+      if (err) {
+        const before = originalStudents.find((o) => o.id === st.id);
+        showStudentEditorMessage(`⚠️ „${st.nume || before?.nume}”: ${err}`, "error");
+        return;
+      }
+    }
+    // același nume de două ori în aceeași înscriere
+    const changedRegs = new Set(changed.map((st) => st.id.split("-")[0]));
+    for (const regId of changedRegs) {
+      const seen = new Set();
+      for (const st of cleaned.filter((s) => s.id.startsWith(`${regId}-`))) {
+        const k = plainText(st.nume);
+        if (seen.has(k)) {
+          showStudentEditorMessage(
+            `⚠️ „${st.nume}” apare de două ori în aceeași înscriere (clasa ${st.class}).`,
+            "error"
+          );
+          return;
+        }
+        seen.add(k);
+      }
+    }
+
     setConfirmModal({
       isOpen: true,
       title: "Confirmare salvare modificări",
-      message:
-        "Sigur doriți să salvați toate modificările efectuate asupra elevilor?",
+      message: `Sigur salvați ${changed.length} ${
+        changed.length === 1 ? "nume corectat" : "nume corectate"
+      }?`,
       onConfirm: async () => {
         try {
           setIsSaving(true);
 
           const changesByReg = {};
-          students.forEach((student) => {
-            const [regId, idxStr] = student.id.split("-");
-            if (!changesByReg[regId]) {
-              changesByReg[regId] = [];
-            }
-            changesByReg[regId].push({
+          changed.forEach((st) => {
+            const [regId, idxStr] = st.id.split("-");
+            (changesByReg[regId] ||= []).push({
               index: parseInt(idxStr, 10),
-              nume: student.nume,
+              nume: st.nume,
             });
           });
 
-          for (const [regId, changes] of Object.entries(
-            changesByReg
-          )) {
+          const savedRegs = new Set();
+          const staleRegs = new Set();
+          for (const [regId, changes] of Object.entries(changesByReg)) {
             const regRef = doc(db, "registration", regId);
+            // lista așa cum era la deschiderea editorului
+            const expected = originalStudents
+              .filter((o) => o.id.startsWith(`${regId}-`))
+              .sort((a, b) => parseInt(a.id.split("-")[1], 10) - parseInt(b.id.split("-")[1], 10))
+              .map((o) => o.nume);
 
-            await runTransaction(db, async (tx) => {
-              const snap = await tx.get(regRef);
-              if (!snap.exists()) return;
+            try {
+              await runTransaction(db, async (tx) => {
+                const snap = await tx.get(regRef);
+                if (!snap.exists()) throw new Error("STALE_STUDENT_LIST");
 
-              const data = snap.data();
-              const arr = Array.isArray(data.students)
-                ? [...data.students]
-                : [];
+                const arr = Array.isArray(snap.data().students)
+                  ? [...snap.data().students]
+                  : [];
+                const names = arr.map((s) => (typeof s === "string" ? s : s?.nume || ""));
+                // siguranță: scriem pe poziții doar dacă lista din baza de date e cea afișată
+                if (
+                  names.length !== expected.length ||
+                  names.some((n, i) => n !== expected[i])
+                ) {
+                  throw new Error("STALE_STUDENT_LIST");
+                }
 
-              changes.forEach(({ index, nume }) => {
-                if (index >= 0 && index < arr.length) {
+                changes.forEach(({ index, nume }) => {
                   const prev = arr[index];
                   arr[index] =
-                    typeof prev === "object"
-                      ? { ...prev, nume }
-                      : nume;
-                }
-              });
+                    typeof prev === "object" && prev ? { ...prev, nume } : nume;
+                });
 
-              tx.update(regRef, { students: arr });
-            });
+                tx.update(regRef, { students: arr });
+              });
+              savedRegs.add(regId);
+            } catch (txErr) {
+              if (txErr?.message !== "STALE_STUDENT_LIST") throw txErr;
+              staleRegs.add(regId);
+            }
           }
+          if (savedRegs.size === 0) throw new Error("STALE_STUDENT_LIST");
 
           // numele corectate: elevul își păstrează sala, codul și notele
-          const renames = students
-            .map((st) => {
-              const before = originalStudents.find((o) => o.id === st.id);
-              return before && before.nume !== st.nume
-                ? { regId: st.id.split("-")[0], oldName: before.nume, newName: st.nume }
-                : null;
-            })
-            .filter(Boolean);
+          const renames = changed
+            .filter((st) => savedRegs.has(st.id.split("-")[0]))
+            .map((st) => ({
+              regId: st.id.split("-")[0],
+              oldName: originalStudents.find((o) => o.id === st.id).nume,
+              newName: st.nume,
+            }));
           let syncNote = "";
           if (renames.length > 0) {
             try {
@@ -1048,16 +1124,40 @@ function AdminDashboard() {
             }
           }
 
-          setOriginalStudents(JSON.parse(JSON.stringify(students)));
-          setHasUnsavedChanges(false);
-          showStudentEditorMessage(
-            `✅ Modificările au fost salvate cu succes!${syncNote}`,
-            "success"
-          );
+          if (staleRegs.size === 0) {
+            setStudents(cleaned);
+            setOriginalStudents(JSON.parse(JSON.stringify(cleaned)));
+            setHasUnsavedChanges(false);
+            showStudentEditorMessage(
+              `✅ Modificările au fost salvate cu succes!${syncNote}`,
+              "success"
+            );
+          } else {
+            // înscrierile salvate devin „originale”; cele schimbate între timp rămân nesalvate
+            const isSaved = (id) => savedRegs.has(id.split("-")[0]);
+            setOriginalStudents((prev) =>
+              prev.map((o) => (isSaved(o.id) ? cleaned.find((c) => c.id === o.id) || o : o))
+            );
+            setStudents((prev) =>
+              prev.map((s) => (isSaved(s.id) ? cleaned.find((c) => c.id === s.id) || s : s))
+            );
+            const staleClasses = [...staleRegs]
+              .map((id) => schoolRegs.find((r) => r.id === id)?.class)
+              .filter(Boolean)
+              .join(", ");
+            showStudentEditorMessage(
+              `⚠️ Salvat doar parțial.${syncNote} Lista de elevi s-a modificat între timp la ${
+                staleClasses ? `clasa ${staleClasses}` : "o înscriere"
+              } — acolo nu s-a salvat nimic. Închideți și redeschideți editorul, apoi reîncercați.`,
+              "error"
+            );
+          }
         } catch (err) {
           console.error("Eroare la salvarea modificărilor:", err);
           showStudentEditorMessage(
-            "❌ Eroare la salvarea modificărilor!",
+            err?.message === "STALE_STUDENT_LIST"
+              ? "⚠️ Lista de elevi s-a modificat între timp (altcineva a schimbat-o). Nimic nu s-a salvat pentru înscrierea respectivă. Închideți și redeschideți editorul, apoi reîncercați."
+              : "❌ Eroare la salvarea modificărilor!",
             "error"
           );
         } finally {
