@@ -1,0 +1,125 @@
+rules_version = '2';
+
+// Reguli de securitate Firestore — Misterele Matematicii
+//
+// Regula veche era `allow read, write: if true` pentru tot, adica oricine de pe internet
+// putea citi, modifica si STERGE toata baza de date. Fisierul asta o inlocuieste.
+//
+// Principiul: fiecare colectie primeste exact dreptul de care are nevoie aplicatia, nimic
+// in plus. Ce nu e scris aici explicit e interzis (vezi regula finala de respingere).
+//
+// Cine e "admin": orice utilizator autentificat. Aplicatia nu are inca roluri - exista o
+// colectie `users` in Firestore, dar codul nu o foloseste. Pana cand apare un rol real,
+// protectia ramane "ai cont => ai acces", de aceea inregistrarea de conturi noi trebuie
+// sa fie DEZACTIVATA in Authentication → Settings → User actions.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function esteAutentificat() {
+      return request.auth != null;
+    }
+
+    // inscrierile sunt deschise (butonul din Panoul admin → config/appStatus.isActive)
+    function inscrieriDeschise() {
+      let st = /databases/$(database)/documents/config/appStatus;
+      return exists(st) && get(st).data.get('isActive', false) == true;
+    }
+
+    // o inscriere noua trimisa din formularul public (ClassForm.jsx) are exact forma asta
+    function inscriereValida() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['class', 'school', 'schoolId', 'students',
+                               'profesorIndrumatorEmail', 'profesorEmail',
+                               'telefon', 'createdAt'])
+        && d.keys().hasAll(['class', 'schoolId', 'students'])
+        && d.class is string
+        && d.schoolId is string
+        && exists(/databases/$(database)/documents/schools/$(d.schoolId))
+        && d.students is list
+        && d.students.size() >= 1
+        && d.students.size() <= 5;
+    }
+
+    // ── schools ──────────────────────────────────────────────────────────────
+    // Publicul trebuie sa poata citi lista ca sa aleaga judet / localitate / scoala
+    // (SchoolSelection.jsx). Scrierea e doar pentru admin (CRUD si import din Excel).
+    match /schools/{schoolId} {
+      allow read: if true;
+      allow write: if esteAutentificat();
+    }
+
+    // ── config ───────────────────────────────────────────────────────────────
+    // useAppStatus.js citeste config/appStatus ca sa stie daca inscrierile sunt deschise:
+    // doar ACEST document e public. Restul (config/allocation = repartizarea, cu numele
+    // elevilor si salile lor, elevii veniti pe loc etc.) e doar pentru admin.
+    match /config/appStatus {
+      allow read: if true;
+      allow write: if esteAutentificat();
+    }
+    match /config/{docId} {
+      allow read, write: if esteAutentificat();
+    }
+
+    // ── registration ─────────────────────────────────────────────────────────
+    // Aici sunt datele personale ale elevilor.
+    //
+    // CREATE public: formularul de inscriere trebuie sa poata adauga, fara cont - dar
+    //   doar cat timp inscrierile sunt deschise si doar o inscriere cu forma corecta
+    //   (1-5 elevi, o scoala care exista). Adminul (autentificat) poate oricand.
+    //
+    // READ public: NECESAR cat timp inscrierile sunt deschise. ClassForm.jsx numara
+    //   inscrierile existente (`where schoolId ==`, `where class ==`) ca sa aplice
+    //   limita de 5 elevi/clasa, iar numaratoarea se face in browser.
+    //   ATENTIE: in perioada de inscriere, numele elevilor si emailurile profesorilor
+    //   raman citibile de oricine stie sa interogheze Firestore. Se rezolva doar mutand
+    //   numaratoarea pe server (Cloud Function) sau tinand un contor separat.
+    //   Cand inscrierile sunt inchise, citirea e doar pentru admin.
+    //
+    // UPDATE / DELETE: doar admin. Asta opreste partea catastrofala - pana acum
+    //   oricine putea sterge toate inscrierile.
+    match /registration/{regId} {
+      allow read:   if esteAutentificat() || inscrieriDeschise();
+      allow create: if esteAutentificat() || (inscrieriDeschise() && inscriereValida());
+      allow update, delete: if esteAutentificat();
+    }
+
+    // ── rooms ────────────────────────────────────────────────────────────────
+    // Salile se folosesc doar in zona de administrare (RoomAllocation,
+    // AllocationProcess), deci nimic public.
+    match /rooms/{roomId} {
+      allow read, write: if esteAutentificat();
+    }
+
+    // ── codes ────────────────────────────────────────────────────────────────
+    // Codurile de anonimizare (MMVS_01 ...), legate de numele elevilor. Doar admin.
+    match /codes/{codeId} {
+      allow read, write: if esteAutentificat();
+    }
+
+    // ── grades ───────────────────────────────────────────────────────────────
+    // Notele pe coduri (s1, s2, s3, absent, mentiune). Doar admin.
+    match /grades/{codeId} {
+      allow read, write: if esteAutentificat();
+    }
+
+    // ── users ────────────────────────────────────────────────────────────────
+    // Colectia exista in Firestore dar codul nu o atinge. O inchidem complet; daca
+    // devine suportul pentru roluri, regula se rescrie atunci.
+    match /users/{userId} {
+      allow read, write: if esteAutentificat();
+    }
+
+    // ── quotas ───────────────────────────────────────────────────────────────
+    // La fel: exista in baza de date, nefolosita in cod. Inchisa.
+    match /quotas/{quotaId} {
+      allow read, write: if esteAutentificat();
+    }
+
+    // ── orice altceva ────────────────────────────────────────────────────────
+    // Respingere implicita. O colectie noua nu devine publica din greseala.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
