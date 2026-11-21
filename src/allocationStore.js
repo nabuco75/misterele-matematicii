@@ -36,6 +36,8 @@ export const loadAllocation = async () => {
     last: lastAllocation(data.history || []),
     history: data.history || [],
     lastNewCodes: data.lastNewCodes || null,
+    // elevii veniți pe loc, așezați în locul unui absent (pentru procesul-verbal)
+    walkIns: data.walkIns || [],
     // toate tranșele de coduri date (prima anonimizare + fiecare grup de elevi noi);
     // datele vechi aveau doar ultima tranșă: restul codurilor devin tranșa inițială (codes: null =
     // „toate codurile care nu sunt în altă tranșă”), considerată tipărită la anonimizare
@@ -45,6 +47,13 @@ export const loadAllocation = async () => {
         ? [{ at: "initial", codes: null, printedAt: "initial" }, data.lastNewCodes]
         : []),
   };
+};
+
+// un elev venit pe loc a fost așezat (eventual în locul unui absent): se păstrează pentru procesul-verbal
+export const saveWalkIn = async (entry, previous = []) => {
+  const walkIns = [...previous, entry];
+  await setDoc(allocationDoc(), { walkIns }, { merge: true });
+  return walkIns;
 };
 
 // o tranșă nouă de coduri: devine „ultimele coduri” și se adaugă în lista tranșelor

@@ -79,6 +79,19 @@ export const groupByRoom = (allocation, rooms) => {
     }));
 };
 
+// starea elevului pe lista de ușă: absent (bifat la Notare) / venit pe loc (în locul unui absent)
+const statusSuffix = (s) => (s.absent ? " (ABSENT)" : s.walkIn ? " (venit pe loc)" : "");
+const statusTag = (s) =>
+  s.absent ? ` <span class="tag abs">ABSENT</span>` : s.walkIn ? ` <span class="tag walk">venit pe loc</span>` : "";
+const statusSummary = (students) => {
+  const a = students.filter((s) => s.absent).length;
+  const w = students.filter((s) => s.walkIn).length;
+  const parts = [];
+  if (a) parts.push(`${a} ${a === 1 ? "absent" : "absenți"}`);
+  if (w) parts.push(`${w} ${w === 1 ? "venit pe loc" : "veniți pe loc"}`);
+  return parts.length ? ` · ${parts.join(", ")}` : "";
+};
+
 const classSummary = (students) => {
   const counts = {};
   students.forEach((s) => {
@@ -162,7 +175,7 @@ export const exportRoomsExcel = (rawGroups, header, roomName = null) => {
       [editionLine(header), "", "", "", ""],
       [title, "", "", "", ""],
       COLUMNS,
-      ...students.map((s, i) => [i + 1, s.nume, s.clasa, s.scoala, s.profesor]),
+      ...students.map((s, i) => [i + 1, s.nume + statusSuffix(s), s.clasa, s.scoala, s.profesor]),
     ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
 
@@ -191,7 +204,7 @@ export const exportRoomsExcel = (rawGroups, header, roomName = null) => {
           size: 12,
           align: c === 1 ? "left" : "center",
           bold: c === 2,
-          color: c === 2 ? accent.text : "000000",
+          color: c === 2 ? accent.text : c === 1 && s.absent ? "9CA3AF" : c === 1 && s.walkIn ? "047857" : "000000",
           leftBorder: c === 0 ? { style: "thick", color: { rgb: accent.strip } } : null,
         });
       }
@@ -221,8 +234,8 @@ const buildRoomsHtml = (rawGroups, header) => {
         .map(
           (s, i) => {
             const accent = accentOf(s.clasa);
-            return `<tr>
-<td style="border-left:6px solid #${accent.strip}">${i + 1}</td><td class="name">${escapeHtml(s.nume)}</td><td class="cls" style="color:#${accent.text}">${escapeHtml(s.clasa)}</td>
+            return `<tr${s.absent ? ' class="absent"' : ""}>
+<td style="border-left:6px solid #${accent.strip}">${i + 1}</td><td class="name">${escapeHtml(s.nume)}${statusTag(s)}</td><td class="cls" style="color:#${accent.text}">${escapeHtml(s.clasa)}</td>
 <td>${escapeHtml(s.scoala)}</td><td>${escapeHtml(s.profesor)}</td></tr>`;
           }
         )
@@ -236,7 +249,7 @@ const buildRoomsHtml = (rawGroups, header) => {
 </thead>
 <tbody>${rows}</tbody>
 </table>
-<p class="total">Total: ${students.length} elevi (${escapeHtml(classSummary(students))})</p>
+<p class="total">Total: ${students.length} elevi (${escapeHtml(classSummary(students))})${escapeHtml(statusSummary(students))}</p>
 </section>`;
     })
     .join("");
@@ -260,6 +273,11 @@ tr.head th { background: #${HEADER_FILL}; font-size: calc(10pt * var(--k)); }
 tbody tr:nth-child(even) { background: #${ZEBRA_FILL}; }
 td.name { text-align: left; }
 td.cls { font-weight: bold; }
+tr.absent td { color: #9ca3af; }
+tr.absent td.name { text-decoration: line-through; }
+.tag { display: inline-block; font-size: 0.75em; font-weight: bold; padding: 0 5px; border-radius: 4px; margin-left: 4px; text-decoration: none; }
+.tag.abs { border: 1px solid #9ca3af; color: #6b7280; }
+.tag.walk { border: 1px solid #047857; color: #047857; }
 td:first-child { width: 7%; } td.name { width: 26%; } td:nth-child(3) { width: 8%; } td:nth-child(4) { width: 35%; }
 tr { break-inside: avoid; page-break-inside: avoid; }
 .total { font-size: calc(10pt * var(--k)); margin: 6px 2px 0; }

@@ -22,6 +22,7 @@ import {
     markBatchPrinted,
     saveAllocation,
     saveLastNewCodes,
+    saveWalkIn,
 } from "./allocationStore";
 import {
     applyRemovals,
@@ -39,6 +40,10 @@ import {
     assignNewCodes,
     exportCodesExcel,
     printCodesPdf,
+    openPrintWindow,
+    escapeHtml,
+    editionLine,
+    CONTEST_TITLE,
     CODE_PREFIX,
     CLASS_COLORS,
 } from "./roomLists";
@@ -59,6 +64,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
     // absenții bifați la Notare (id-urile notelor: cod sau elev_înscriere_nume)
     const [absentIds, setAbsentIds] = useState(new Set());
     const [placeChoice, setPlaceChoice] = useState({});
+    const [walkInLog, setWalkInLog] = useState([]);
     const [roomSummaries, setRoomSummaries] = useState([]);
     const [message, setMessage] = useState(null);
     const [lastCodeN, setLastCodeN] = useState(0);
@@ -148,6 +154,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                     }
                 }
                 setSaved(savedAlloc);
+                setWalkInLog(savedAlloc?.walkIns || []);
             } catch (err) {
                 console.error("Eroare la citirea repartizării salvate:", err);
                 showMessage("error", "❌ Repartizarea salvată nu a putut fi citită.");
@@ -255,12 +262,21 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
     };
 
     // ====== EXPORT LISTE PE SĂLI (Excel + PDF, cu antet) ======
+    // pe lista de ușă: absenții (bifați la Notare) și elevii veniți pe loc sunt marcați
+    const markedList = () => {
+        const walkInIds = new Set(walkInLog.map((w) => w.id));
+        return (allocationResult || []).map((s) => ({
+            ...s,
+            absent: isAbsent(s),
+            walkIn: walkInIds.has(s.id),
+        }));
+    };
     const handleExportExcel = (roomName) => {
         if (!allocationResult || allocationResult.length === 0) {
             showMessage("warning", "Nu există date de repartizare pentru export!");
             return;
         }
-        const groups = groupByRoom(allocationResult, rooms).filter(
+        const groups = groupByRoom(markedList(), rooms).filter(
             (g) => typeof roomName !== "string" || g.room.name === roomName
         );
         exportRoomsExcel(groups, header, typeof roomName === "string" ? roomName : null);
@@ -272,7 +288,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
             showMessage("warning", "Nu există date de repartizare pentru export!");
             return;
         }
-        const groups = groupByRoom(allocationResult, rooms).filter(
+        const groups = groupByRoom(markedList(), rooms).filter(
             (g) => !roomName || g.room.name === roomName
         );
         printRoomsPdf(
@@ -432,7 +448,36 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                 showMessage("error", "❌ Elevul nu a putut fi așezat (salvarea a eșuat). Încercați din nou.");
                 return;
             }
-            const intro = `✅ ${st.nume} a fost așezat în ${roomName}. Bilețelul: Tipărire › „Tranșe de coduri” (sus).`;
+            // în locul cui: întâi un absent din aceeași clasă, apoi orice absent din sală încă neînlocuit
+            const usedCodes = new Set(walkInLog.map((w) => w.inLocul?.cod).filter(Boolean));
+            const roomAbsents = (allocationResult || []).filter(
+                (x) => x.sala === roomName && x.cod && isAbsent(x) && !usedCodes.has(x.cod)
+            );
+            const replaced =
+                roomAbsents.find((x) => x.clasa === st.clasa) || roomAbsents[0] || null;
+            try {
+                setWalkInLog(
+                    await saveWalkIn(
+                        {
+                            id: st.id,
+                            nume: st.nume,
+                            clasa: st.clasa,
+                            scoala: st.scoala,
+                            sala: roomName,
+                            inLocul: replaced
+                                ? { cod: replaced.cod, nume: replaced.nume, clasa: replaced.clasa }
+                                : null,
+                            at: new Date().toISOString(),
+                        },
+                        walkInLog
+                    )
+                );
+            } catch (err) {
+                console.error("Eroare la salvarea înlocuirii:", err);
+            }
+            const intro = `✅ ${st.nume} a fost așezat în ${roomName}${
+                replaced ? ` (în locul lui ${replaced.cod} ${replaced.nume}, absent)` : ""
+            }. Bilețelul: Tipărire › „Tranșe de coduri” (sus).`;
             if (studentsWithCode > 0) {
                 await handleGenerateCodes(result.data, { ask: false, intro, locked: true });
             } else {
@@ -819,6 +864,89 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
         </div>
     );
 
+    // ====== ÎNLOCUIRI (pentru procesul-verbal) ======
+    const codeOf = new Map((allocationResult || []).map((s) => [s.id, s.cod]));
+    const walkInRows = walkInLog
+        .filter((w) => codeOf.has(w.id))
+        .map((w) => ({ ...w, cod: codeOf.get(w.id) || "" }));
+    const fmtTime = (iso) => {
+        try {
+            return new Date(iso).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
+        } catch {
+            return "";
+        }
+    };
+    const handlePrintWalkIns = () => {
+        const edition = editionLine(header);
+        const rowsHtml = walkInRows
+            .map(
+                (w, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(w.sala)}</td><td><b>${escapeHtml(w.cod)}</b></td><td class="l">${escapeHtml(
+                    w.nume
+                )}</td><td>${escapeHtml(w.clasa)}</td><td class="l">${escapeHtml(w.scoala || "")}</td><td>${
+                    w.inLocul ? `<b>${escapeHtml(w.inLocul.cod)}</b> ${escapeHtml(w.inLocul.nume)}` : "loc liber"
+                }</td><td>${escapeHtml(fmtTime(w.at))}</td></tr>`
+            )
+            .join("");
+        openPrintWindow(
+            `<!doctype html><html lang="ro"><head><meta charset="utf-8"><title>Elevi veniți pe loc</title><style>
+@page { size: A4 landscape; margin: 12mm; }
+body { font-family: Calibri, Arial, sans-serif; }
+h1 { font-size: 15pt; text-align: center; margin: 0; } h2 { font-size: 12pt; text-align: center; margin: 4px 0 14px; font-weight: normal; }
+table { width: 100%; border-collapse: collapse; font-size: 11pt; }
+th, td { border: 1px solid #000; padding: 5px 6px; text-align: center; } th { background: #e5e7eb; } td.l { text-align: left; }
+.sign { margin-top: 40px; display: flex; justify-content: space-between; font-size: 11pt; }
+</style></head><body>
+<h1>${escapeHtml(CONTEST_TITLE)}</h1>
+<h2>${escapeHtml(edition)} — Elevi veniți pe loc, așezați în locul elevilor absenți</h2>
+<table><thead><tr><th>Nr.</th><th>Sala</th><th>Cod nou</th><th>Elev venit pe loc</th><th>Clasa</th><th>Școala</th><th>În locul elevului absent</th><th>Ora</th></tr></thead>
+<tbody>${rowsHtml}</tbody></table>
+<div class="sign"><span>Președinte comisie: ____________________</span><span>Secretar: ____________________</span></div>
+</body></html>`,
+            "Elevi_veniti_pe_loc"
+        );
+    };
+    const walkInLogCard = walkInRows.length > 0 && (
+        <div className={styles.walkInCard}>
+            <h3>📋 Elevi veniți pe loc ({walkInRows.length}) — pentru procesul-verbal</h3>
+            <div className={styles.resultsTableWrapper}>
+                <table className={styles.reconcileTable}>
+                    <thead>
+                        <tr>
+                            <th>Sala</th>
+                            <th>Elev venit pe loc</th>
+                            <th>În locul elevului absent</th>
+                            <th>Ora</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {walkInRows.map((w) => (
+                            <tr key={w.id + w.at}>
+                                <td>{w.sala}</td>
+                                <td>
+                                    <span className={styles.reconcileCode}>{w.cod || "fără cod"}</span> <b>{w.nume}</b> ·{" "}
+                                    {w.clasa}
+                                </td>
+                                <td>
+                                    {w.inLocul ? (
+                                        <>
+                                            <span className={styles.reconcileCode}>{w.inLocul.cod}</span> {w.inLocul.nume}
+                                        </>
+                                    ) : (
+                                        "loc liber"
+                                    )}
+                                </td>
+                                <td>{fmtTime(w.at)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <button className={styles.batchButton} onClick={handlePrintWalkIns} style={{ marginTop: 10 }}>
+                🖨️ Tipărește lista (proces-verbal)
+            </button>
+        </div>
+    );
+
     // cardul cu bilețelele de retipărit (apare la Coduri și la Tipărire)
     const renamedCard = hasCodes && renamedWithCode.length > 0 && (
                             <div className={styles.batchCard}>
@@ -947,7 +1075,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                             newCount={newStudents}
                             renamedCount={pendingPairs}
                             ghostCount={diff ? diff.unpairedGhosts.length : 0}
-                            onPlaceNew={handleKeepAllocation}
+                            onPlaceNew={absentIds.size === 0 ? handleKeepAllocation : undefined}
                             onRegenerate={handleGenerateAllocation}
                         />
 
@@ -1008,6 +1136,8 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                         </div>
                     )}
 
+                    {walkInLogCard}
+
                     <div className={styles.actionButtonsContainer}>
                         {/* după prima repartizare, refacerea totală devine un buton discret (mută elevii în alte săli) */}
                         <button
@@ -1027,7 +1157,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                                 : "🎲 Generează Repartizare Inteligentă"}
                         </button>
 
-                        {(studentsWithCode > 0 || saved?.last) && newStudents > 0 && (
+                        {(studentsWithCode > 0 || saved?.last) && newStudents > 0 && absentIds.size === 0 && (
                             <button
                                 onClick={handleKeepAllocation}
                                 className={styles.newStudentsButton}
@@ -1418,6 +1548,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
 
                     <>
                         {renamedCard}
+                        {walkInLogCard}
 
                         {hasCodes && codeBatches.length > 0 && (
                             <div className={styles.batchCard}>
