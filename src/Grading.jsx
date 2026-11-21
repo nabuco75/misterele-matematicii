@@ -430,6 +430,15 @@ function Grading({ onDashboard, stageBar }) {
       subtitle: "Rezultate",
     },
     {
+      id: "avizierFaraAbsent",
+      icon: "🫥",
+      title: "Avizier – fără marcaj absent",
+      hint: "Ca avizierul cu coduri, dar absenții NU apar ca absenți (rândul lor rămâne fără note și fără sumă)",
+      columns: ["nr", "cod", "s1", "s2", "s3", "suma", "premiu"],
+      subtitle: "Rezultate",
+      hideAbsent: true,
+    },
+    {
       id: "rezultate",
       icon: "🧑‍🎓",
       title: "Rezultate",
@@ -458,7 +467,11 @@ function Grading({ onDashboard, stageBar }) {
 
   const doExport = (kind, id) => {
     const list = DOWNLOADS.find((d) => d.id === id);
-    const rowsOut = list.onlyAwarded ? visible.filter((r) => r.premiu) : visible;
+    const picked = list.onlyAwarded ? visible.filter((r) => r.premiu) : visible;
+    // absenții apar ca orice alt elev: fără „absent”, fără note și fără sumă
+    const rowsOut = list.hideAbsent
+      ? picked.map((r) => (r.absent ? { ...r, absent: false, s1: null, s2: null, s3: null, suma: null, premiu: "" } : r))
+      : picked;
     if (rowsOut.length === 0) {
       window.alert(list.onlyAwarded ? "Nu există încă elevi cu premiu în listă." : "Nu există elevi în listă.");
       return;
