@@ -1069,3 +1069,43 @@
   border-radius: 10px;
   margin: 4px 0 10px;
 }
+
+/* elevi veniți pe loc: alegerea sălii (locurile absenților) */
+.walkInCard {
+  background: #fff;
+  color: #1e293b;
+  border-left: 6px solid #10b981;
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin: 16px auto;
+  max-width: 1000px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.walkInCard h3 {
+  margin: 0 0 6px;
+  color: #065f46;
+}
+.walkInRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  border-top: 1px solid #e2e8f0;
+}
+.walkInName {
+  flex: 1 1 220px;
+}
+.walkInRow select {
+  flex: 2 1 340px;
+  max-width: 100%;
+}
+.linkButton {
+  background: none;
+  border: none;
+  color: #4f46e5;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}

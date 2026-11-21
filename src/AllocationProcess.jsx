@@ -31,6 +31,7 @@ import {
     diffWithAllocation,
 } from "./studentSync";
 import { AllocationLogCard, AllocationStatsView } from "./AllocationLog";
+import { GRADES_COLLECTION, nameGradeId } from "./grading";
 import {
     exportRoomsExcel,
     groupByRoom,
@@ -55,6 +56,9 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
     const [rooms, setRooms] = useState([]);
     const [allocationResult, setAllocationResult] = useState(null);
     const [slipSearch, setSlipSearch] = useState("");
+    // absenții bifați la Notare (id-urile notelor: cod sau elev_înscriere_nume)
+    const [absentIds, setAbsentIds] = useState(new Set());
+    const [placeChoice, setPlaceChoice] = useState({});
     const [roomSummaries, setRoomSummaries] = useState([]);
     const [message, setMessage] = useState(null);
     const [lastCodeN, setLastCodeN] = useState(0);
@@ -104,6 +108,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
             setRetiredCodes(data.retiredCodes || []);
             setReconcileChoice({});
             setStudents(data.students);
+            loadAbsents();
             const stats = CLASS_ORDER.reduce((acc, cls) => ({ ...acc, [cls]: 0 }), {});
             data.students.forEach((s) => {
                 if (stats[s.clasa] !== undefined) stats[s.clasa]++;
@@ -152,6 +157,15 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
             showMessage("error", "❌ Eroare la încărcarea datelor!");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadAbsents = async () => {
+        try {
+            const snap = await getDocs(collection(db, GRADES_COLLECTION));
+            setAbsentIds(new Set(snap.docs.filter((d) => d.data().absent).map((d) => d.id)));
+        } catch (err) {
+            console.error("Eroare la citirea absenților:", err);
         }
     };
 
@@ -336,6 +350,95 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
             await handleGenerateCodes(result.data, { ask: false, intro: placedMsg, locked: true });
         } else {
             showMessage(result.overflow ? "warning" : "success", placedMsg);
+        }
+    };
+
+    // ====== ELEV VENIT PE LOC: se așază în locul unui absent (sau pe un loc liber) ======
+    const isAbsent = (st) => (st.cod && absentIds.has(st.cod)) || absentIds.has(nameGradeId(st));
+    const roomAvailability = rooms
+        .map((room) => {
+            const inRoom = (allocationResult || []).filter((st) => st.sala === room.name);
+            const absents = inRoom.filter(isAbsent);
+            const seats = parseInt(room.seats || 0, 10) || 0;
+            return {
+                room,
+                seats,
+                count: inRoom.length,
+                absents,
+                free: Math.max(0, seats - inRoom.length),
+                available: seats - (inRoom.length - absents.length),
+            };
+        })
+        .filter((r) => r.available > 0);
+    const roomsFor = (st) =>
+        [...roomAvailability].sort(
+            (a, b) =>
+                b.absents.filter((x) => x.clasa === st.clasa).length -
+                    a.absents.filter((x) => x.clasa === st.clasa).length ||
+                b.absents.length - a.absents.length ||
+                b.available - a.available
+        );
+    const roomLabel = (r, st) => {
+        const same = r.absents.filter((x) => x.clasa === st.clasa).length;
+        const parts = [];
+        if (r.absents.length) {
+            const byClass = {};
+            r.absents.forEach((x) => (byClass[x.clasa] = (byClass[x.clasa] || 0) + 1));
+            parts.push(
+                `${r.absents.length} ${r.absents.length === 1 ? "absent" : "absenți"} (${Object.entries(byClass)
+                    .map(([c, n]) => `${n} cls. ${c}`)
+                    .join(", ")})`
+            );
+        }
+        if (r.free) parts.push(`${r.free} ${r.free === 1 ? "loc liber" : "locuri libere"}`);
+        return `${r.room.name}${r.room.floor ? ` (${r.room.floor})` : ""} — ${parts.join(" + ")} → ${r.available} disponibile${
+            same ? " ★ absent din aceeași clasă" : ""
+        }`;
+    };
+    const walkIns = diff ? diff.realNew : [];
+
+    const handlePlaceOne = async (st) => {
+        const options = roomsFor(st);
+        const roomName = placeChoice[st.id] || options[0]?.room.name;
+        if (!roomName || busyRef.current) return;
+        if (pendingPairs > 0) {
+            showMessage("warning", "⚠️ Confirmați întâi numele corectate (caseta de mai jos), apoi așezați elevul.", 9000);
+            return;
+        }
+        if (!window.confirm(`Așezați pe ${st.nume} (clasa ${st.clasa}) în ${roomName}?\nPrimește imediat cod nou.`)) return;
+        busyRef.current = true;
+        setPlacingNew(true);
+        try {
+            const assignments = new Map(saved?.assignments || []);
+            assignments.set(st.id, roomName);
+            const result = allocateKeepingCodes(students, rooms, { saved: assignments, placeNew: false });
+            setAllocationResult(result.data);
+            setRoomSummaries(result.roomSummaries);
+            try {
+                setSaved(
+                    await saveAllocation({
+                        data: result.data,
+                        roomSummaries: result.roomSummaries,
+                        rooms,
+                        type: "elevi-noi",
+                        added: 1,
+                        previous: saved,
+                    })
+                );
+            } catch (err) {
+                console.error("Eroare la salvarea repartizării:", err);
+                showMessage("error", "❌ Elevul nu a putut fi așezat (salvarea a eșuat). Încercați din nou.");
+                return;
+            }
+            const intro = `✅ ${st.nume} a fost așezat în ${roomName}. Bilețelul: Tipărire › „Tranșe de coduri” (sus).`;
+            if (studentsWithCode > 0) {
+                await handleGenerateCodes(result.data, { ask: false, intro, locked: true });
+            } else {
+                showMessage("success", intro, 12000);
+            }
+        } finally {
+            busyRef.current = false;
+            setPlacingNew(false);
         }
     };
 
@@ -845,6 +948,59 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                             onPlaceNew={handleKeepAllocation}
                             onRegenerate={handleGenerateAllocation}
                         />
+
+                    {allocationResult && walkIns.length > 0 && (
+                        <div className={styles.walkInCard}>
+                            <h3>🪑 Elevi noi — alegeți sala (locurile absenților sunt disponibile)</h3>
+                            <p className={styles.reconcileIntro}>
+                                Absenții se bifează la <b>Notare</b>. Locul unui absent devine disponibil; elevul nou
+                                primește <b>cod nou</b> (absentul își păstrează codul lui). ★ = în sală lipsește un elev
+                                din aceeași clasă.{" "}
+                                <button type="button" className={styles.linkButton} onClick={loadAbsents}>
+                                    🔄 Actualizează absenții
+                                </button>
+                            </p>
+                            {walkIns.map((st) => {
+                                const options = roomsFor(st);
+                                return (
+                                    <div key={st.id} className={styles.walkInRow}>
+                                        <div className={styles.walkInName}>
+                                            <b>{st.nume}</b> · clasa {st.clasa}
+                                            <div className={styles.batchWhen}>{st.scoala}</div>
+                                        </div>
+                                        {options.length === 0 ? (
+                                            <span className={styles.batchTodo}>
+                                                Niciun loc disponibil — bifați absenții la Notare sau folosiți butonul de mai jos.
+                                            </span>
+                                        ) : (
+                                            <>
+                                                <select
+                                                    className={styles.reconcileSelect}
+                                                    value={placeChoice[st.id] || options[0].room.name}
+                                                    onChange={(e) =>
+                                                        setPlaceChoice((prev) => ({ ...prev, [st.id]: e.target.value }))
+                                                    }
+                                                >
+                                                    {options.map((r) => (
+                                                        <option key={r.room.name} value={r.room.name}>
+                                                            {roomLabel(r, st)}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    className={styles.batchButton}
+                                                    onClick={() => handlePlaceOne(st)}
+                                                    disabled={placingNew || savingCodes}
+                                                >
+                                                    🪑 Așază aici
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
 
                     <div className={styles.actionButtonsContainer}>
                         {/* după prima repartizare, refacerea totală devine un buton discret (mută elevii în alte săli) */}
