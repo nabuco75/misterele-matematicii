@@ -151,6 +151,19 @@ function TeacherSearch({ onClose }) {
 
   const results = useMemo(() => searchTeachers(teachers, search, field), [search, field, teachers]);
 
+  // elevii găsiți direct după nume (fiecare cu butonul lui de editare)
+  const studentHits = useMemo(() => {
+    if (words.length === 0 || (field !== "all" && field !== "elev")) return [];
+    const out = [];
+    regs.forEach((r) =>
+      r.students.forEach((nume, idx) => {
+        const p = plainText(nume);
+        if (words.every((w) => p.includes(w))) out.push({ r, idx, nume });
+      })
+    );
+    return out.sort((a, b) => a.nume.localeCompare(b.nume, "ro", { sensitivity: "base" }));
+  }, [regs, words, field]);
+
   // în modul „Oriunde”: întâi profesorii al căror nume se potrivește, apoi (separat) celelalte potriviri
   const mainResults = results ? (field === "all" ? results.filter((t) => t.tier === 0) : results) : null;
   const otherResults = results && field === "all" ? results.filter((t) => t.tier > 0) : [];
@@ -160,6 +173,16 @@ function TeacherSearch({ onClose }) {
   // ====== ELEVII UNEI ÎNSCRIERI ======
   const openStudents = (r) => {
     setStudentsEdit({ regId: r.id, rows: r.students.map((nume) => ({ orig: nume, nume, removed: false })) });
+    setStudentsError("");
+    setMessage(null);
+  };
+
+  const openStudent = (r, idx) => {
+    setStudentsEdit({
+      regId: r.id,
+      single: idx,
+      rows: r.students.map((nume) => ({ orig: nume, nume, removed: false })),
+    });
     setStudentsError("");
     setMessage(null);
   };
@@ -429,7 +452,7 @@ function TeacherSearch({ onClose }) {
                     👥 Elevii ({r.students.length})
                   </button>
                 )}
-                {studentsEdit?.regId === r.id && (
+                {studentsEdit?.regId === r.id && studentsEdit.single === undefined && (
                   <div className={styles.studentsEditor}>
                     <div className={styles.studentsTitle}>
                       👥 Elevii înscriși — {r.scoala}, clasa {r.clasa}
@@ -564,8 +587,10 @@ function TeacherSearch({ onClose }) {
 
   if (loading) return <div className={styles.panel}>Se încarcă profesorii îndrumători...</div>;
 
-  const list = mainResults ? mainResults : showAll ? teachers : [];
+  const list = field === "elev" && results ? [] : mainResults ? mainResults : showAll ? teachers : [];
   const shown = list.slice(0, MAX_RESULTS);
+  // „Alte potriviri” se deschide singur doar dacă nu s-a găsit nimic altceva
+  const autoOpenOther = !!mainResults && mainResults.length === 0 && studentHits.length === 0;
 
   return (
     <div className={styles.panel}>
@@ -578,7 +603,7 @@ function TeacherSearch({ onClose }) {
       <p className={styles.intro}>
         Scrieți orice știți: o parte din numele profesorului, emailul, telefonul, școala, localitatea,
         județul sau <b>numele unui elev</b> înscris de el. Nu contează diacriticele sau literele mari.
-        Profesorul se corectează cu „Editează”, iar elevii fiecărei înscrieri cu „👥 Elevii”.
+        Elevii găsiți apar primii, fiecare cu „Editează elevul”. Profesorul se corectează cu „Editează”.
       </p>
 
       <input
@@ -629,14 +654,102 @@ function TeacherSearch({ onClose }) {
         </div>
       )}
 
-      {results && results.length === 0 && (
+      {studentHits.length > 0 && (
+        <div className={styles.studentResults}>
+          <p className={styles.count}>
+            🎓 <b>{studentHits.length}</b> {studentHits.length === 1 ? "elev găsit" : "elevi găsiți"}
+            {studentHits.length > MAX_RESULTS && ` — se afișează primii ${MAX_RESULTS}; scrieți mai mult din nume`}
+          </p>
+          {studentHits.slice(0, MAX_RESULTS).map(({ r, idx, nume }) => {
+            const editing = studentsEdit?.regId === r.id && studentsEdit.single === idx;
+            const row = editing ? studentsEdit.rows[idx] : null;
+            return (
+              <div key={r.id + "-" + idx} className={`${styles.studentCard} ${editing ? styles.cardEditing : ""}`}>
+                <div className={styles.studentCardHead}>
+                  <div>
+                    <div className={styles.studentCardName}>
+                      🎓 <Highlight text={nume} words={words} />
+                    </div>
+                    <div className={styles.studentCardMeta}>
+                      clasa <b>{r.clasa}</b> · {r.scoala}
+                      {r.localitate && `, ${r.localitate}`} · prof. {r.profesor || "—"}
+                    </div>
+                  </div>
+                  {!editing && (
+                    <button className={styles.editBtn} onClick={() => openStudent(r, idx)} disabled={saving}>
+                      ✏️ Editează elevul
+                    </button>
+                  )}
+                </div>
+                {editing && (
+                  <div className={styles.singleEditor}>
+                    <input
+                      type="text"
+                      value={row.nume}
+                      disabled={row.removed || saving}
+                      onChange={(e) => updateRow(idx, { nume: e.target.value })}
+                      placeholder="Nume și prenume elev"
+                      autoFocus
+                    />
+                    {row.removed && (
+                      <p className={styles.error}>
+                        🗑️ Elevul va fi scos din concurs (se eliberează locul din sală; codul nu se mai dă nimănui).
+                      </p>
+                    )}
+                    {!row.removed && row.nume !== row.orig && (
+                      <p className={styles.formHint}>
+                        era: „{row.orig}” — își păstrează sala, codul și notele.
+                      </p>
+                    )}
+                    {studentsError && <p className={styles.error}>⚠️ {studentsError}</p>}
+                    <div className={styles.actions}>
+                      <button className={styles.saveBtn} onClick={() => handleSaveStudents(r)} disabled={saving}>
+                        {saving ? "Se salvează..." : "💾 Salvează"}
+                      </button>
+                      {row.removed ? (
+                        <button className={styles.cancelBtn} onClick={() => updateRow(idx, { removed: false })}>
+                          ↩️ Nu-l mai scoate
+                        </button>
+                      ) : (
+                        <button
+                          className={styles.removeBtn}
+                          onClick={() => updateRow(idx, { removed: true, nume: row.orig })}
+                          disabled={saving}
+                        >
+                          🗑️ Scoate din concurs
+                        </button>
+                      )}
+                      <button
+                        className={styles.cancelBtn}
+                        onClick={() => {
+                          setStudentsEdit(null);
+                          setStudentsError("");
+                        }}
+                        disabled={saving}
+                      >
+                        Renunță
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {field === "elev" && results && studentHits.length === 0 && (
+        <p className={styles.empty}>Niciun elev cu numele „{search}”.</p>
+      )}
+
+      {field !== "elev" && results && results.length === 0 && studentHits.length === 0 && (
         <p className={styles.empty}>
           Nu s-a găsit nimic pentru „{search}”
           {field !== "all" && ` în „${FIELDS.find((f) => f.id === field).label}”`}.
         </p>
       )}
 
-      {results && results.length > 0 && (
+      {field !== "elev" && results && results.length > 0 && (mainResults.length > 0 || studentHits.length === 0) && (
         <p className={styles.count}>
           {mainResults.length > 0 ? (
             <>
@@ -664,18 +777,18 @@ function TeacherSearch({ onClose }) {
         </p>
       )}
 
-      {otherResults.length > 0 && (
+      {field !== "elev" && otherResults.length > 0 && (
         <div className={styles.otherBox}>
           <button
             className={styles.otherToggle}
             onClick={() => setShowOther((v) => !v)}
-            aria-expanded={showOther || mainResults.length === 0}
+            aria-expanded={showOther || autoOpenOther}
           >
-            {showOther || mainResults.length === 0 ? "▾" : "▸"} Alte potriviri: <b>{otherResults.length}</b>{" "}
+            {showOther || autoOpenOther ? "▾" : "▸"} Alte potriviri: <b>{otherResults.length}</b>{" "}
             {otherResults.length === 1 ? "profesor" : "profesori"} la care „{search}” apare în email, telefon,
             numele unui elev sau al școlii
           </button>
-          {(showOther || mainResults.length === 0) &&
+          {(showOther || autoOpenOther) &&
             otherResults.slice(0, MAX_RESULTS).map((t) => renderTeacher(t, t.hits))}
         </div>
       )}

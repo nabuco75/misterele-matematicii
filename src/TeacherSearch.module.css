@@ -474,3 +474,44 @@
     padding-right: 110px;
   }
 }
+
+/* elevii găsiți direct după nume */
+.studentResults {
+  margin: 8px 0 18px;
+}
+.studentCard {
+  border: 1px solid #c7d2fe;
+  border-left: 5px solid #6366f1;
+  border-radius: 12px;
+  background: #f8faff;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.studentCardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.studentCardName {
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: #1e1b4b;
+}
+.studentCardMeta {
+  color: #475569;
+  font-size: 0.92rem;
+  margin-top: 2px;
+}
+.singleEditor {
+  margin-top: 10px;
+}
+.singleEditor input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 1.05rem;
+  border: 2px solid #6366f1;
+  border-radius: 8px;
+}
