@@ -2,12 +2,9 @@
 // Se încarcă singură (elevi + repartizarea salvată + bifele „absent” de la Notare), deci se poate
 // deschide din orice pagină. Descărcare: raport PDF cu antetul concursului + Excel.
 import React, { useEffect, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "./firebase";
-import { allocateKeepingCodes, CLASS_ORDER, sortRooms } from "./allocation";
-import { loadAllocation } from "./allocationStore";
-import { loadContestStudents, loadHeader } from "./contestData";
-import { GRADES_COLLECTION, nameGradeId } from "./grading";
+import { CLASS_ORDER } from "./allocation";
+import { loadHeader } from "./contestData";
+import { loadPresence } from "./presenceData";
 import { editionLine } from "./roomLists";
 import { displayName } from "./nameFormat";
 import { buildAttendance, exportAttendanceExcel, printAttendancePdf } from "./attendanceReport";
@@ -59,29 +56,11 @@ export default function AttendanceView({ onClose }) {
     setLoading(true);
     setError("");
     try {
-      const [data, roomsSnap, saved, gradesSnap] = await Promise.all([
-        loadContestStudents(),
-        getDocs(collection(db, "rooms")),
-        loadAllocation(),
-        getDocs(collection(db, GRADES_COLLECTION)),
-      ]);
-      const rooms = sortRooms(roomsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      const placed = allocateKeepingCodes(data.students, rooms, {
-        saved: saved?.assignments || new Map(),
-        placeNew: false,
-      }).data;
-      const absentIds = new Set(gradesSnap.docs.filter((d) => d.data().absent).map((d) => d.id));
-      const walkIns = new Map((saved?.walkIns || []).map((w) => [w.id, w]));
-      const marked = placed.map((s) => ({
-        ...s,
-        absent: (s.cod && absentIds.has(s.cod)) || absentIds.has(nameGradeId(s)),
-        walkIn: walkIns.has(s.id),
-        inLocul: walkIns.get(s.id)?.inLocul || null,
-      }));
-      const byClass = {};
-      data.students.forEach((s) => (byClass[s.clasa] = (byClass[s.clasa] || 0) + 1));
-      setRegistered({ total: data.students.length, byClass });
-      setReport(buildAttendance(marked, rooms, { registered: byClass, registeredTotal: data.students.length }));
+      const pres = await loadPresence();
+      setRegistered({ total: pres.registeredTotal, byClass: pres.registered });
+      setReport(
+        buildAttendance(pres.students, pres.rooms, { registered: pres.registered, registeredTotal: pres.registeredTotal })
+      );
       setStamp(new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }));
     } catch (err) {
       console.error("Eroare la încărcarea prezenței:", err);
