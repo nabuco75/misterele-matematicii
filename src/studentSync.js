@@ -49,6 +49,9 @@ export async function applyRenames(renames) {
   const codeDocs = await codesOfRegs([...new Set(list.map((r) => r.regId))]);
   const allocSnap = await getDoc(allocationRef());
   const assignments = allocSnap.exists() ? [...(allocSnap.data().assignments || [])] : [];
+  // elevii veniți pe loc (jurnalul pentru procesul-verbal) urmează și ei numele corectat
+  const walkIns = allocSnap.exists() ? [...(allocSnap.data().walkIns || [])] : [];
+  let walkInsChanged = false;
 
   const batch = writeBatch(db);
   const usedCodes = new Set();
@@ -74,6 +77,12 @@ export async function applyRenames(renames) {
       assignments[idx] = { ...assignments[idx], id: studentKey(r.regId, r.newName) };
       done.seats++;
     }
+    walkIns.forEach((w, i) => {
+      if (w.id === oldKey || (splitKey(w.id).regId === r.regId && normName(splitKey(w.id).nume) === normName(r.oldName))) {
+        walkIns[i] = { ...w, id: studentKey(r.regId, r.newName), nume: r.newName };
+        walkInsChanged = true;
+      }
+    });
 
     // notele puse pe nume (înainte de coduri) trec pe numele nou
     const oldG = nameGradeId({ regId: r.regId, nume: r.oldName });
@@ -87,7 +96,8 @@ export async function applyRenames(renames) {
       }
     }
   }
-  if (done.seats > 0) batch.set(allocationRef(), { assignments }, { merge: true });
+  if (done.seats > 0 || walkInsChanged)
+    batch.set(allocationRef(), { assignments, ...(walkInsChanged ? { walkIns } : {}) }, { merge: true });
   await batch.commit();
   return done;
 }
