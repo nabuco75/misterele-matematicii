@@ -54,7 +54,7 @@ const pageHtml = ({ clasa, subject, papers, pageNo, pages, edition }) => {
   const offset = (pageNo - 1) * ROWS_PER_COLUMN * 2;
   const cols = chunk(papers, ROWS_PER_COLUMN);
   return `<section class="page">
-${headHtml({ clasa, title: "Borderou individual", badge: { ...sc, small: "SUBIECTUL", big: subject }, pageNo, pages, edition })}
+${headHtml({ clasa, title: "Borderou individual", badge: { ...sc, small: "SUBIECTUL", big: subject }, pageNo, pages, edition, from: offset + 1, to: offset + papers.length })}
 <div class="cols${cols.length > 1 ? " two" : ""}" style="--th:${tint};--thc:${c1}">${cols.map((rows, i) => tableHtml(rows, offset + i * ROWS_PER_COLUMN)).join("")}</div>
 <div class="foot">
 <div>Lucrări: <b>${papers.length}</b>${pages > 1 ? " pe această filă" : ""}</div>
@@ -66,7 +66,7 @@ ${headHtml({ clasa, title: "Borderou individual", badge: { ...sc, small: "SUBIEC
 const BORDEROU_CSS = `@page { size: A4 portrait; margin: 10mm; }
 * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
 body { font-family: "Times New Roman", Times, serif; color: #000; margin: 0; }
-.page { height: 276mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
+.page { min-height: 270mm; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
 .page:last-child { break-after: auto; page-break-after: auto; }
 .band { position: relative; overflow: hidden; color: #fff; text-align: center; border-radius: 10px; padding: 7px 10px; }
 .band .m { position: absolute; font-size: 20pt; font-weight: bold; color: rgba(255,255,255,.18); transform: translate(-50%, -50%) rotate(-12deg); }
@@ -100,7 +100,7 @@ table.final th.ftot { border-left: 2px solid #000; width: 40mm; font-size: 11pt;
 .sign { display: flex; justify-content: space-between; margin-top: 10px; }
 .toolbar { position: sticky; top: 0; z-index: 1; background: #2c3e50; color: #fff; padding: 10px; text-align: center; font-family: Arial, sans-serif; }
 .toolbar button { font-size: 15px; padding: 8px 18px; margin-left: 10px; cursor: pointer; }
-@media screen { body { background: #e5e7eb; } .page { width: 190mm; margin: 12px auto; background: #fff; padding: 6mm; box-shadow: 0 2px 8px rgba(0,0,0,.2); height: 289mm; } }
+@media screen { body { background: #e5e7eb; } .page { width: 190mm; margin: 12px auto; background: #fff; padding: 6mm; box-shadow: 0 2px 8px rgba(0,0,0,.2); min-height: 289mm; } }
 @media print { .toolbar { display: none; } }
 `;
 
@@ -114,7 +114,7 @@ ${pages.join("")}
 </body></html>`;
 
 // antetul comun (banda concursului + titlul + clasa + insigna din dreapta)
-const headHtml = ({ clasa, title, badge, pageNo, pages, edition }) => {
+const headHtml = ({ clasa, title, badge, pageNo, pages, edition, from, to }) => {
   const [c1, c2] = CLASS_COLOR[clasa] || ["#334155", "#64748b"];
   return `<div class="band" style="background:linear-gradient(135deg,${c1},${c2})">${MATH_DECOR}
 <div class="t1">Concursul Regional „Misterele Matematicii”</div>
@@ -123,7 +123,7 @@ const headHtml = ({ clasa, title, badge, pageNo, pages, edition }) => {
 </div>
 <div class="titles">
 <div class="side"><span class="pill" style="background:linear-gradient(135deg,${c1},${c2})">Clasa ${escapeHtml(clasa)}</span>${
-    pages > 1 ? `<span class="part">fila ${pageNo} din ${pages}</span>` : ""
+    pages > 1 ? `<span class="part">fila ${pageNo} din ${pages} · nr. ${from}–${to}</span>` : ""
   }</div>
 <div class="doc">${title}<div class="rule" style="background:linear-gradient(90deg,transparent,${c1},${badge.c},transparent)"></div></div>
 <div class="side right"><span class="subj" style="color:${badge.c};border-color:${badge.c};background:${badge.tint}"><small>${badge.small}</small><b>${badge.big}</b></span></div>
@@ -143,7 +143,7 @@ const finalPageHtml = ({ clasa, papers, pageNo, pages, edition }) => {
     return `<th class="fs" style="background:${sc.tint};color:${sc.c}">Subiectul<br>${n}</th>`;
   }).join("");
   return `<section class="page">
-${headHtml({ clasa, title: "Borderou final", badge: FINAL_BADGE, pageNo, pages, edition })}
+${headHtml({ clasa, title: "Borderou final", badge: FINAL_BADGE, pageNo, pages, edition, from: offset + 1, to: offset + papers.length })}
 <div class="cols"><table class="final" style="--th:${tint};--thc:${c1}"><thead><tr><th class="fnr">Nr.<br>teză</th>${subjTh}<th class="ftot" style="background:${c1};color:#fff">Total</th></tr></thead><tbody>${papers
     .map((_, i) => `<tr><td class="fnr">${offset + i + 1}.</td><td></td><td></td><td></td><td class="ftot"></td></tr>`)
     .join("")}</tbody></table></div>
