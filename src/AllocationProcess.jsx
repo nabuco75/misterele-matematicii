@@ -399,7 +399,9 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
 
     const handlePlaceOne = async (st) => {
         const options = roomsFor(st);
-        const roomName = placeChoice[st.id] || options[0]?.room.name;
+        // sala aleasă trebuie să mai aibă loc (alt elev poate fi pus între timp acolo)
+        const chosen = options.find((r) => r.room.name === placeChoice[st.id]);
+        const roomName = (chosen || options[0])?.room.name;
         if (!roomName || busyRef.current) return;
         if (pendingPairs > 0) {
             showMessage("warning", "⚠️ Confirmați întâi numele corectate (caseta de mai jos), apoi așezați elevul.", 9000);
@@ -976,7 +978,11 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                                             <>
                                                 <select
                                                     className={styles.reconcileSelect}
-                                                    value={placeChoice[st.id] || options[0].room.name}
+                                                    value={
+                                                        options.some((r) => r.room.name === placeChoice[st.id])
+                                                            ? placeChoice[st.id]
+                                                            : options[0].room.name
+                                                    }
                                                     onChange={(e) =>
                                                         setPlaceChoice((prev) => ({ ...prev, [st.id]: e.target.value }))
                                                     }
