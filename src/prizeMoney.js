@@ -9,8 +9,45 @@ import { displayName } from "./nameFormat";
 
 export const SPONSOR = "Asociația „Arcașii lui Ștefan”";
 
+// sumele implicite; organizatorul le poate schimba din „Notare” (dropdown pe fiecare premiu)
 export const PRIZE_AMOUNTS = { I: 300, II: 200, III: 100, M1: 50, M2: 40, M3: 30 };
-const PRIZE_LABEL = {
+export const PRIZE_KEYS = Object.keys(PRIZE_AMOUNTS);
+// valorile propuse în dropdown (lei); 0 = premiul nu primește bani
+export const PRIZE_PRESETS = [0, 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 100, 120, 150, 200, 250, 300, 350, 400, 500, 1000];
+export const MAX_PRIZE = 100000;
+
+const AMOUNTS_STORAGE_KEY = "mm_prize_amounts";
+const cleanAmount = (v) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= 0 && n <= MAX_PRIZE ? n : null;
+};
+// sumele salvate pe acest calculator (completate cu cele implicite)
+export const loadPrizeAmounts = () => {
+  const out = { ...PRIZE_AMOUNTS };
+  try {
+    const saved = JSON.parse(localStorage.getItem(AMOUNTS_STORAGE_KEY));
+    if (saved && typeof saved === "object") {
+      PRIZE_KEYS.forEach((k) => {
+        const n = cleanAmount(saved[k]);
+        if (n !== null) out[k] = n;
+      });
+    }
+  } catch {
+    // fără localStorage → valorile implicite
+  }
+  return out;
+};
+export const savePrizeAmounts = (amounts) => {
+  try {
+    localStorage.setItem(AMOUNTS_STORAGE_KEY, JSON.stringify(amounts));
+  } catch {
+    // nu se poate salva → rămân doar pentru sesiunea curentă
+  }
+};
+export const normalizePrizeAmount = cleanAmount;
+export const isDefaultAmounts = (amounts) => PRIZE_KEYS.every((k) => amounts[k] === PRIZE_AMOUNTS[k]);
+
+export const PRIZE_LABEL = {
   I: "Premiul I",
   II: "Premiul II",
   III: "Premiul III",
@@ -27,18 +64,19 @@ const PRIZE_COLOR = {
   M3: ["#7c3aed", "#ede9fe"],
 };
 const PRIZE_ICON = { I: "🥇", II: "🥈", III: "🥉", M1: "🏅", M2: "🎖️", M3: "🎗️" };
-const PRIZE_ORDER = Object.keys(PRIZE_AMOUNTS);
+const PRIZE_ORDER = PRIZE_KEYS;
 
-const lei = (n) => `${n.toLocaleString("ro-RO")} lei`;
+export const lei = (n) => `${n.toLocaleString("ro-RO")} lei`;
 
 // premianții cu bani, pe clase, apoi după premiu, sumă (desc.) și nume
-export const prizeRows = (rows) =>
+// (un premiu cu suma 0 nu apare în tabel)
+export const prizeRows = (rows, amounts = PRIZE_AMOUNTS) =>
   rows
-    .filter((r) => !r.absent && PRIZE_AMOUNTS[r.premiu])
+    .filter((r) => !r.absent && amounts[r.premiu] > 0)
     .map((r) => ({
       ...r,
       nume: displayName(r.nume),
-      bani: PRIZE_AMOUNTS[r.premiu],
+      bani: amounts[r.premiu],
       premiuText: PRIZE_LABEL[r.premiu],
     }))
     .sort(
@@ -49,10 +87,10 @@ export const prizeRows = (rows) =>
         a.nume.localeCompare(b.nume, "ro", { sensitivity: "base" })
     );
 
-export const prizeSummary = (list) => {
+export const prizeSummary = (list, amounts = PRIZE_AMOUNTS) => {
   const byPrize = PRIZE_ORDER.map((p) => {
     const count = list.filter((r) => r.premiu === p).length;
-    return { premiu: p, label: PRIZE_LABEL[p], amount: PRIZE_AMOUNTS[p], count, total: count * PRIZE_AMOUNTS[p] };
+    return { premiu: p, label: PRIZE_LABEL[p], amount: amounts[p], count, total: count * amounts[p] };
   });
   return { byPrize, count: list.length, total: list.reduce((n, r) => n + r.bani, 0) };
 };
@@ -70,9 +108,9 @@ export const prizeClasses = (list) => {
 const stamp = () => new Date().toISOString().slice(0, 10);
 
 // ====== PDF ======
-export const printPrizesPdf = (rows, header) => {
-  const list = prizeRows(rows);
-  const sum = prizeSummary(list);
+export const printPrizesPdf = (rows, header, amounts = PRIZE_AMOUNTS) => {
+  const list = prizeRows(rows, amounts);
+  const sum = prizeSummary(list, amounts);
   const edition = editionLine(header);
 
   const classes = prizeClasses(list);
@@ -212,9 +250,9 @@ const st = ({ fill = "FFFFFF", bold = false, size = 11, left = false, color = "0
   border: { top: thin, bottom: thin, left: thin, right: thin },
 });
 
-export const exportPrizesExcel = (rows, header) => {
-  const list = prizeRows(rows);
-  const sum = prizeSummary(list);
+export const exportPrizesExcel = (rows, header, amounts = PRIZE_AMOUNTS) => {
+  const list = prizeRows(rows, amounts);
+  const sum = prizeSummary(list, amounts);
   const N = 7;
   const blank = Array(N - 1).fill("");
   const data = [

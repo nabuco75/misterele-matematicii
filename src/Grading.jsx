@@ -20,7 +20,22 @@ import {
   parseScore,
 } from "./grading";
 import { exportResultsExcel, printResultsPdf } from "./gradingExport";
-import { PRIZE_AMOUNTS, SPONSOR, exportPrizesExcel, printPrizesPdf, prizeRows, prizeSummary } from "./prizeMoney";
+import {
+  MAX_PRIZE,
+  PRIZE_AMOUNTS,
+  PRIZE_KEYS,
+  PRIZE_LABEL,
+  PRIZE_PRESETS,
+  SPONSOR,
+  exportPrizesExcel,
+  isDefaultAmounts,
+  loadPrizeAmounts,
+  normalizePrizeAmount,
+  printPrizesPdf,
+  savePrizeAmounts,
+  prizeRows,
+  prizeSummary,
+} from "./prizeMoney";
 
 const EMPTY_FILTERS = { q: "", clasa: "", scoala: "", profesor: "", sala: "", premiu: "", stare: "" };
 
@@ -491,14 +506,58 @@ function Grading({ onDashboard, stageBar }) {
   };
 
   // premiile în bani (Asociația „Arcașii lui Ștefan”): din TOȚI elevii, indiferent de filtre
-  const prizeInfo = useMemo(() => prizeSummary(prizeRows(rows)), [rows]);
-  const doPrizes = (kind) => {
-    if (prizeInfo.count === 0) {
-      window.alert("Nu există încă premianți (I, II, III, M1, M2, M3).");
+  // sumele pe premiu se aleg din dropdown și se țin minte pe acest calculator
+  const [prizeAmounts, setPrizeAmounts] = useState(loadPrizeAmounts);
+  const [customPrize, setCustomPrize] = useState({}); // premiu → text tastat la „Altă sumă…”
+  useEffect(() => savePrizeAmounts(prizeAmounts), [prizeAmounts]);
+  const setPrizeAmount = (key, value) => setPrizeAmounts((a) => ({ ...a, [key]: value }));
+  const pickPrizeAmount = (key, raw) => {
+    if (raw === "custom") {
+      setCustomPrize((c) => ({ ...c, [key]: String(prizeAmounts[key] || "") }));
       return;
     }
-    if (kind === "excel") exportPrizesExcel(rows, header);
-    else printPrizesPdf(rows, header);
+    setCustomPrize((c) => {
+      const rest = { ...c };
+      delete rest[key];
+      return rest;
+    });
+    setPrizeAmount(key, Number(raw));
+  };
+  const typeCustomPrize = (key, text) => {
+    const clean = text.replace(/\D/g, "").slice(0, String(MAX_PRIZE).length);
+    setCustomPrize((c) => ({ ...c, [key]: clean }));
+    const n = normalizePrizeAmount(clean);
+    if (clean !== "" && n !== null) setPrizeAmount(key, n);
+  };
+  const resetPrizeAmounts = () => {
+    setCustomPrize({});
+    setPrizeAmounts({ ...PRIZE_AMOUNTS });
+  };
+  // câți elevi (prezenți) au fiecare premiu, indiferent dacă premiul primește bani
+  const awardCounts = useMemo(() => {
+    const c = {};
+    rows.forEach((r) => {
+      if (!r.absent && r.premiu) c[r.premiu] = (c[r.premiu] || 0) + 1;
+    });
+    return c;
+  }, [rows]);
+  const prizeInfo = useMemo(() => prizeSummary(prizeRows(rows, prizeAmounts), prizeAmounts), [rows, prizeAmounts]);
+  const doPrizes = (kind) => {
+    const half = Object.entries(customPrize).find(([, t]) => t === "" || normalizePrizeAmount(t) === null);
+    if (half) {
+      window.alert(`Completați suma pentru ${PRIZE_LABEL[half[0]]} (sau alegeți o valoare din listă).`);
+      return;
+    }
+    if (prizeInfo.count === 0) {
+      window.alert(
+        PRIZE_KEYS.some((k) => prizeAmounts[k] > 0)
+          ? "Nu există încă premianți cu sumă de primit (I, II, III, M1, M2, M3)."
+          : "Toate premiile au suma 0 lei — alegeți sumele din listă."
+      );
+      return;
+    }
+    if (kind === "excel") exportPrizesExcel(rows, header, prizeAmounts);
+    else printPrizesPdf(rows, header, prizeAmounts);
   };
 
   // ====== RENDER ======
@@ -674,7 +733,7 @@ function Grading({ onDashboard, stageBar }) {
             <div>
               <b>Premii în bani — {SPONSOR}</b>
               <small>
-                Tabel nominal cu antet: nume, școală, premiu, sumă, semnătură · fără mențiunile SSMR · toți elevii, indiferent de filtre
+                Alegeți suma pentru fiecare premiu — tabelul preia premianții din listă și pune sumele · fără mențiunile SSMR · toți elevii, indiferent de filtre
               </small>
             </div>
             <div className={styles.prizeTotal}>
@@ -682,13 +741,55 @@ function Grading({ onDashboard, stageBar }) {
               <small>{prizeInfo.count} premianți</small>
             </div>
           </div>
-          <div className={styles.prizeChips}>
-            {prizeInfo.byPrize.map((p) => (
-              <span key={p.premiu} className={styles.prizeChip}>
-                {p.premiu}: <b>{p.count}</b> × {PRIZE_AMOUNTS[p.premiu]} lei
-              </span>
-            ))}
+          <div className={styles.prizeAmounts}>
+            {PRIZE_KEYS.map((k) => {
+              const amount = prizeAmounts[k];
+              const custom = k in customPrize;
+              const presets = PRIZE_PRESETS.includes(amount) ? PRIZE_PRESETS : [...PRIZE_PRESETS, amount].sort((a, b) => a - b);
+              const count = awardCounts[k] || 0;
+              return (
+                <div key={k} className={`${styles.prizeAmount} ${amount === 0 ? styles.prizeAmountOff : ""}`}>
+                  <label htmlFor={`prize-${k}`}>{PRIZE_LABEL[k]}</label>
+                  <select
+                    id={`prize-${k}`}
+                    value={custom ? "custom" : String(amount)}
+                    onChange={(e) => pickPrizeAmount(k, e.target.value)}
+                  >
+                    {presets.map((v) => (
+                      <option key={v} value={v}>
+                        {v === 0 ? "Fără bani (0 lei)" : `${v.toLocaleString("ro-RO")} lei`}
+                      </option>
+                    ))}
+                    <option value="custom">Altă sumă…</option>
+                  </select>
+                  {custom && (
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoFocus
+                      placeholder="Suma în lei"
+                      aria-label={`Suma pentru ${PRIZE_LABEL[k]}, în lei`}
+                      value={customPrize[k]}
+                      onChange={(e) => typeCustomPrize(k, e.target.value)}
+                      onBlur={() => {
+                        const n = normalizePrizeAmount(customPrize[k]);
+                        if (customPrize[k] !== "" && n !== null && PRIZE_PRESETS.includes(n)) pickPrizeAmount(k, String(n));
+                      }}
+                    />
+                  )}
+                  <small>
+                    {count} {count === 1 ? "elev" : "elevi"}
+                    {amount > 0 && count > 0 && <> · {(count * amount).toLocaleString("ro-RO")} lei</>}
+                  </small>
+                </div>
+              );
+            })}
           </div>
+          {!isDefaultAmounts(prizeAmounts) && (
+            <button className={styles.prizeReset} onClick={resetPrizeAmounts}>
+              ↺ Revino la sumele implicite ({PRIZE_KEYS.map((k) => PRIZE_AMOUNTS[k]).join(" / ")} lei)
+            </button>
+          )}
           <div className={styles.prizeBtns}>
             <button onClick={() => doPrizes("pdf")}>📄 Tabel premii (PDF)</button>
             <button onClick={() => doPrizes("excel")}>📥 Tabel premii (Excel)</button>

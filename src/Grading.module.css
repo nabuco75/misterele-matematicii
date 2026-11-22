@@ -1079,3 +1079,69 @@
 .prizeBtns button:hover {
   transform: translateY(-2px);
 }
+
+/* sumele premiilor în bani: câte un dropdown pe premiu */
+.prizeAmounts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.prizeAmount {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 12px;
+  padding: 8px 10px;
+  transition: opacity 0.15s ease;
+}
+.prizeAmount label {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #fde68a;
+}
+.prizeAmount select,
+.prizeAmount input {
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #7f1d1d;
+  background: #fff;
+  cursor: pointer;
+}
+.prizeAmount input {
+  cursor: text;
+  background: #fef3c7;
+}
+.prizeAmount select:focus-visible,
+.prizeAmount input:focus-visible {
+  outline: 3px solid #fde68a;
+  outline-offset: 1px;
+}
+.prizeAmount small {
+  font-size: 0.78rem;
+  opacity: 0.9;
+}
+.prizeAmountOff {
+  opacity: 0.6;
+}
+.prizeReset {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
+  color: #fff;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.prizeReset:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
