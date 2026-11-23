@@ -32,6 +32,7 @@ import { displayName } from "./nameFormat";
 import TeacherSearch from "./TeacherSearch.jsx";
 import AttendanceView from "./AttendanceView.jsx";
 import BorderouriView from "./BorderouriView.jsx";
+import ReportsView from "./ReportsView.jsx";
 import { StageBar, useStageStatus } from "./StageNav.jsx";
 import DashboardHero from "./DashboardHero.jsx";
 import AuroraStage from "./Aurora.jsx";
@@ -112,6 +113,7 @@ function AdminDashboard() {
   const [showTeacherSearch, setShowTeacherSearch] = useState(false);
   const [showAttendance, setShowAttendance] = useState(false);
   const [showBorderouri, setShowBorderouri] = useState(false);
+  const [showReports, setShowReports] = useState(false);
   const [profEditError, setProfEditError] = useState("");
 
   // —— Form de înscriere suplimentară (ADMIN)
@@ -1661,6 +1663,14 @@ function AdminDashboard() {
                   onClick: () => setShowBorderouri(true),
                 },
                 {
+                  icon: "📦",
+                  svg: "list",
+                  label: "Situații pentru raportare",
+                  sub: "Rezultate pe clase, școli și profesori unici — PDF și Excel cu antet",
+                  color: "indigo",
+                  onClick: () => setShowReports(true),
+                },
+                {
                   icon: showTeacherSearch ? "✖️" : "🔎",
                   svg: showTeacherSearch ? "close" : "search",
                   label: showTeacherSearch ? "Închide căutarea" : "Caută profesor sau elev",
@@ -1879,6 +1889,7 @@ function AdminDashboard() {
         {showTeacherSearch && <TeacherSearch onClose={() => setShowTeacherSearch(false)} />}
         {showAttendance && <AttendanceView onClose={() => setShowAttendance(false)} />}
         {showBorderouri && <BorderouriView onClose={() => setShowBorderouri(false)} />}
+        {showReports && <ReportsView onClose={() => setShowReports(false)} />}
 
         {showRegisteredSchools && (
           <div className={styles.registeredSchoolsContainer}>

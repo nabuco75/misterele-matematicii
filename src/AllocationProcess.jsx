@@ -34,6 +34,7 @@ import {
 import { AllocationLogCard, AllocationStatsView } from "./AllocationLog";
 import { GRADES_COLLECTION, nameGradeId } from "./grading";
 import AttendanceView from "./AttendanceView.jsx";
+import ReportsView from "./ReportsView.jsx";
 import BorderouriView from "./BorderouriView.jsx";
 import {
     exportRoomsExcel,
@@ -69,6 +70,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
     const [walkInLog, setWalkInLog] = useState([]);
     const [showAttendance, setShowAttendance] = useState(false);
     const [showBorderouri, setShowBorderouri] = useState(false);
+    const [showReports, setShowReports] = useState(false);
     const [roomSummaries, setRoomSummaries] = useState([]);
     const [message, setMessage] = useState(null);
     const [lastCodeN, setLastCodeN] = useState(0);
@@ -1539,6 +1541,19 @@ th, td { border: 1px solid #000; padding: 5px 6px; text-align: center; } th { ba
                                 <span className={styles.attendanceArrow}>→</span>
                             </button>
                         </div>
+                        <div className={styles.attendanceLaunch}>
+                            <button
+                                className={`${styles.attendanceButton} ${styles.reportsButton}`}
+                                onClick={() => setShowReports(true)}
+                            >
+                                <span className={styles.attendanceIcon}>📦</span>
+                                <span>
+                                    <b>Situații pentru raportare</b>
+                                    <small>Rezultate pe clase (suma descrescător), școlile și profesorii participanți — PDF și Excel</small>
+                                </span>
+                                <span className={styles.attendanceArrow}>→</span>
+                            </button>
+                        </div>
                         {hasCodes && (
                             <div className={styles.codeListCard}>
                                 <div className={styles.codeListHead}>
@@ -1577,6 +1592,7 @@ th, td { border: 1px solid #000; padding: 5px 6px; text-align: center; } th { ba
                         )}
                         {showAttendance && <AttendanceView onClose={() => setShowAttendance(false)} />}
                         {showBorderouri && <BorderouriView onClose={() => setShowBorderouri(false)} />}
+                        {showReports && <ReportsView onClose={() => setShowReports(false)} />}
 
                     <>
                         <div className={styles.headerSettings}>

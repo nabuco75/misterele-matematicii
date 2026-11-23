@@ -1233,3 +1233,8 @@
 .codeListBtns button:hover {
   transform: translateY(-2px);
 }
+
+.reportsButton {
+  background: radial-gradient(circle at 10% 0%, #fbbf24 0%, transparent 45%), linear-gradient(135deg, #1e1b4b, #1e3a8a 55%, #0e7490);
+  box-shadow: 0 14px 30px rgba(30, 58, 138, 0.35);
+}

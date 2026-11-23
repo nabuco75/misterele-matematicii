@@ -1,0 +1,74 @@
+.hero {
+  background: radial-gradient(circle at 12% 0%, #fbbf24 0%, transparent 42%),
+    radial-gradient(circle at 92% 120%, #22d3ee 0%, transparent 45%), linear-gradient(135deg, #1e1b4b, #1e3a8a 55%, #0e7490);
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin: -22px 30px 0;
+  position: relative;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 18px;
+  padding: 16px 18px;
+  color: #fff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.22);
+}
+.cResults {
+  background: radial-gradient(circle at 90% 0%, rgba(253, 230, 138, 0.55) 0%, transparent 45%), linear-gradient(135deg, #7f1d1d, #b91c1c);
+}
+.cSchools {
+  background: radial-gradient(circle at 90% 0%, rgba(165, 243, 252, 0.45) 0%, transparent 45%), linear-gradient(135deg, #0f766e, #0e7490);
+}
+.cTeachers {
+  background: radial-gradient(circle at 90% 0%, rgba(221, 214, 254, 0.5) 0%, transparent 45%), linear-gradient(135deg, #4c1d95, #6d28d9);
+}
+.cardTop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.icon {
+  font-size: 2.2rem;
+}
+.cardTitle {
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+.stat {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fde68a;
+}
+.what {
+  font-size: 0.9rem;
+  opacity: 0.92;
+  flex: 1;
+}
+.note {
+  font-size: 0.82rem;
+  opacity: 0.8;
+}
+.btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.btns button {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 10px;
+  font-weight: 800;
+  color: #1e1b4b;
+  background: rgba(255, 255, 255, 0.94);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.btns button:hover {
+  transform: translateY(-2px);
+}
