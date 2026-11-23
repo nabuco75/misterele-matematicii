@@ -1274,7 +1274,7 @@ th, td { border: 1px solid #000; padding: 5px 6px; text-align: center; } th { ba
 
                         {allocationResult && roomSummaries.length > 0 && (
                             <div className={styles.previewContainer}>
-                                <h2 className={styles.subtitle}>🏫 Situația pe săli</h2>
+                                <h2 className={styles.subtitle}>🏫 Fiecare sală în parte</h2>
                                 <AllocationStatsView stats={allocationStats(roomSummaries, rooms)} />
                                 <div className={styles.resultsTableWrapper}>
                                     <table className={styles.resultsTable}>
@@ -1518,146 +1518,176 @@ th, td { border: 1px solid #000; padding: 5px 6px; text-align: center; } th { ba
                     <>
                         {todoBanner(false)}
 
-                        <div className={styles.attendanceLaunch}>
-                            <button className={styles.attendanceButton} onClick={() => setShowAttendance(true)}>
-                                <span className={styles.attendanceIcon}>📊</span>
-                                <span>
-                                    <b>Prezența la concurs</b>
-                                    <small>Înscriși, prezenți și absenți — total și pe clase · raport PDF cu antet</small>
-                                </span>
-                                <span className={styles.attendanceArrow}>→</span>
-                            </button>
-                        </div>
-                        <div className={styles.attendanceLaunch}>
-                            <button
-                                className={`${styles.attendanceButton} ${styles.borderouButton}`}
-                                onClick={() => setShowBorderouri(true)}
-                            >
-                                <span className={styles.attendanceIcon}>📝</span>
-                                <span>
-                                    <b>Borderouri de corectare</b>
-                                    <small>Pe fiecare clasă: Subiectul I, II, III — doar lucrările elevilor prezenți</small>
-                                </span>
-                                <span className={styles.attendanceArrow}>→</span>
-                            </button>
-                        </div>
-                        <div className={styles.attendanceLaunch}>
-                            <button
-                                className={`${styles.attendanceButton} ${styles.reportsButton}`}
-                                onClick={() => setShowReports(true)}
-                            >
-                                <span className={styles.attendanceIcon}>📦</span>
-                                <span>
-                                    <b>Situații pentru raportare</b>
-                                    <small>Rezultate pe clase (suma descrescător), școlile și profesorii participanți — PDF și Excel</small>
-                                </span>
-                                <span className={styles.attendanceArrow}>→</span>
-                            </button>
-                        </div>
-                        {hasCodes && (
-                            <div className={styles.codeListCard}>
-                                <div className={styles.codeListHead}>
-                                    <span className={styles.codeListIcon}>🔐</span>
-                                    <div>
-                                        <h3>Liste pe săli cu coduri</h3>
-                                        <p>Pentru comisie · cu antetul concursului · coloana „Cod” evidențiată</p>
-                                    </div>
-                                </div>
-                                <div className={styles.codeListGrid}>
-                                    <div className={styles.codeListOption}>
-                                        <div className={styles.codeListTitle}>
-                                            <b>Toți elevii</b>
-                                            <span>{allocationResult.length} elevi · fără marcaje</span>
-                                        </div>
-                                        <div className={styles.codeListBtns}>
-                                            <button onClick={() => handleCodeList("toti", "pdf")}>📄 PDF</button>
-                                            <button onClick={() => handleCodeList("toti", "excel")}>📥 Excel</button>
-                                        </div>
-                                    </div>
-                                    <div className={`${styles.codeListOption} ${styles.codeListPresent}`}>
-                                        <div className={styles.codeListTitle}>
-                                            <b>✅ Fără absenți</b>
-                                            <span>
-                                                {allocationResult.filter((st) => !isAbsent(st)).length} elevi prezenți
-                                                {absentIds.size > 0 ? ` · ${allocationResult.filter(isAbsent).length} absenți scoși` : " · niciun absent bifat"}
-                                            </span>
-                                        </div>
-                                        <div className={styles.codeListBtns}>
-                                            <button onClick={() => handleCodeList("prezenti", "pdf")}>📄 PDF</button>
-                                            <button onClick={() => handleCodeList("prezenti", "excel")}>📥 Excel</button>
-                                        </div>
-                                    </div>
+                        {/* 1. Antetul */}
+                        <section className={styles.printSection}>
+                            <div className={styles.printSectionHead}>
+                                <span className={styles.printStep}>1</span>
+                                <div>
+                                    <h3>Antetul documentelor</h3>
+                                    <p>Apare pe toate listele, bilețelele, borderourile și rapoartele</p>
                                 </div>
                             </div>
-                        )}
+                            <div className={styles.printHeaderRow}>
+                                <label>
+                                    Ediția
+                                    <input
+                                        type="text"
+                                        value={header.edition}
+                                        onChange={(e) => updateHeader("edition", e.target.value)}
+                                        placeholder="ex: a XX-a"
+                                    />
+                                </label>
+                                <label>
+                                    Data concursului
+                                    <input
+                                        type="text"
+                                        value={header.date}
+                                        onChange={(e) => updateHeader("date", e.target.value)}
+                                        placeholder="ex: 21 noiembrie 2026"
+                                    />
+                                </label>
+                                <div className={styles.printHeaderPreview}>
+                                    <small>Pe documente apare</small>
+                                    <b>
+                                        Ediția {header.edition} - {header.date}
+                                    </b>
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* 2. Liste și coduri */}
+                        <section className={styles.printSection}>
+                            <div className={styles.printSectionHead}>
+                                <span className={styles.printStep}>2</span>
+                                <div>
+                                    <h3>Liste pe săli și coduri</h3>
+                                    <p>Pentru uși, pentru elevi și pentru comisie — toate sălile odată</p>
+                                </div>
+                            </div>
+                            <div className={styles.printGrid}>
+                                <div className={styles.printCard} style={{ "--c": "#1f3864", "--t": "#e0e7ff" }}>
+                                    <div className={styles.printCardHead}>
+                                        <span className={styles.printCardIcon}>🚪</span>
+                                        <div>
+                                            <b>Liste pentru uși</b>
+                                            <small>
+                                                {allocationResult.length} elevi · câte o pagină pe sală · absenții marcați
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div className={styles.printBtns}>
+                                        <button onClick={() => handleExportPdf()}>📄 PDF</button>
+                                        <button onClick={() => handleExportExcel()}>📥 Excel</button>
+                                    </div>
+                                </div>
+                                {hasCodes && (
+                                    <div className={styles.printCard} style={{ "--c": "#6c3483", "--t": "#f3e8ff" }}>
+                                        <div className={styles.printCardHead}>
+                                            <span className={styles.printCardIcon}>✂️</span>
+                                            <div>
+                                                <b>Bilețele cu coduri</b>
+                                                <small>De decupat și dat elevilor · plus borderoul tuturor codurilor</small>
+                                            </div>
+                                        </div>
+                                        <div className={styles.printBtns}>
+                                            <button onClick={() => handleCodesPdf()}>✂️ Bilețele PDF</button>
+                                            <button onClick={() => exportCodesExcel(allocationResult, rooms, header)}>
+                                                📥 Borderou coduri
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                                {hasCodes && (
+                                    <div className={styles.printCard} style={{ "--c": "#b45309", "--t": "#fef3c7" }}>
+                                        <div className={styles.printCardHead}>
+                                            <span className={styles.printCardIcon}>🔐</span>
+                                            <div>
+                                                <b>Liste pe săli cu coduri</b>
+                                                <small>Pentru comisie · coloana „Cod” evidențiată</small>
+                                            </div>
+                                        </div>
+                                        <div className={styles.printOption}>
+                                            <span>
+                                                <b>Toți elevii</b> · {allocationResult.length}, fără marcaje
+                                            </span>
+                                            <div className={styles.printBtns}>
+                                                <button onClick={() => handleCodeList("toti", "pdf")}>📄 PDF</button>
+                                                <button onClick={() => handleCodeList("toti", "excel")}>📥 Excel</button>
+                                            </div>
+                                        </div>
+                                        <div className={styles.printOption}>
+                                            <span>
+                                                <b>Fără absenți</b> · {allocationResult.filter((st) => !isAbsent(st)).length}{" "}
+                                                prezenți
+                                                {absentIds.size > 0
+                                                    ? `, ${allocationResult.filter(isAbsent).length} absenți scoși`
+                                                    : ", niciun absent bifat"}
+                                            </span>
+                                            <div className={styles.printBtns}>
+                                                <button onClick={() => handleCodeList("prezenti", "pdf")}>📄 PDF</button>
+                                                <button onClick={() => handleCodeList("prezenti", "excel")}>📥 Excel</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+
+                        {/* 3. Ziua concursului și după */}
+                        <section className={styles.printSection}>
+                            <div className={styles.printSectionHead}>
+                                <span className={styles.printStep}>3</span>
+                                <div>
+                                    <h3>Ziua concursului și după</h3>
+                                    <p>Prezență, corectare și situațiile de trimis</p>
+                                </div>
+                            </div>
+                            <div className={styles.launchGrid}>
+                                <button
+                                    className={`${styles.launchTile} ${styles.launchGreen}`}
+                                    onClick={() => setShowAttendance(true)}
+                                >
+                                    <span className={styles.launchIcon}>📊</span>
+                                    <b>Prezența la concurs</b>
+                                    <small>Înscriși, prezenți, absenți — total și pe clase · raport PDF</small>
+                                    <span className={styles.launchArrow}>Deschide →</span>
+                                </button>
+                                <button
+                                    className={`${styles.launchTile} ${styles.launchPink}`}
+                                    onClick={() => setShowBorderouri(true)}
+                                >
+                                    <span className={styles.launchIcon}>📝</span>
+                                    <b>Borderouri de corectare</b>
+                                    <small>Individuale pe subiecte și finale, pe fiecare clasă</small>
+                                    <span className={styles.launchArrow}>Deschide →</span>
+                                </button>
+                                <button
+                                    className={`${styles.launchTile} ${styles.launchBlue}`}
+                                    onClick={() => setShowReports(true)}
+                                >
+                                    <span className={styles.launchIcon}>📦</span>
+                                    <b>Situații pentru raportare</b>
+                                    <small>Rezultate pe clase, școli și profesori participanți</small>
+                                    <span className={styles.launchArrow}>Deschide →</span>
+                                </button>
+                            </div>
+                        </section>
                         {showAttendance && <AttendanceView onClose={() => setShowAttendance(false)} />}
                         {showBorderouri && <BorderouriView onClose={() => setShowBorderouri(false)} />}
                         {showReports && <ReportsView onClose={() => setShowReports(false)} />}
 
                     <>
-                        <div className={styles.headerSettings}>
-                            <h3>📝 Antetul listelor</h3>
-                            <label>
-                                Ediția
-                                <input
-                                    type="text"
-                                    value={header.edition}
-                                    onChange={(e) => updateHeader("edition", e.target.value)}
-                                    placeholder="ex: a XX-a"
-                                />
-                            </label>
-                            <label>
-                                Data concursului
-                                <input
-                                    type="text"
-                                    value={header.date}
-                                    onChange={(e) => updateHeader("date", e.target.value)}
-                                    placeholder="ex: 21 noiembrie 2026"
-                                />
-                            </label>
-                            <p className={styles.headerPreview}>
-                                Pe liste: <b>Ediția {header.edition} - {header.date}</b>
-                            </p>
-                        </div>
-                    </>
-
-                        <div className={styles.actionButtonsContainer}>
-                                {allocationResult && (
-                                    <button
-                                        onClick={() => handleExportPdf()}
-                                        className={styles.pdfButton}
-                                    >
-                                        📄 Liste pentru uși (PDF)
-                                    </button>
-                                )}
-
-                                {allocationResult && (
-                                    <button
-                                        onClick={handleExportExcel}
-                                        className={styles.exportButton}
-                                    >
-                                        📥 Descarcă Excel ({allocationResult.length} elevi)
-                                    </button>
-                                )}
-                            {hasCodes && (
-                                <>
-                                    <button
-                                        onClick={() => handleCodesPdf()}
-                                        className={styles.codesButton}
-                                    >
-                                        ✂️ Bilețele cu coduri – toate sălile (PDF)
-                                    </button>
-                                    <button
-                                        onClick={() => exportCodesExcel(allocationResult, rooms, header)}
-                                        className={styles.exportButton}
-                                    >
-                                        📥 Borderou coduri (Excel)
-                                    </button>
-                                </>
-                            )}
-                        </div>
-
-                    <>
+                        {(renamedCard || walkInLogCard || (hasCodes && codeBatches.length > 0)) && (
+                            <div className={`${styles.printSection} ${styles.printSectionBare}`}>
+                                <div className={styles.printSectionHead}>
+                                    <span className={styles.printStep}>4</span>
+                                    <div>
+                                        <h3>Evidențe și corecturi</h3>
+                                        <p>Nume corectate, elevi veniți pe loc, tranșele de coduri</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {renamedCard}
                         {walkInLogCard}
 
