@@ -93,8 +93,10 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
         CLASS_ORDER.reduce((acc, cls) => ({ ...acc, [cls]: 0 }), { total: 0 })
     );
 
+    // datele se încarcă o singură dată, la deschiderea paginii
     useEffect(() => {
         loadData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const updateHeader = (field, value) => {
@@ -105,9 +107,12 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
         });
     };
 
+    // (un mesaj nou nu mai e șters înainte de vreme de timerul mesajului vechi)
+    const messageTimer = useRef(null);
     const showMessage = (type, text, ms = 5000) => {
         setMessage({ type, text });
-        setTimeout(() => setMessage(null), ms);
+        clearTimeout(messageTimer.current);
+        messageTimer.current = setTimeout(() => setMessage(null), ms);
     };
 
     // ====== ÎNCĂRCARE DATE ======

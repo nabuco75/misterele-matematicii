@@ -2,7 +2,7 @@
 // (nume, email, telefon, școală, localitate, județ sau numele unui elev înscris de el), îl corectează
 // în toate înscrierile lui și permite corectarea / scoaterea elevilor din fiecare înscriere.
 import React, { useEffect, useMemo, useState } from "react";
-import { collection, doc, getDocs, query, runTransaction, where, writeBatch } from "firebase/firestore";
+import { collection, doc, getDocs, runTransaction } from "firebase/firestore";
 import { db } from "./firebase";
 import styles from "./TeacherSearch.module.css";
 import {
@@ -13,7 +13,7 @@ import {
   validateStudentName,
   validateTeacher,
 } from "./teachers";
-import { applyRemovals, applyRenames } from "./studentSync";
+import { applyRemovals, applyRenames, updateTeacher } from "./studentSync";
 import { rebuildClassCounts } from "./classCounts";
 
 const MAX_RESULTS = 40;
@@ -336,19 +336,11 @@ function TeacherSearch({ onClose }) {
 
     setSaving(true);
     try {
-      const batch = writeBatch(db);
-      targets.forEach((r) => {
-        const data = { profesorIndrumatorEmail: nume };
-        if (changeEmail) data.profesorEmail = email;
-        if (changeTelefon) data.telefon = telefon;
-        batch.update(doc(db, "registration", r.id), data);
-      });
-      // codurile de anonimizare păstrează și ele numele profesorului (pentru borderou)
-      for (const r of targets) {
-        const codesSnap = await getDocs(query(collection(db, "codes"), where("regId", "==", r.id)));
-        codesSnap.forEach((c) => batch.update(c.ref, { profesor: nume }));
-      }
-      await batch.commit();
+      const data = { profesorIndrumatorEmail: nume };
+      if (changeEmail) data.profesorEmail = email;
+      if (changeTelefon) data.telefon = telefon;
+      // (și codurile de anonimizare primesc numele profesorului, pentru borderou)
+      await updateTeacher(targets.map((r) => r.id), data);
       setEdit(null);
       setMessage({
         type: "success",

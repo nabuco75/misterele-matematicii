@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc } from "firebase/firestore";
 import { db } from "./firebase"; // Asigură-te că exportul db este corect
 import styles from "./RoomAllocation.module.css";
@@ -36,8 +36,10 @@ function RoomAllocation({ onNextStep, onCancel, stageBar }) {
     const [roomSeats, setRoomSeats] = useState("");
     const [message, setMessage] = useState(null);
 
+    // sălile se încarcă o singură dată, la deschiderea paginii
     useEffect(() => {
         loadRooms();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // jurnalul repartizării + câți elevi s-au înscris după ea
@@ -69,9 +71,11 @@ function RoomAllocation({ onNextStep, onCancel, stageBar }) {
         };
     }, []);
 
+    const messageTimer = useRef(null);
     const showMessage = (type, text) => {
         setMessage({ type, text });
-        setTimeout(() => setMessage(null), 4000);
+        clearTimeout(messageTimer.current);
+        messageTimer.current = setTimeout(() => setMessage(null), 4000);
     };
 
     // ====== FIREBASE - ÎNCĂRCARE SĂLI ======

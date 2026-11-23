@@ -751,6 +751,7 @@ function Grading({ onDashboard, stageBar }) {
                         <input
                           data-row={i}
                           data-col={key}
+                          aria-label={`${r.nume}, ${key === "s1" ? "subiectul I" : key === "s2" ? "subiectul II" : "subiectul III"}`}
                           className={`${styles.scoreInput} ${err ? styles.inputError : ""} ${
                             k in drafts && !err ? styles.inputDirty : ""
                           }`}

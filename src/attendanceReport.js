@@ -77,15 +77,6 @@ const table = (head, rows, leftCols = []) =>
     )
     .join("")}</tbody></table>`;
 
-const tallyRows = (list, label, totals) => [
-  ...list.map((t) => ({
-    cells: [escapeHtml(label(t.key)), t.total, `<b>${t.prezenti}</b>`, t.absenti || "—", t.veniti || "—", pct(t.prezenti, t.total)],
-  })),
-  {
-    cls: "tot",
-    cells: ["TOTAL", totals.total, totals.prezenti, totals.absenti, totals.veniti, pct(totals.prezenti, totals.total)],
-  },
-];
 const TALLY_HEAD = (first) => [first, "Repartizați", "Prezenți", "Absenți", "Veniți pe loc", "Prezență"];
 
 // pe fiecare clasă: câți au venit, lista absenților și a celor veniți pe loc

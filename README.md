@@ -8,17 +8,21 @@ organizat de Școala Gimnazială „Ștefan cel Mare” Vaslui.
 ## Funcționalități
 
 - **Public:** alegere județ → localitate → școală, cod de acces profesor, înscriere max. 5 elevi/clasă/școală
-  (școlile „VIP” și adminul nu au limită), email de confirmare.
-- **Admin (`/admin`):** CRUD școli, import școli din Excel (fără dubluri), statistici, editare/ștergere elevi,
-  înscriere suplimentară, exporturi Excel, repartizare automată în săli.
+  (școlile marcate „fără limită” și adminul nu au limită), email de confirmare (sau confirmare descărcabilă).
+  Limita e verificată și pe server (regulile Firestore), nu doar în browser.
+- **Admin (`/admin`):** doar conturile din colecția `admins`. CRUD școli (cu bifa „fără limită”), import școli din
+  Excel, statistici, editare/ștergere/mutare elevi și înscrieri, căutare profesori, înscriere suplimentară, exporturi.
+- **Etapele concursului:** Săli → Repartizare → Coduri (anonimizare MMVS_xx) → Tipărire (liste pe uși, bilețele,
+  borderouri, prezență, situații pentru raportare, premii în bani) → Notare (punctaje, premii, clasament, exporturi).
 - **Repartizare în săli** (`src/allocation.js`): sălile se umplu complet, în ordine (locurile libere rămân
-  în ultima sală); câte 2 clase în fiecare sală, aproximativ jumătate-jumătate
-  (clasa cea mai numeroasă se împerechează pe rând cu celelalte); dacă locurile sunt la limită, ultima sală
-  poate fi „mozaic” (mai multe clase). Elevii sunt alfabetic, în continuare de la o sală
-  la alta. Listele pentru uși se descarcă în Excel (cu antet și culori pe clase) și PDF (`src/roomLists.js`);
-  ediția și data din antet se completează în pagina de repartizare.
-- **Deschidere/închidere înscrieri:** documentul Firestore `config/appStatus` (`isActive`, `message`).
-  Pe localhost se poate testa cu `?force=true`.
+  în ultima sală); câte 2 clase în fiecare sală, aproximativ jumătate-jumătate; dacă locurile sunt la limită,
+  ultima sală poate fi „mozaic”. Elevii sunt alfabetic, în continuare de la o sală la alta. Dacă nu ajung locurile,
+  fiecare clasă cedează proporțional (ultimii alfabetic), iar cei rămași fără loc sunt afișați pe nume.
+- **Mai multe calculatoare deodată:** repartizarea, elevii veniți pe loc, tranșele de coduri, antetul și sumele
+  premiilor se salvează în baza de date pornind de la datele proaspete (tranzacții); numerele de cod se rezervă
+  atomic (`config/codeCounter`), deci două calculatoare nu pot da același cod.
+- **Deschidere/închidere înscrieri:** documentul Firestore `config/appStatus` (`isActive`, `message`), schimbat
+  din consola Firebase. Pe localhost se poate testa cu `?force=true`.
 
 ## Comenzi
 
@@ -31,12 +35,22 @@ firebase deploy --only hosting
 
 ## Colecții Firestore
 
-| Colecție | Conținut |
-|---|---|
-| `schools` | `name`, `county`, `locality` |
-| `registration` | `schoolId`, `school`, `class`, `students[]`, `profesorIndrumatorEmail` (**numele** profesorului — denumire istorică), `profesorEmail` (emailul), `telefon`, `createdAt` |
-| `rooms` | `name`, `floor`, `seats`, `rows`, `cols` |
-| `config/appStatus` | `isActive`, `message` |
+| Colecție / document | Conținut | Cine citește |
+|---|---|---|
+| `schools` | `name`, `county`, `locality`, `vip` (fără limita de 5) | public |
+| `registration` | `schoolId`, `school`, `class`, `students[]`, `profesorIndrumatorEmail` (**numele** profesorului — denumire istorică), `profesorEmail` (emailul), `telefon`, `createdAt` | doar admin |
+| `classCounts/{schoolId}` | `IV`, `V`, `VI`, `VII` (elevi înscriși pe clasă), `seq` — contorul public pentru limita de 5 | public (doar numere) |
+| `admins/{uid}` | conturile de admin (se creează manual din consolă) | fiecare cont doar pe al lui |
+| `rooms` | `name`, `floor`, `seats`, `rows`, `cols` | admin |
+| `codes/{MMVS_xx}` | codul de anonimizare: `n`, `regId`, `nume`, `clasa`, `scoala`, `profesor`, `salaLaAtribuire`, `retras` | admin |
+| `grades/{cod sau elev_…}` | `s1`, `s2`, `s3`, `absent`, `premiu` | admin |
+| `config/appStatus` | `isActive`, `message` | public |
+| `config/allocation` | repartizarea (`assignments`), jurnalul, elevii veniți pe loc, tranșele de coduri | admin |
+| `config/codeCounter` | ultimul număr de cod rezervat | admin |
+| `config/settings` | antetul listelor (ediția, data) și sumele premiilor în bani | admin |
+
+Înscrierile publice au ID-ul `{schoolId}_{seq}_{clasă}` și se scriu în aceeași tranzacție cu `classCounts`
+(vezi `src/classCounts.js` și `firestore.rules`). Orice modificare a adminului recalculează contoarele.
 
 ## Schimbarea codului de acces pentru profesori
 
@@ -50,7 +64,7 @@ node -e "console.log(require('crypto').createHash('sha256').update('COD_NOU').di
 
 ## Securitate — de verificat în Firebase Console
 
-1. **Authentication → Settings → User actions:** dezactivați „Enable create (sign-up)”, ca nimeni să nu-și poată
-   crea singur cont (orice cont autentificat are acces la `/admin`).
-2. **Firestore → Rules:** scrierea/ștergerea în `schools`, `rooms`, `config` și modificarea/ștergerea în
-   `registration` ar trebui permise doar utilizatorilor autentificați.
+1. **Firestore → Data → `admins`:** câte un document pentru fiecare cont de admin, cu ID-ul = User UID din
+   Authentication → Users. Fără el, contul nu are acces la panou (și regulile îl refuză).
+2. **Firestore → Rules:** conținutul fișierului `firestore.rules` (se lipește în consolă și se publică).
+3. **Authentication → Settings → User actions:** dezactivați „Enable create (sign-up)”.

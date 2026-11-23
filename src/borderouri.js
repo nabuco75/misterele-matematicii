@@ -48,7 +48,7 @@ const tableHtml = (rows, start) =>
     .join("")}</tbody></table>`;
 
 const pageHtml = ({ clasa, subject, papers, pageNo, pages, edition }) => {
-  const [c1, c2] = CLASS_COLOR[clasa] || ["#334155", "#64748b"];
+  const [c1] = CLASS_COLOR[clasa] || ["#334155", "#64748b"];
   const tint = CLASS_TINT[clasa] || "#e5e7eb";
   const sc = SUBJECT_COLOR[subject] || { c: "#334155", tint: "#f8fafc" };
   const offset = (pageNo - 1) * ROWS_PER_COLUMN * 2;

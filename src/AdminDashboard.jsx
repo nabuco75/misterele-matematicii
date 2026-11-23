@@ -1,5 +1,5 @@
 // AdminDashboard.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import {
   collection,
@@ -11,16 +11,15 @@ import {
   query,
   where,
   runTransaction,
-  writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import * as XLSX from "xlsx";
+import XLSX from "xlsx-js-style";
 import ConfirmModal from "./ConfirmModal.jsx";
 import RoomAllocation from "./RoomAllocation.jsx";
 import AllocationProcess from "./AllocationProcess.jsx";
 import Grading from "./Grading.jsx";
 import ClassForm from "./ClassForm.jsx";
-import { applyRemovals, applyRenames } from "./studentSync";
+import { applyRemovals, applyRenames, updateTeacher } from "./studentSync";
 import { adminMaintenance, rebuildClassCounts } from "./classCounts";
 import { syncSettings } from "./settings";
 import {
@@ -192,20 +191,18 @@ function AdminDashboard() {
   };
 
   // ====== HELPER: Afișare mesaj succes ======
-  const showSuccessMessage = (message) => {
-    setSchoolOperationMessage(message);
-    setTimeout(() => {
-      setSchoolOperationMessage(null);
-    }, 3000);
+  // (timerul se ține minte: un mesaj nou nu mai e șters de timerul mesajului vechi)
+  const msgTimers = useRef({});
+  const flash = (name, setter, value, ms = 3000) => {
+    setter(value);
+    clearTimeout(msgTimers.current[name]);
+    msgTimers.current[name] = setTimeout(() => setter(null), ms);
   };
+  const showSuccessMessage = (message) => flash("school", setSchoolOperationMessage, message);
 
   // ====== HELPER: Afișare mesaj în editor elevi ======
-  const showStudentEditorMessage = (message, type = "success") => {
-    setStudentEditorMessage({ text: message, type });
-    setTimeout(() => {
-      setStudentEditorMessage(null);
-    }, 3000);
-  };
+  const showStudentEditorMessage = (message, type = "success") =>
+    flash("editor", setStudentEditorMessage, { text: message, type });
 
   // ====== CRUD ȘCOALĂ ======
   const resetSchoolForm = () => {
@@ -607,14 +604,9 @@ function AdminDashboard() {
         };
 
         if (nume || email) {
-          // un profesor = același nume la aceeași școală
-          // (fără diferențe de majuscule, diacritice sau spații multiple)
-          const numeNorm = nume
-            .normalize("NFD")
-            .replace(/[̀-ͯ]/g, "")
-            .toLowerCase()
-            .replace(/\s+/g, " ");
-          const key = `${numeNorm}|${data.schoolId || ""}`;
+          // un profesor = același nume la aceeași școală, după aceeași regulă ca în
+          // Situații pentru raportare (fără majuscule, diacritice, ordinea cuvintelor)
+          const key = `${teacherKey(nume) || email.toLowerCase()}|${data.schoolId || ""}`;
           const existing = instrumatoriMap.get(key);
           if (!existing) {
             instrumatoriMap.set(key, {
@@ -1432,16 +1424,8 @@ function AdminDashboard() {
           if (nameChanged) patch.profesorIndrumatorEmail = nume;
           if (email !== (reg.profesorEmail || "")) patch.profesorEmail = email;
           if (telefon !== (reg.telefon || "")) patch.telefon = telefon;
-          const batch = writeBatch(db);
-          targets.forEach((r) => batch.update(doc(db, "registration", r.id), patch));
-          // codurile de anonimizare păstrează și ele numele profesorului (pentru borderou)
-          if (nameChanged) {
-            for (const r of targets) {
-              const codesSnap = await getDocs(query(collection(db, "codes"), where("regId", "==", r.id)));
-              codesSnap.forEach((c) => batch.update(c.ref, { profesor: nume }));
-            }
-          }
-          await batch.commit();
+          // (și codurile de anonimizare, dacă s-a schimbat numele)
+          await updateTeacher(targets.map((r) => r.id), patch);
 
           const local = {};
           if ("profesorIndrumatorEmail" in patch) local.profesor = nume;

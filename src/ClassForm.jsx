@@ -1,7 +1,7 @@
 // ClassForm.jsx
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import emailjs from "emailjs-com";
+import emailjs from "@emailjs/browser";
 import { db } from "./firebase";
 import {
   collection,
@@ -625,7 +625,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
           students: emailContent,
           reply_to: email,
         },
-        "IpIiJlmFDSQJ6WnbS"
+        { publicKey: "IpIiJlmFDSQJ6WnbS" }
       );
 
       if (response.status === 200) {

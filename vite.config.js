@@ -3,5 +3,6 @@ import react from "@vitejs/plugin-react-swc";
 
 export default defineConfig({
   plugins: [react()],
-  base: "./", // Setează calea relativă pentru resurse
+  // căi absolute: cu BrowserRouter, „./” ar strica resursele pe adrese ca /admin/ceva
+  base: "/",
 });

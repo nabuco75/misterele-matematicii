@@ -36,8 +36,8 @@ function LoginForm() {
         <h2>Autentificare admin</h2>
         <p className={styles.hint}>Panoul organizatorilor concursului Misterele Matematicii.</p>
         {error && <p className={styles.error}>{error}</p>}
-        <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className={styles.inputField} required />
-        <input type="password" placeholder="Parola" value={password} onChange={(e) => setPassword(e.target.value)} className={styles.inputField} required />
+        <input type="email" placeholder="Email" aria-label="Email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className={styles.inputField} required />
+        <input type="password" placeholder="Parola" aria-label="Parola" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className={styles.inputField} required />
         <button type="submit" className={styles.submitButton}>
           Autentificare
         </button>

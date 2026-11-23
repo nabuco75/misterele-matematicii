@@ -62,6 +62,20 @@ const codesOfRegs = async (regIds) => {
   return out;
 };
 
+// Profesorul îndrumător al unor înscrieri: se scrie `patch` (profesorIndrumatorEmail = numele,
+// profesorEmail, telefon – doar ce s-a schimbat) pe fiecare înscriere; dacă s-a schimbat numele,
+// îl primesc și codurile de anonimizare ale acelor înscrieri (apare pe borderou).
+export async function updateTeacher(regIds, patch) {
+  const batch = writeBatch(db);
+  regIds.forEach((id) => batch.update(doc(db, "registration", id), patch));
+  if ("profesorIndrumatorEmail" in patch) {
+    for (const c of await codesOfRegs(regIds)) {
+      batch.update(doc(db, CODES_COLLECTION, c.cod), { profesor: patch.profesorIndrumatorEmail });
+    }
+  }
+  await batch.commit();
+}
+
 // renames: [{ regId, oldName, newName }] → păstrează sala, codul și notele elevilor redenumiți
 export async function applyRenames(renames) {
   const list = renames.filter(
