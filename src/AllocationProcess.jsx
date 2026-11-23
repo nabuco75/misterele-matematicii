@@ -35,6 +35,7 @@ import { AllocationLogCard, AllocationStatsView } from "./AllocationLog";
 import { GRADES_COLLECTION, nameGradeId } from "./grading";
 import AttendanceView from "./AttendanceView.jsx";
 import ReportsView from "./ReportsView.jsx";
+import PrizeMoneyCard from "./PrizeMoneyCard.jsx";
 import BorderouriView from "./BorderouriView.jsx";
 import {
     exportRoomsExcel,
@@ -1672,6 +1673,17 @@ th, td { border: 1px solid #000; padding: 5px 6px; text-align: center; } th { ba
                                 </button>
                             </div>
                         </section>
+                        {/* 4. Premii în bani */}
+                        <section className={styles.printSection}>
+                            <div className={styles.printSectionHead}>
+                                <span className={styles.printStep}>4</span>
+                                <div>
+                                    <h3>Premii în bani</h3>
+                                    <p>Tabelul nominal cu sumele și loc de semnătură · premiile se aleg pe fiecare elev la Notare</p>
+                                </div>
+                            </div>
+                            <PrizeMoneyCard header={header} />
+                        </section>
                         {showAttendance && <AttendanceView onClose={() => setShowAttendance(false)} />}
                         {showBorderouri && <BorderouriView onClose={() => setShowBorderouri(false)} />}
                         {showReports && <ReportsView onClose={() => setShowReports(false)} />}
@@ -1680,7 +1692,7 @@ th, td { border: 1px solid #000; padding: 5px 6px; text-align: center; } th { ba
                         {(renamedCard || walkInLogCard || (hasCodes && codeBatches.length > 0)) && (
                             <div className={`${styles.printSection} ${styles.printSectionBare}`}>
                                 <div className={styles.printSectionHead}>
-                                    <span className={styles.printStep}>4</span>
+                                    <span className={styles.printStep}>5</span>
                                     <div>
                                         <h3>Evidențe și corecturi</h3>
                                         <p>Nume corectate, elevi veniți pe loc, tranșele de coduri</p>

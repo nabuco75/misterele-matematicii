@@ -34,6 +34,14 @@ const cmpRo = (a, b) => String(a || "").localeCompare(String(b || ""), "ro", { s
 const clean = (s) => String(s || "").trim().replace(/\s+/g, " ");
 
 // ====== DATELE ======
+// toți elevii cu notele, suma și premiul (ca la Notare)
+export const loadResults = async () => {
+  const [data, gradesSnap] = await Promise.all([loadContestStudents(), getDocs(collection(db, GRADES_COLLECTION))]);
+  const grades = {};
+  gradesSnap.forEach((d) => (grades[d.id] = d.data()));
+  return buildResults(data.students, grades);
+};
+
 export const loadReportData = async () => {
   const [data, gradesSnap, regsSnap, schoolsSnap] = await Promise.all([
     loadContestStudents(),
