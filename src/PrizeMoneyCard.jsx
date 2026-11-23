@@ -83,7 +83,7 @@ export default function PrizeMoneyCard({ header }) {
     return c;
   }, [rows]);
   const prizeInfo = useMemo(() => prizeSummary(prizeRows(rows, prizeAmounts), prizeAmounts), [rows, prizeAmounts]);
-  const doPrizes = (kind) => {
+  const doPrizes = async (kind) => {
     const half = Object.entries(customPrize).find(([, t]) => t === "" || normalizePrizeAmount(t) === null);
     if (half) {
       window.alert(`Completați suma pentru ${PRIZE_LABEL[half[0]]} (sau alegeți o valoare din listă).`);
@@ -97,8 +97,17 @@ export default function PrizeMoneyCard({ header }) {
       );
       return;
     }
-    if (kind === "excel") exportPrizesExcel(rows, header, prizeAmounts);
-    else printPrizesPdf(rows, header, prizeAmounts);
+    // premiile pot fi schimbate între timp la Notare (alt calculator): recitim înainte de export
+    let fresh = rows;
+    try {
+      fresh = await loadResults();
+      setRows(fresh);
+    } catch (err) {
+      console.error("Premiile nu au putut fi recitite:", err);
+      if (!window.confirm("Premiile nu au putut fi recitite din baza de date. Exportați datele afișate?")) return;
+    }
+    if (kind === "excel") exportPrizesExcel(fresh, header, prizeAmounts);
+    else printPrizesPdf(fresh, header, prizeAmounts);
   };
 
   return (

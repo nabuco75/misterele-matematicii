@@ -49,7 +49,51 @@ const classRank = (cls) => {
 
 const seatsOf = (room) => Math.max(0, parseInt(room.seats) || 0);
 
-export function allocateByClassPairs(students, rooms) {
+// numele de sală folosite de mai multe ori („Sala 6” de două ori): repartizarea se face
+// după nume, deci elevii ar apărea de două ori. Întoarce numele duplicate (gol = în regulă).
+export const duplicateRoomNames = (rooms) => {
+  const seen = new Map();
+  const dup = new Set();
+  rooms.forEach((r) => {
+    const k = String(r.name || "").trim().toLocaleLowerCase("ro");
+    if (seen.has(k)) dup.add(seen.get(k));
+    else seen.set(k, String(r.name || "").trim());
+  });
+  return [...dup];
+};
+
+// Când sunt mai mulți elevi decât locuri, fiecare clasă cedează proporțional (cei de la
+// sfârșitul listei alfabetice), în loc să rămână pe dinafară clase întregi.
+// Întoarce { kept, left } (left = elevii fără loc).
+const trimToSeats = (students, totalSeats) => {
+  if (students.length <= totalSeats) return { kept: students, left: [] };
+  const groups = {};
+  students.forEach((s) => (groups[s.clasa] = groups[s.clasa] || []).push(s));
+  const ratio = totalSeats / students.length;
+  // metoda celor mai mari resturi: cote întregi care adună exact totalSeats
+  const quotas = Object.entries(groups).map(([cls, list]) => {
+    const exact = list.length * ratio;
+    return { cls, n: Math.floor(exact), rest: exact - Math.floor(exact) };
+  });
+  let extra = totalSeats - quotas.reduce((n, q) => n + q.n, 0);
+  [...quotas]
+    .sort((a, b) => b.rest - a.rest || classRank(a.cls) - classRank(b.cls))
+    .forEach((q) => {
+      if (extra > 0) {
+        q.n++;
+        extra--;
+      }
+    });
+  const keep = new Set();
+  quotas.forEach((q) => groups[q.cls].slice(0, q.n).forEach((s) => keep.add(s)));
+  return { kept: students.filter((s) => keep.has(s)), left: students.filter((s) => !keep.has(s)) };
+};
+
+export function allocateByClassPairs(allStudents, rooms) {
+  const { kept: students, left: unplacedStudents } = trimToSeats(
+    allStudents,
+    rooms.reduce((n, r) => n + seatsOf(r), 0)
+  );
   // grupare pe clase, păstrând ordinea alfabetică primită
   const groups = {};
   students.forEach((s) => {
@@ -183,11 +227,17 @@ export function allocateByClassPairs(students, rooms) {
     });
   });
 
+  const placedIds = new Set(data.map((d) => d.id));
   return {
     data,
     roomSummaries,
     allocated: data.length,
-    unallocated: students.length - data.length,
+    unallocated: allStudents.length - data.length,
+    // cine a rămas fără loc (pentru mesaj): cei tăiați proporțional + eventualii nepuși
+    unplacedStudents: [
+      ...unplacedStudents,
+      ...students.filter((s) => !placedIds.has(s.id)),
+    ],
   };
 }
 

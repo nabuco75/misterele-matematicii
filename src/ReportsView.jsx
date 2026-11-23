@@ -95,6 +95,12 @@ export default function ReportsView({ onClose }) {
 
         {!loading && data && (
           <>
+            {data.ungradedCount > 0 && (
+              <p className={base.warn}>
+                ⚠️ {data.ungradedCount} elevi nu au nicio notă și nici bifa „absent”: NU sunt numărați ca prezenți
+                și nu apar în liste. Bifați-i absenți la Notare (sau treceți-le notele), apoi actualizați.
+              </p>
+            )}
             {data.incomplete > 0 && (
               <p className={base.warn}>
                 ⚠️ {data.incomplete} elevi prezenți nu sunt notați complet: apar la finalul clasei lor, cu „—” la sumă.

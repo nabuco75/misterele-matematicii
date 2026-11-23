@@ -66,7 +66,8 @@ export const lei = (n) => `${n.toLocaleString("ro-RO")} lei`;
 // (un premiu cu suma 0 nu apare în tabel)
 export const prizeRows = (rows, amounts = PRIZE_AMOUNTS) =>
   rows
-    .filter((r) => !r.absent && amounts[r.premiu] > 0)
+    // doar elevii notați complet (un premiu pus din greșeală unui nenotat nu se plătește)
+    .filter((r) => r.stare === "notat" && amounts[r.premiu] > 0)
     .map((r) => ({
       ...r,
       nume: displayName(r.nume),

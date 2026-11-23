@@ -72,6 +72,19 @@ export const attachCodes = (students, allCodeDocs) => {
   return { students: result, renamed, orphans };
 };
 
+// același elev înscris de două ori la aceeași școală (altă clasă, alt profesor, alt moment,
+// sau cu numele în ordine inversă: „Pop Ana” = „Ana Pop”). Întoarce grupurile suspecte.
+export const possibleDuplicates = (students) => {
+  const key = (s) => `${s.scoala}|${normName(s.nume).replace(/[^a-z ]/g, " ").split(" ").filter(Boolean).sort().join(" ")}`;
+  const groups = new Map();
+  students.forEach((s) => {
+    const k = key(s);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(s);
+  });
+  return [...groups.values()].filter((g) => g.length > 1);
+};
+
 // numele școlii pentru liste: dacă localitatea nu apare deja în nume, o adăugăm
 // („Școala Gimnazială „Ștefan Luchian”” → „Școala Gimnazială „Ștefan Luchian”, Moinești”)
 export const schoolWithLocality = (school) => {

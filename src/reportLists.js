@@ -8,21 +8,12 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
 import { CLASS_ORDER } from "./allocation";
 import { loadContestStudents } from "./contestData";
-import { GRADES_COLLECTION, buildResults, classRank, formatSuma } from "./grading";
+import { AWARD_TEXT, GRADES_COLLECTION, buildResults, classRank, formatSuma } from "./grading";
 import { ORGANIZER, editionLine, escapeHtml, openPrintWindow } from "./roomLists";
 import { displayName } from "./nameFormat";
 import { teacherKey } from "./teachers";
 
-export const AWARD_TEXT = {
-  I: "Premiul I",
-  II: "Premiul II",
-  III: "Premiul III",
-  M1: "Mențiunea I",
-  M2: "Mențiunea a II-a",
-  M3: "Mențiunea a III-a",
-  M: "Mențiune",
-  SSMR: "Mențiune SSMR",
-};
+export { AWARD_TEXT };
 
 const CLASS_COLOR = {
   "a IV-a": ["#5b21b6", "#ede9fe"],
@@ -61,8 +52,11 @@ export const loadReportData = async () => {
   const regs = {};
   regsSnap.forEach((d) => (regs[d.id] = d.data()));
 
-  // 1) rezultate: doar prezenții, pe clase, suma descrescător (cei fără sumă completă la final)
-  const present = results.filter((r) => !r.absent);
+  // 1) rezultate: doar prezenții, pe clase, suma descrescător (cei fără sumă completă la final).
+  // Prezent = are cel puțin o notă. Elevii fără nicio notă și fără bifa „absent” nu se
+  // numără ca prezenți (probabil n-au venit, dar nu au fost bifați): apar ca avertizare.
+  const present = results.filter((r) => r.stare === "notat" || r.stare === "incomplet");
+  const ungraded = results.filter((r) => r.stare === "nenotat");
   const resultsByClass = [...new Set([...CLASS_ORDER, ...present.map((r) => r.clasa)])]
     .map((clasa) => ({
       clasa,
@@ -123,7 +117,8 @@ export const loadReportData = async () => {
     resultsByClass,
     presentCount: present.length,
     incomplete: present.filter((r) => r.suma == null).length,
-    absentCount: results.length - present.length,
+    ungradedCount: ungraded.length,
+    absentCount: results.filter((r) => r.absent).length,
     schools: schoolList,
     teachers: teacherList,
     localities: new Set(schoolList.map((s) => `${s.locality}|${s.county}`)).size,
@@ -378,7 +373,7 @@ const listSheet = (id, data, header) => {
         ws[ref].s = cs({ fill: k === "rz" ? "F8FAFC" : "FFFFFF", bold: !!col.bold, left: !!col.left });
       else if (k === "tot") ws[ref].s = cs({ fill: tint, bold: true, color: c1, left: !!col.left });
       else ws[ref].s = { font: { name: "Calibri", sz: 11 } };
-      if (id === "rezultate" && c === 2 && (k === "r" || k === "rz") && typeof ws[ref].v === "number") ws[ref].z = "0.##";
+      if (id === "rezultate" && c === 2 && (k === "r" || k === "rz") && typeof ws[ref].v === "number") ws[ref].z = "General"; // („0.##” afișa 27 ca „27.”)
     })
   );
   return ws;

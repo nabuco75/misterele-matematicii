@@ -13,6 +13,7 @@ import {
     allocateKeepingCodes,
     allocationStats,
     CLASS_ORDER,
+    duplicateRoomNames,
     sortRooms,
 } from "./allocation";
 import {
@@ -33,7 +34,7 @@ import {
     reserveCodeNumbers,
 } from "./studentSync";
 import { AllocationLogCard, AllocationStatsView } from "./AllocationLog";
-import { GRADES_COLLECTION, nameGradeId } from "./grading";
+import { GRADES_COLLECTION, isAbsentIn } from "./grading";
 import AttendanceView from "./AttendanceView.jsx";
 import ReportsView from "./ReportsView.jsx";
 import PrizeMoneyCard from "./PrizeMoneyCard.jsx";
@@ -56,6 +57,7 @@ import {
     CODES_COLLECTION,
     loadContestStudents,
     normName,
+    possibleDuplicates,
     loadHeader,
     saveHeader,
 } from "./contestData";
@@ -68,7 +70,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
     const [allocationResult, setAllocationResult] = useState(null);
     const [slipSearch, setSlipSearch] = useState("");
     // absenții bifați la Notare (id-urile notelor: cod sau elev_înscriere_nume)
-    const [absentIds, setAbsentIds] = useState(new Set());
+    const [gradesById, setGradesById] = useState({}); // notele (pentru bifa „absent”)
     const [placeChoice, setPlaceChoice] = useState({});
     const [walkInLog, setWalkInLog] = useState([]);
     const [showAttendance, setShowAttendance] = useState(false);
@@ -179,7 +181,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
     const loadAbsents = async () => {
         try {
             const snap = await getDocs(collection(db, GRADES_COLLECTION));
-            setAbsentIds(new Set(snap.docs.filter((d) => d.data().absent).map((d) => d.id)));
+            setGradesById(Object.fromEntries(snap.docs.map((d) => [d.id, d.data()])));
         } catch (err) {
             console.error("Eroare la citirea absenților:", err);
         }
@@ -216,6 +218,15 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
 
         if (rooms.length === 0) {
             showMessage("error", "Nu există săli configurate pentru repartizare.");
+            setLoading(false);
+            return;
+        }
+        if (duplicateRoomNames(rooms).length > 0) {
+            showMessage(
+                "error",
+                `❌ Aceeași sală apare de mai multe ori (${duplicateRoomNames(rooms).join(", ")}). Corectați în pagina Săli.`,
+                9000
+            );
             setLoading(false);
             return;
         }
@@ -257,9 +268,14 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                     `✅ Repartizare reușită! Toți cei ${result.allocated} elevi au fost așezați.`
                 );
             } else {
+                const names = result.unplacedStudents.map((s) => `${s.nume} (${s.clasa})`);
                 showMessage(
                     "warning",
-                    `⚠️ ${result.allocated} elevi așezați, ${result.unallocated} nerepartizați (nu au mai fost locuri).`
+                    `⚠️ ${result.allocated} elevi așezați, ${result.unallocated} fără loc (fiecare clasă a cedat proporțional, ` +
+                        `ultimii în ordine alfabetică): ${names.slice(0, 15).join(", ")}${
+                            names.length > 15 ? ` și încă ${names.length - 15}` : ""
+                        }. Adăugați locuri sau o sală și refaceți repartizarea.`,
+                    30000
                 );
             }
         } catch (err) {
@@ -350,6 +366,8 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
         ? students.filter((s) => !placedIds.has(s.id)).length
         : 0;
     const pendingPairs = diff ? diff.pairs.length : 0;
+    // același copil înscris de două ori (altă clasă / alt profesor / nume inversat)
+    const duplicateGroups = possibleDuplicates(students);
 
     const handleKeepAllocation = async () => {
         if (rooms.length === 0 || busyRef.current) return;
@@ -364,6 +382,14 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
     };
 
     const placeNewStudents = async () => {
+        if (duplicateRoomNames(rooms).length > 0) {
+            showMessage(
+                "error",
+                `❌ Aceeași sală apare de mai multe ori (${duplicateRoomNames(rooms).join(", ")}). Corectați în pagina Săli.`,
+                9000
+            );
+            return;
+        }
         if (pendingPairs > 0) {
             showMessage(
                 "warning",
@@ -413,7 +439,9 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
     };
 
     // ====== ELEV VENIT PE LOC: se așază în locul unui absent (sau pe un loc liber) ======
-    const isAbsent = (st) => (st.cod && absentIds.has(st.cod)) || absentIds.has(nameGradeId(st));
+    const isAbsent = (st) => isAbsentIn(st, gradesById);
+    // câți elevi sunt bifați absenți acum (după aceeași regulă ca la Notare)
+    const absentCount = (allocationResult || students).filter(isAbsent).length;
     const roomAvailability = rooms
         .map((room) => {
             const inRoom = (allocationResult || []).filter((st) => st.sala === room.name);
@@ -1134,12 +1162,30 @@ th, td { border: 1px solid #000; padding: 5px 6px; text-align: center; } th { ba
                             </div>
                         </div>
 
+                        {duplicateGroups.length > 0 && (
+                            <div className={styles.walkInCard} role="alert">
+                                <h3>⚠️ Posibili elevi înscriși de două ori</h3>
+                                <p className={styles.reconcileIntro}>
+                                    Același nume la aceeași școală, în mai multe înscrieri. Dacă e același copil, ștergeți
+                                    dublura din Panou › Editare elevi (altfel primește două locuri și două coduri).
+                                </p>
+                                <ul>
+                                    {duplicateGroups.map((g) => (
+                                        <li key={g[0].id}>
+                                            <b>{g[0].nume}</b> — {g[0].scoala}:{" "}
+                                            {g.map((s) => `${s.nume} (${s.clasa}, prof. ${s.profesor || "?"})`).join("; ")}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
                         <AllocationLogCard
                             saved={saved}
                             newCount={newStudents}
                             renamedCount={pendingPairs}
                             ghostCount={diff ? diff.unpairedGhosts.length : 0}
-                            onPlaceNew={absentIds.size === 0 ? handleKeepAllocation : undefined}
+                            onPlaceNew={absentCount === 0 ? handleKeepAllocation : undefined}
                             onRegenerate={handleGenerateAllocation}
                         />
 
@@ -1221,7 +1267,7 @@ th, td { border: 1px solid #000; padding: 5px 6px; text-align: center; } th { ba
                                 : "🎲 Generează Repartizare Inteligentă"}
                         </button>
 
-                        {(studentsWithCode > 0 || saved?.last) && newStudents > 0 && absentIds.size === 0 && (
+                        {(studentsWithCode > 0 || saved?.last) && newStudents > 0 && absentCount === 0 && (
                             <button
                                 onClick={handleKeepAllocation}
                                 className={styles.newStudentsButton}
@@ -1648,7 +1694,7 @@ th, td { border: 1px solid #000; padding: 5px 6px; text-align: center; } th { ba
                                             <span>
                                                 <b>Fără absenți</b> · {allocationResult.filter((st) => !isAbsent(st)).length}{" "}
                                                 prezenți
-                                                {absentIds.size > 0
+                                                {absentCount > 0
                                                     ? `, ${allocationResult.filter(isAbsent).length} absenți scoși`
                                                     : ", niciun absent bifat"}
                                             </span>

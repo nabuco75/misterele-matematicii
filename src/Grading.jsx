@@ -18,6 +18,7 @@ import {
   sumaTier,
   MAX_SUM,
   parseScore,
+  prizeWarnings,
 } from "./grading";
 import { exportResultsExcel, printResultsPdf } from "./gradingExport";
 
@@ -253,6 +254,9 @@ function Grading({ onDashboard, stageBar }) {
     [rows]
   );
 
+  // premii puse unor elevi nenotați, egalități cu premii diferite, premii inversate
+  const awardWarnings = useMemo(() => prizeWarnings(rows), [rows]);
+
   // ====== ȘTERGERE TOATE NOTELE ======
   const [deleting, setDeleting] = useState(false);
   const gradedCount = Object.keys(grades).length;
@@ -466,6 +470,15 @@ function Grading({ onDashboard, stageBar }) {
   ];
 
   const doExport = (kind, id) => {
+    const unsaved = Object.keys(drafts).length + Object.keys(cellErrors).length;
+    if (
+      unsaved > 0 &&
+      !window.confirm(
+        `Există ${unsaved} note scrise dar nesalvate (sau greșite, marcate cu roșu). Exportul folosește notele salvate. Continuați?`
+      )
+    ) {
+      return;
+    }
     const list = DOWNLOADS.find((d) => d.id === id);
     const picked = list.onlyAwarded ? visible.filter((r) => r.premiu) : visible;
     // absenții apar ca orice alt elev: fără „absent”, fără note și fără sumă
@@ -550,6 +563,28 @@ function Grading({ onDashboard, stageBar }) {
           );
         })}
       </div>
+
+      {awardWarnings.length > 0 && (
+        <div
+          role="alert"
+          style={{
+            margin: "12px 0",
+            padding: "10px 14px",
+            borderRadius: 10,
+            background: "#fff7ed",
+            border: "1px solid #f59e0b",
+            color: "#7c2d12",
+          }}
+        >
+          <b>⚠️ Verificați premiile înainte de diplome:</b>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 20 }}>
+            {awardWarnings.slice(0, 8).map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+          {awardWarnings.length > 8 && <div>… și încă {awardWarnings.length - 8}.</div>}
+        </div>
+      )}
 
       {/* filtre */}
       <div className={styles.panel}>
@@ -753,9 +788,9 @@ function Grading({ onDashboard, stageBar }) {
                     <select
                       className={styles.awardSelect}
                       value={r.premiu}
-                      disabled={r.absent || codesFailed}
+                      disabled={r.absent || codesFailed || (r.stare !== "notat" && !r.premiu)}
                       onChange={(e) => save(r, { premiu: e.target.value })}
-                      title="Premiul (se alege manual)"
+                      title={r.stare === "notat" ? "Premiul (se alege manual)" : "Premiul se dă după ce elevul e notat complet"}
                     >
                       <option value="">—</option>
                       {AWARDS.map((a) => (

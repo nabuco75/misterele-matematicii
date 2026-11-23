@@ -5,7 +5,7 @@ import { db } from "./firebase";
 import { allocateKeepingCodes, sortRooms } from "./allocation";
 import { loadAllocation } from "./allocationStore";
 import { loadContestStudents } from "./contestData";
-import { GRADES_COLLECTION, nameGradeId } from "./grading";
+import { GRADES_COLLECTION, isAbsentIn } from "./grading";
 
 export const loadPresence = async () => {
   const [data, roomsSnap, saved, gradesSnap] = await Promise.all([
@@ -19,11 +19,11 @@ export const loadPresence = async () => {
     saved: saved?.assignments || new Map(),
     placeNew: false,
   }).data;
-  const absentIds = new Set(gradesSnap.docs.filter((d) => d.data().absent).map((d) => d.id));
+  const gradesById = Object.fromEntries(gradesSnap.docs.map((d) => [d.id, d.data()]));
   const walkIns = new Map((saved?.walkIns || []).map((w) => [w.id, w]));
   const students = placed.map((s) => ({
     ...s,
-    absent: (s.cod && absentIds.has(s.cod)) || absentIds.has(nameGradeId(s)),
+    absent: isAbsentIn(s, gradesById),
     walkIn: walkIns.has(s.id),
     inLocul: walkIns.get(s.id)?.inLocul || null,
   }));
@@ -34,6 +34,6 @@ export const loadPresence = async () => {
     rooms,
     registered,
     registeredTotal: data.students.length,
-    absentCount: absentIds.size,
+    absentCount: students.filter((s) => s.absent).length,
   };
 };

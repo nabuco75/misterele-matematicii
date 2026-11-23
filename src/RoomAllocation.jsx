@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc } from "firebase/firestore";
 import { db } from "./firebase"; // Asigură-te că exportul db este corect
 import styles from "./RoomAllocation.module.css";
-import { sortRooms } from "./allocation";
+import { duplicateRoomNames, sortRooms } from "./allocation";
 import { loadAllocation } from "./allocationStore";
 import { loadContestStudents } from "./contestData";
 import { AllocationLogCard } from "./AllocationLog";
@@ -80,14 +80,10 @@ function RoomAllocation({ onNextStep, onCancel, stageBar }) {
             setLoading(true);
             const snap = await getDocs(collection(db, "rooms"));
 
-            if (snap.empty) {
-                // Dacă nu există săli, populăm automat
-                await initializeDefaultRooms();
-            } else {
-                const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-                // ordinea repartizării: de la parter, apoi etajele; pe etaj Sala 1, Sala 2, ... Sala 10
-                setRooms(sortRooms(list));
-            }
+            // (sălile pre-configurate se adaugă doar la cerere, cu butonul de mai jos)
+            const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            // ordinea repartizării: de la parter, apoi etajele; pe etaj Sala 1, Sala 2, ... Sala 10
+            setRooms(sortRooms(list));
         } catch (err) {
             console.error("Eroare la încărcarea sălilor:", err);
             showMessage("error", "❌ Eroare la încărcarea sălilor!");
@@ -96,11 +92,13 @@ function RoomAllocation({ onNextStep, onCancel, stageBar }) {
         }
     };
 
-    // ====== POPULARE AUTOMATĂ CU SĂLI DEFAULT ======
+    // ====== SĂLILE PRE-CONFIGURATE (la cerere) ======
+    // ID-uri fixe (implicit_0, implicit_1, ...): două ferestre care apasă deodată
+    // scriu aceleași documente, nu dublează sălile
     const initializeDefaultRooms = async () => {
         try {
-            const promises = DEFAULT_ROOMS.map((room) =>
-                addDoc(collection(db, "rooms"), room)
+            const promises = DEFAULT_ROOMS.map((room, i) =>
+                setDoc(doc(db, "rooms", `implicit_${i}`), room)
             );
             await Promise.all(promises);
 
@@ -109,7 +107,7 @@ function RoomAllocation({ onNextStep, onCancel, stageBar }) {
             const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             setRooms(sortRooms(list));
             
-            showMessage("success", "✅ Săli pre-configurate încărcate automat!");
+            showMessage("success", "✅ Sălile pre-configurate au fost adăugate!");
         } catch (err) {
             console.error("Eroare la popularea automată:", err);
             showMessage("error", "❌ Eroare la popularea automată!");
@@ -356,8 +354,18 @@ function RoomAllocation({ onNextStep, onCancel, stageBar }) {
 
             {/* MESAJ GOL */}
             {roomsCount === 0 && !loading && (
-                <p className={styles.emptyMessage}>
-                    Nu există săli configurate.
+                <div className={styles.emptyMessage}>
+                    <p>Nu există săli configurate.</p>
+                    <button type="button" className={styles.submitButton} onClick={initializeDefaultRooms}>
+                        Adaugă sălile pre-configurate ale școlii ({DEFAULT_ROOMS.length})
+                    </button>
+                </div>
+            )}
+
+            {duplicateRoomNames(rooms).length > 0 && (
+                <p className={styles.emptyMessage} role="alert" style={{ color: "#b91c1c" }}>
+                    ⚠️ Aceeași sală apare de mai multe ori: {duplicateRoomNames(rooms).join(", ")}. Ștergeți sau
+                    redenumiți dublura, altfel elevii ar apărea de două ori pe liste.
                 </p>
             )}
         </div>
