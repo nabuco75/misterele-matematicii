@@ -6,6 +6,7 @@ import * as FileSaver from "file-saver";
 import { ORGANIZER, editionLine, escapeHtml, openPrintWindow } from "./roomLists";
 import { awardRank, classRank } from "./grading";
 import { displayName } from "./nameFormat";
+import { AMOUNTS_STORAGE_KEY, saveSetting } from "./settings";
 
 export const SPONSOR = "Asociația „Arcașii lui Ștefan”";
 
@@ -16,12 +17,11 @@ export const PRIZE_KEYS = Object.keys(PRIZE_AMOUNTS);
 export const PRIZE_PRESETS = [0, 10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 100, 120, 150, 200, 250, 300, 350, 400, 500, 1000];
 export const MAX_PRIZE = 100000;
 
-const AMOUNTS_STORAGE_KEY = "mm_prize_amounts";
 const cleanAmount = (v) => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) && n >= 0 && n <= MAX_PRIZE ? n : null;
 };
-// sumele salvate pe acest calculator (completate cu cele implicite)
+// sumele salvate (config/settings, cu copie în browser), completate cu cele implicite
 export const loadPrizeAmounts = () => {
   const out = { ...PRIZE_AMOUNTS };
   try {
@@ -37,13 +37,7 @@ export const loadPrizeAmounts = () => {
   }
   return out;
 };
-export const savePrizeAmounts = (amounts) => {
-  try {
-    localStorage.setItem(AMOUNTS_STORAGE_KEY, JSON.stringify(amounts));
-  } catch {
-    // nu se poate salva → rămân doar pentru sesiunea curentă
-  }
-};
+export const savePrizeAmounts = (amounts) => saveSetting("prizeAmounts", amounts);
 export const normalizePrizeAmount = cleanAmount;
 export const isDefaultAmounts = (amounts) => PRIZE_KEYS.every((k) => amounts[k] === PRIZE_AMOUNTS[k]);
 

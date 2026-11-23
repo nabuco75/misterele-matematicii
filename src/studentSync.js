@@ -10,6 +10,7 @@ import {
   getDoc,
   getDocs,
   query,
+  runTransaction,
   setDoc,
   where,
   writeBatch,
@@ -19,6 +20,29 @@ import { CODES_COLLECTION, normName } from "./contestData";
 import { GRADES_COLLECTION, nameGradeId } from "./grading";
 
 const allocationRef = () => doc(db, "config", "allocation");
+const codeCounterRef = () => doc(db, "config", "codeCounter");
+
+// Rezervă `count` numere de cod consecutive și întoarce ultimul număr folosit înainte de ele.
+// Contorul config/codeCounter crește atomic, deci două calculatoare care dau coduri în
+// același timp primesc intervale diferite (MMVS_51.. și MMVS_54..), nu același cod.
+// scannedMax = cel mai mare număr găsit în colecția codes (pentru date mai vechi decât contorul).
+export const reserveCodeNumbers = (count, scannedMax = 0) =>
+  runTransaction(db, async (tx) => {
+    const snap = await tx.get(codeCounterRef());
+    const start = Math.max(snap.exists() ? snap.data().n || 0 : 0, scannedMax);
+    tx.set(codeCounterRef(), { n: start + count, at: new Date().toISOString() });
+    return start;
+  });
+
+// Schimbă repartizarea salvată pornind de la documentul proaspăt (tranzacție).
+// fn(assignments, walkIns) → { assignments?, walkIns? } de scris, sau null = nimic.
+const mutateAssignments = (fn) =>
+  runTransaction(db, async (tx) => {
+    const snap = await tx.get(allocationRef());
+    const data = snap.exists() ? snap.data() : {};
+    const patch = fn([...(data.assignments || [])], [...(data.walkIns || [])]);
+    if (patch) tx.set(allocationRef(), patch, { merge: true });
+  });
 
 // cheia elevului în repartizarea salvată (aceeași ca `id` din loadContestStudents)
 export const studentKey = (regId, nume) => `${regId}-${nume}`;
@@ -47,11 +71,6 @@ export async function applyRenames(renames) {
   if (list.length === 0) return done;
 
   const codeDocs = await codesOfRegs([...new Set(list.map((r) => r.regId))]);
-  const allocSnap = await getDoc(allocationRef());
-  const assignments = allocSnap.exists() ? [...(allocSnap.data().assignments || [])] : [];
-  // elevii veniți pe loc (jurnalul pentru procesul-verbal) urmează și ei numele corectat
-  const walkIns = allocSnap.exists() ? [...(allocSnap.data().walkIns || [])] : [];
-  let walkInsChanged = false;
 
   const batch = writeBatch(db);
   const usedCodes = new Set();
@@ -66,23 +85,6 @@ export async function applyRenames(renames) {
       done.codes++;
     }
 
-    // sala: locul din repartizarea salvată trece pe numele nou
-    const oldKey = studentKey(r.regId, r.oldName);
-    const idx = assignments.findIndex(
-      (a) =>
-        a.id === oldKey ||
-        (splitKey(a.id).regId === r.regId && normName(splitKey(a.id).nume) === normName(r.oldName))
-    );
-    if (idx !== -1) {
-      assignments[idx] = { ...assignments[idx], id: studentKey(r.regId, r.newName) };
-      done.seats++;
-    }
-    walkIns.forEach((w, i) => {
-      if (w.id === oldKey || (splitKey(w.id).regId === r.regId && normName(splitKey(w.id).nume) === normName(r.oldName))) {
-        walkIns[i] = { ...w, id: studentKey(r.regId, r.newName), nume: r.newName };
-        walkInsChanged = true;
-      }
-    });
 
     // notele puse pe nume (înainte de coduri) trec pe numele nou
     const oldG = nameGradeId({ regId: r.regId, nume: r.oldName });
@@ -96,9 +98,34 @@ export async function applyRenames(renames) {
       }
     }
   }
-  if (done.seats > 0 || walkInsChanged)
-    batch.set(allocationRef(), { assignments, ...(walkInsChanged ? { walkIns } : {}) }, { merge: true });
   await batch.commit();
+
+  // sala: locul din repartizarea salvată trece pe numele nou; la fel elevii veniți pe loc
+  // (jurnalul pentru procesul-verbal). Pe documentul proaspăt, ca să nu ștergem ce a salvat
+  // între timp alt calculator.
+  await mutateAssignments((assignments, walkIns) => {
+    let seats = 0;
+    let walkInsChanged = false;
+    for (const r of list) {
+      const oldKey = studentKey(r.regId, r.oldName);
+      const same = (id) =>
+        id === oldKey || (splitKey(id).regId === r.regId && normName(splitKey(id).nume) === normName(r.oldName));
+      const idx = assignments.findIndex((a) => same(a.id));
+      if (idx !== -1) {
+        assignments[idx] = { ...assignments[idx], id: studentKey(r.regId, r.newName) };
+        seats++;
+      }
+      walkIns.forEach((w, i) => {
+        if (same(w.id)) {
+          walkIns[i] = { ...w, id: studentKey(r.regId, r.newName), nume: r.newName };
+          walkInsChanged = true;
+        }
+      });
+    }
+    done.seats = seats;
+    if (!seats && !walkInsChanged) return null;
+    return { assignments, ...(walkInsChanged ? { walkIns } : {}) };
+  });
   return done;
 }
 
@@ -110,12 +137,9 @@ export async function applyRemovals(removals) {
   if (list.length === 0) return done;
 
   const codeDocs = await codesOfRegs([...new Set(list.map((r) => r.regId))]);
-  const allocSnap = await getDoc(allocationRef());
-  const assignments = allocSnap.exists() ? allocSnap.data().assignments || [] : [];
 
   const batch = writeBatch(db);
   const usedCodes = new Set();
-  const removeKeys = new Set();
   for (const r of list) {
     const c = codeDocs.find(
       (x) => !usedCodes.has(x.cod) && !x.retras && x.regId === r.regId && normName(x.nume) === normName(r.nume)
@@ -125,18 +149,24 @@ export async function applyRemovals(removals) {
       batch.update(doc(db, CODES_COLLECTION, c.cod), { retras: true, retrasLa: new Date().toISOString() });
       done.codes++;
     }
-    assignments.forEach((a) => {
-      const k = splitKey(a.id);
-      if (a.id === studentKey(r.regId, r.nume) || (k.regId === r.regId && normName(k.nume) === normName(r.nume))) {
-        removeKeys.add(a.id);
-      }
-    });
-  }
-  if (removeKeys.size > 0) {
-    done.seats = removeKeys.size;
-    batch.set(allocationRef(), { assignments: assignments.filter((a) => !removeKeys.has(a.id)) }, { merge: true });
   }
   await batch.commit();
+
+  // locul din sală se eliberează pe repartizarea proaspătă
+  await mutateAssignments((assignments) => {
+    const removeKeys = new Set();
+    for (const r of list) {
+      assignments.forEach((a) => {
+        const k = splitKey(a.id);
+        if (a.id === studentKey(r.regId, r.nume) || (k.regId === r.regId && normName(k.nume) === normName(r.nume))) {
+          removeKeys.add(a.id);
+        }
+      });
+    }
+    done.seats = removeKeys.size;
+    if (!removeKeys.size) return null;
+    return { assignments: assignments.filter((a) => !removeKeys.has(a.id)) };
+  });
   return done;
 }
 
@@ -233,6 +263,8 @@ export async function cancelAnonymization() {
     toDelete.slice(i, i + 400).forEach((ref) => batch.delete(ref));
     await batch.commit();
   }
+  // numerotarea codurilor o ia de la capăt (MMVS_01)
+  await setDoc(codeCounterRef(), { n: 0, at: new Date().toISOString() });
   return { deleted: codeIds.length };
 }
 

@@ -22,6 +22,7 @@ import Grading from "./Grading.jsx";
 import ClassForm from "./ClassForm.jsx";
 import { applyRemovals, applyRenames } from "./studentSync";
 import { adminMaintenance, rebuildClassCounts } from "./classCounts";
+import { syncSettings } from "./settings";
 import {
   cleanTeacherName,
   plainText,
@@ -132,6 +133,14 @@ function AdminDashboard() {
     message: "",
     onConfirm: () => {},
   });
+
+  // setările comune (antetul, sumele premiilor) se aduc din baza de date înainte de afișare
+  const [settingsReady, setSettingsReady] = useState(false);
+  useEffect(() => {
+    syncSettings()
+      .catch((err) => console.error("Setările nu s-au putut citi din baza de date:", err))
+      .finally(() => setSettingsReady(true));
+  }, []);
 
   // ====== INIT ======
   useEffect(() => {
@@ -1555,6 +1564,9 @@ function AdminDashboard() {
   // ===========================================
   // 🌟 RENDER NAVIGARE
   // ===========================================
+  if (!settingsReady) {
+    return <p style={{ textAlign: "center", padding: 40 }}>Se încarcă...</p>;
+  }
 
   // 1. ETAPA „SĂLI”
   if (currentView === "sali") {

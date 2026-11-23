@@ -41,10 +41,16 @@ export default function PrizeMoneyCard({ header }) {
     load();
   }, []);
 
-  // sumele pe premiu se aleg din dropdown și se țin minte pe acest calculator
-  const [prizeAmounts, setPrizeAmounts] = useState(loadPrizeAmounts);
+  // sumele pe premiu se aleg din dropdown și se salvează în baza de date (comune tuturor
+  // calculatoarelor); se scriu doar când le schimbă cineva aici, nu la deschiderea paginii
+  const [prizeAmounts, setPrizeAmountsState] = useState(loadPrizeAmounts);
   const [customPrize, setCustomPrize] = useState({}); // premiu → text tastat la „Altă sumă…”
-  useEffect(() => savePrizeAmounts(prizeAmounts), [prizeAmounts]);
+  const setPrizeAmounts = (update) =>
+    setPrizeAmountsState((prev) => {
+      const next = typeof update === "function" ? update(prev) : update;
+      savePrizeAmounts(next);
+      return next;
+    });
   const setPrizeAmount = (key, value) => setPrizeAmounts((a) => ({ ...a, [key]: value }));
   const pickPrizeAmount = (key, raw) => {
     if (raw === "custom") {

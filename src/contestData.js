@@ -3,13 +3,14 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
 import { CLASS_ORDER } from "./allocation";
 import { DEFAULT_EDITION, DEFAULT_CONTEST_DATE } from "./roomLists";
+import { HEADER_STORAGE_KEY, saveSetting } from "./settings";
 
 // Codurile de anonimizare sunt salvate în colecția `codes` (un document per cod, id = codul).
 // Un cod dat rămâne al elevului pentru totdeauna; elevii noi continuă numerotarea.
 export const CODES_COLLECTION = "codes";
 
-// antetul listelor (ediția, data) – reținut în browser, ca să nu fie reintrodus la fiecare deschidere
-const HEADER_STORAGE_KEY = "repartizare-antet";
+// antetul listelor (ediția, data) – salvat în config/settings (comun tuturor calculatoarelor),
+// cu o copie în browser (vezi settings.js)
 export const loadHeader = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(HEADER_STORAGE_KEY));
@@ -21,13 +22,7 @@ export const loadHeader = () => {
   }
   return { edition: DEFAULT_EDITION, date: DEFAULT_CONTEST_DATE };
 };
-export const saveHeader = (header) => {
-  try {
-    localStorage.setItem(HEADER_STORAGE_KEY, JSON.stringify(header));
-  } catch {
-    // nu se poate salva → rămâne doar pentru sesiunea curentă
-  }
-};
+export const saveHeader = (header) => saveSetting("header", header);
 
 export const normName = (s) =>
   String(s || "")

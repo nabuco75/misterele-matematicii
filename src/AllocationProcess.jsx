@@ -30,6 +30,7 @@ import {
     cancelAnonymization,
     clearLastNewCodes,
     diffWithAllocation,
+    reserveCodeNumbers,
 } from "./studentSync";
 import { AllocationLogCard, AllocationStatsView } from "./AllocationLog";
 import { GRADES_COLLECTION, nameGradeId } from "./grading";
@@ -54,6 +55,7 @@ import {
 import {
     CODES_COLLECTION,
     loadContestStudents,
+    normName,
     loadHeader,
     saveHeader,
 } from "./contestData";
@@ -377,17 +379,22 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
             showMessage("success", "✅ Repartizarea salvată: fiecare elev în sala lui.");
             return;
         }
+        let merged = result;
         try {
-            setSaved(
-                await saveAllocation({
-                    data: result.data,
-                    roomSummaries: result.roomSummaries,
-                    rooms,
-                    type: "elevi-noi",
-                    added: result.newcomers,
-                    previous: saved,
-                })
-            );
+            const newSaved = await saveAllocation({
+                data: result.data,
+                roomSummaries: result.roomSummaries,
+                rooms,
+                type: "elevi-noi",
+                added: result.newcomers,
+                previous: saved,
+            });
+            setSaved(newSaved);
+            setWalkInLog(newSaved.walkIns);
+            // include și ce a salvat între timp alt calculator
+            merged = allocateKeepingCodes(students, rooms, { saved: newSaved.assignments, placeNew: false });
+            setAllocationResult(merged.data);
+            setRoomSummaries(merged.roomSummaries);
         } catch (err) {
             console.error("Eroare la salvarea repartizării:", err);
             showMessage("error", "❌ Elevii noi au fost așezați, dar repartizarea nu s-a putut salva.");
@@ -399,7 +406,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
             (result.overflow ? ` ⚠️ ${result.overflow} peste numărul de locuri — adăugați scaune sau o sală.` : "");
         // dacă anonimizarea e deja în lucru (există coduri), elevii noi primesc cod imediat
         if (studentsWithCode > 0) {
-            await handleGenerateCodes(result.data, { ask: false, intro: placedMsg, locked: true });
+            await handleGenerateCodes(merged.data, { ask: false, intro: placedMsg, locked: true });
         } else {
             showMessage(result.overflow ? "warning" : "success", placedMsg);
         }
@@ -465,28 +472,33 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
         try {
             const assignments = new Map(saved?.assignments || []);
             assignments.set(st.id, roomName);
-            const result = allocateKeepingCodes(students, rooms, { saved: assignments, placeNew: false });
+            let result = allocateKeepingCodes(students, rooms, { saved: assignments, placeNew: false });
             setAllocationResult(result.data);
             setRoomSummaries(result.roomSummaries);
+            let freshWalkIns = walkInLog;
             try {
-                setSaved(
-                    await saveAllocation({
-                        data: result.data,
-                        roomSummaries: result.roomSummaries,
-                        rooms,
-                        type: "elevi-noi",
-                        added: 1,
-                        previous: saved,
-                    })
-                );
+                const newSaved = await saveAllocation({
+                    data: result.data,
+                    roomSummaries: result.roomSummaries,
+                    rooms,
+                    type: "elevi-noi",
+                    added: 1,
+                    previous: saved,
+                });
+                setSaved(newSaved);
+                freshWalkIns = newSaved.walkIns;
+                // include și ce a salvat între timp alt calculator
+                result = allocateKeepingCodes(students, rooms, { saved: newSaved.assignments, placeNew: false });
+                setAllocationResult(result.data);
+                setRoomSummaries(result.roomSummaries);
             } catch (err) {
                 console.error("Eroare la salvarea repartizării:", err);
                 showMessage("error", "❌ Elevul nu a putut fi așezat (salvarea a eșuat). Încercați din nou.");
                 return;
             }
             // în locul cui: întâi un absent din aceeași clasă, apoi orice absent din sală încă neînlocuit
-            const usedCodes = new Set(walkInLog.map((w) => w.inLocul?.cod).filter(Boolean));
-            const roomAbsents = (allocationResult || []).filter(
+            const usedCodes = new Set(freshWalkIns.map((w) => w.inLocul?.cod).filter(Boolean));
+            const roomAbsents = result.data.filter(
                 (x) => x.sala === roomName && x.cod && isAbsent(x) && !usedCodes.has(x.cod)
             );
             const replaced =
@@ -504,8 +516,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                                 ? { cod: replaced.cod, nume: replaced.nume, clasa: replaced.clasa }
                                 : null,
                             at: new Date().toISOString(),
-                        },
-                        walkInLog
+                        }
                     )
                 );
             } catch (err) {
@@ -566,10 +577,31 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
         }
         setSavingCodes(true);
         try {
-            // recitim ultimul cod din baza de date, ca să nu dăm de două ori același număr
+            // recitim codurile din baza de date: elevii codați între timp de pe alt calculator
+            // (sau dintr-o pagină lăsată deschisă) își păstrează codul, nu primesc al doilea
             const codesSnap = await getDocs(collection(db, CODES_COLLECTION));
-            const lastN = codesSnap.docs.reduce((m, d) => Math.max(m, d.data().n || 0), 0);
-            const { allocation, added } = assignNewCodes(base, rooms, lastN);
+            const codeDocs = codesSnap.docs.map((d) => ({ cod: d.id, ...d.data() }));
+            const scannedMax = codeDocs.reduce((m, c) => Math.max(m, c.n || 0), 0);
+            const freshByKey = new Map(
+                codeDocs.filter((c) => !c.retras).map((c) => [`${c.regId}|${normName(c.nume)}`, c])
+            );
+            const usedFresh = new Set(base.map((s) => s.cod).filter(Boolean));
+            const baseFresh = base.map((s) => {
+                if (s.cod) return s;
+                const c = freshByKey.get(`${s.regId}|${normName(s.nume)}`);
+                if (!c || usedFresh.has(c.cod)) return s;
+                usedFresh.add(c.cod);
+                return { ...s, cod: c.cod, salaCod: c.salaLaAtribuire || "" };
+            });
+            const toCode = assignNewCodes(baseFresh, rooms, 0).added.length;
+            if (toCode === 0) {
+                setAllocationResult(baseFresh);
+                showMessage("success", `${intro ? `${intro} ` : ""}✅ Elevii aveau deja coduri (date de pe alt calculator).`, 12000);
+                return;
+            }
+            // numerele se rezervă atomic (config/codeCounter): două calculatoare nu pot da același cod
+            const lastN = await reserveCodeNumbers(toCode, scannedMax);
+            const { allocation, added } = assignNewCodes(baseFresh, rooms, lastN);
 
             for (let i = 0; i < added.length; i += 400) {
                 const batch = writeBatch(db);
@@ -593,10 +625,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
             setStudents((prev) => prev.map((s) => (codeById.get(s.id) ? { ...s, cod: codeById.get(s.id) } : s)));
             setLastCodeN(lastN + added.length);
             try {
-                const batches = await saveLastNewCodes(
-                    added.map((s) => s.cod),
-                    saved?.codeBatches || []
-                );
+                const batches = await saveLastNewCodes(added.map((s) => s.cod));
                 setSaved((prev) => (prev ? { ...prev, ...batches } : prev));
             } catch (err) {
                 console.error("Eroare la salvarea listei de coduri noi:", err);
@@ -655,7 +684,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
             `Coduri_transa_${b.nr}_${codes[0]}-${codes[codes.length - 1]}`
         );
         try {
-            const updated = await markBatchPrinted(saved?.codeBatches || [], b.at);
+            const updated = await markBatchPrinted(b.at);
             setSaved((prev) => (prev ? { ...prev, codeBatches: updated } : prev));
         } catch (err) {
             console.error("Eroare la notarea tranșei ca tipărită:", err);
@@ -769,7 +798,6 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                         type: "anulare-coduri",
                         roomSummaries,
                         rooms,
-                        previous: saved ? { ...saved, lastNewCodes: null, codeBatches: [] } : saved,
                         details: { deleted: r.deleted },
                     })
                 );
