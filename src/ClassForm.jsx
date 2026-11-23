@@ -6,12 +6,18 @@ import { db } from "./firebase";
 import {
   collection,
   doc,
-  getDocs,
   query,
   where,
   onSnapshot,
   writeBatch,
 } from "firebase/firestore";
+import {
+  COUNTS_COLLECTION,
+  countsByClassName,
+  countsFromDoc,
+  rebuildClassCounts,
+  registerWithCounts,
+} from "./classCounts";
 import styles from "./ClassForm.module.css";
 
 // Codul de acces nu mai apare în clar în aplicația publicată;
@@ -38,23 +44,6 @@ const escapeHtml = (str) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-// numără elevii deja înscriși (citire proaspătă din baza de date)
-const fetchCountsByClass = async (schoolId, classes) => {
-  const snap = await getDocs(
-    query(collection(db, "registration"), where("schoolId", "==", schoolId))
-  );
-  const counts = Object.fromEntries(classes.map((c) => [c, 0]));
-  snap.forEach((d) => {
-    const data = d.data();
-    if (counts[data.class] !== undefined) {
-      counts[data.class] += Array.isArray(data.students)
-        ? data.students.length
-        : 0;
-    }
-  });
-  return counts;
-};
-
 const CLASS_COLORS = {
   "a IV-a": { from: "#7c4dff", to: "#3f8efc" },
   "a V-a": { from: "#34d399", to: "#059669" },
@@ -62,38 +51,34 @@ const CLASS_COLORS = {
   "a VII-a": { from: "#a78bfa", to: "#7c3aed" },
 };
 
-// === IDENTIFICARE ȘCOLI VIP (FĂRĂ LIMITĂ) ===
-const isVipSchool = (schoolName) => {
-  if (!schoolName) return false;
-
-  const normalize = (str) => {
-    return str
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]/g, "");
-  };
-
-  const target = normalize(schoolName);
-
-  return (
-    (target.includes("stefancelmare") &&
-      target.includes("vaslui")) ||
-    (target.includes("georgetutoveanu") &&
-      target.includes("barlad")) ||
-    (target.includes("constantinparfene") &&
-      target.includes("vaslui"))
-  );
-};
-
-// același nume, indiferent de diacritice, majuscule și spații
+// același nume, indiferent de diacritice, majuscule, spații și ordinea cuvintelor
+// („Pop Ana” = „Ana Pop”)
 const nameKey = (v) =>
   String(v || "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z]+/g, " ")
-    .trim();
+    .trim()
+    .split(" ")
+    .filter(Boolean)
+    .sort()
+    .join(" ");
+
+// spațiile duble din mijloc și cele de la capete dispar
+const cleanSpaces = (v) => String(v || "").replace(/\s+/g, " ").trim();
+
+// telefonul fără spații, puncte sau liniuțe ("0740 123 456" → "0740123456")
+const cleanPhone = (v) => String(v || "").replace(/[\s.\-()]/g, "");
+
+// commit-ul nu dă eroare când pică internetul, ci așteaptă; după 20 s spunem asta
+const withTimeout = (promise, ms) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("TIMEOUT")), ms)
+    ),
+  ]);
 
 // validare nume elev ("" = valid; câmpurile goale sunt permise)
 // full=false → doar greșelile evidente (@, cifre), afișate în timp ce scrie
@@ -195,7 +180,8 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
   const [isBlocked, setIsBlocked] = useState(false);
   const MAX_ATTEMPTS = 3;
 
-  const isVip = isVipSchool(schoolName);
+  // școala „fără limită” e marcată de admin (câmpul vip din baza de date)
+  const isVip = selectedSchool?.vip === true;
   const isUnlimited = isVip || isAdminOverride;
 
   const [studentsByClass, setStudentsByClass] = useState({
@@ -309,8 +295,22 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
     return () => window.removeEventListener("keydown", onKey);
   }, [isAuthenticated, isAdminOverride, onCancel]);
 
+  // profesorul vede doar contorul (numere), nu înscrierile celorlalți
   useEffect(() => {
-    if (!schoolId) return;
+    if (!schoolId || isAdminOverride) return undefined;
+    return onSnapshot(
+      doc(db, COUNTS_COLLECTION, schoolId),
+      (snap) =>
+        setCountByClass(
+          countsByClassName(countsFromDoc(snap.exists() ? snap.data() : null))
+        ),
+      (err) => console.error("Contorul locurilor nu s-a putut citi:", err)
+    );
+  }, [schoolId, isAdminOverride]);
+
+  // adminul numără direct din înscrieri (are voie să le citească)
+  useEffect(() => {
+    if (!schoolId || !isAdminOverride) return;
     const classes = Object.keys(studentsByClass);
     const unsubs = classes.map((c) => {
       const qReg = query(
@@ -336,7 +336,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
     });
     return () => unsubs.forEach((u) => u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolId]);
+  }, [schoolId, isAdminOverride]);
 
   const handleChange = (className, index, value) => {
     const next = [...studentsByClass[className]];
@@ -361,14 +361,14 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
     if (field === "email")
       setErrors((p) => ({
         ...p,
-        email: emailRegex.test(email)
+        email: emailRegex.test(email.trim())
           ? ""
           : "Adresa de email nu este validă!",
       }));
     if (field === "telefon")
       setErrors((p) => ({
         ...p,
-        telefon: phoneRegex.test(telefon)
+        telefon: phoneRegex.test(cleanPhone(telefon))
           ? ""
           : "Numărul de telefon trebuie să conțină 10 cifre!",
       }));
@@ -379,10 +379,10 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
       }));
   };
 
-  const localProposedCount = (className) =>
-    studentsByClass[className]
-      .map((s) => s?.trim())
-      .filter(Boolean).length;
+  // elevii completați la o clasă, cu spațiile curățate
+  const filledStudents = (className) =>
+    studentsByClass[className].map(cleanSpaces).filter(Boolean);
+  const localProposedCount = (className) => filledStudents(className).length;
 
   const handleInscrieClick = async (e) => {
     e.preventDefault();
@@ -401,18 +401,23 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
         }
       });
     });
-    // același elev scris de două ori în aceeași clasă
+    // același elev scris de două ori (în aceeași clasă sau la clase diferite)
+    const seen = new Map();
     Object.keys(studentsByClass).forEach((className) => {
-      const seen = new Map();
       studentsByClass[className].forEach((s, index) => {
         const k = nameKey(s);
         if (!k) return;
         if (seen.has(k)) {
-          const err = `Elevul apare de două ori (vezi elevul ${seen.get(k) + 1}).`;
+          const first = seen.get(k);
+          const where =
+            first.className === className
+              ? `elevul ${first.index + 1}`
+              : `clasa ${first.className}, elevul ${first.index + 1}`;
+          const err = `Elevul apare de două ori (vezi ${where}).`;
           badStudents[`${className}|${index}`] = err;
           if (!firstStudentError)
             firstStudentError = `Clasa ${className}, elevul ${index + 1}: ${err}`;
-        } else seen.set(k, index);
+        } else seen.set(k, { className, index });
       });
     });
     setStudentSubmitErrors(badStudents);
@@ -441,15 +446,16 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
       return;
     }
 
-    if (
-      !emailRegex.test(email) ||
-      !phoneRegex.test(telefon)
-    ) {
-      setMessage({
-        type: "error",
-        content:
-          "Vă rugăm să completați corect toate câmpurile!",
-      });
+    // emailul și telefonul: marcăm câmpul greșit și spunem exact ce e greșit
+    const emailError = emailRegex.test(email.trim())
+      ? ""
+      : "Adresa de email nu este validă!";
+    const phoneError = phoneRegex.test(cleanPhone(telefon))
+      ? ""
+      : "Numărul de telefon trebuie să conțină 10 cifre!";
+    if (emailError || phoneError) {
+      setErrors((p) => ({ ...p, email: emailError, telefon: phoneError }));
+      setMessage({ type: "error", content: emailError || phoneError });
       return;
     }
     if (!schoolId) {
@@ -464,9 +470,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
     if (!isUnlimited) {
       const classes = Object.keys(studentsByClass);
       for (const className of classes) {
-        const proposed = studentsByClass[className]
-          .map((s) => s?.trim())
-          .filter(Boolean).length;
+        const proposed = localProposedCount(className);
         if (!proposed) continue;
 
         const currentInDb = countByClass[className];
@@ -518,57 +522,65 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
     };
 
     const classes = Object.keys(studentsByClass);
+    const teacherName = cleanSpaces(profesorIndrumator);
+    const phone = cleanPhone(telefon);
+    // doar clasele cu elevi: { "a V-a": ["Pop Ana", ...] }
+    const byClass = Object.fromEntries(
+      classes
+        .map((c) => [c, filledStudents(c)])
+        .filter(([, list]) => list.length)
+    );
+    // NOTĂ: câmpul "profesorIndrumatorEmail" conține, istoric, NUMELE
+    // profesorului (exporturile îl citesc așa). Emailul real e în "profesorEmail".
+    const fields = {
+      school: schoolName,
+      profesorIndrumatorEmail: teacherName,
+      profesorEmail: email.trim(),
+      telefon: phone,
+    };
 
     // —— 1. Salvare în baza de date (totul sau nimic)
     try {
-      // re-verificare limită cu date proaspete, chiar înainte de scriere
-      // (alt profesor de la aceeași școală poate fi înscris între timp)
-      if (!isUnlimited) {
-        const freshCounts = await fetchCountsByClass(schoolId, classes);
-        for (const className of classes) {
-          const proposed = localProposedCount(className);
-          if (proposed && freshCounts[className] + proposed > 5) {
-            const left = Math.max(0, 5 - freshCounts[className]);
-            setMessage({
-              type: "error",
-              content: left
-                ? `Pentru ${className} mai sunt disponibile doar ${left} loc(uri). Ajustați lista.`
-                : `Școala dvs. a atins deja limita de 5 elevi pentru ${className}. În caz de neclarități, contact@scoala5vaslui.ro`,
-            });
-            setLoading(false);
-            return;
-          }
+      if (isAdminOverride) {
+        const batch = writeBatch(db);
+        const createdAt = Date.now();
+        for (const [className, list] of Object.entries(byClass)) {
+          batch.set(doc(collection(db, "registration")), {
+            class: className,
+            schoolId,
+            students: list,
+            createdAt,
+            ...fields,
+          });
         }
+        await withTimeout(batch.commit(), 20000);
+        // contorul public trebuie să țină pasul cu înscrierile adminului
+        rebuildClassCounts().catch((e) =>
+          console.error("Contoarele nu s-au putut recalcula:", e)
+        );
+      } else {
+        // tranzacție: limita de 5 se verifică pe date proaspete și pe server
+        await withTimeout(
+          registerWithCounts({ schoolId, unlimited: isUnlimited, byClass, fields }),
+          20000
+        );
       }
-
-      const batch = writeBatch(db);
-      for (const className of classes) {
-        const filtered = studentsByClass[className]
-          .map((s) => s?.trim())
-          .filter(Boolean);
-        if (!filtered.length) continue;
-
-        // NOTĂ: câmpul "profesorIndrumatorEmail" conține, istoric, NUMELE
-        // profesorului (exporturile îl citesc așa). Emailul real e în "profesorEmail".
-        batch.set(doc(collection(db, "registration")), {
-          class: className,
-          school: schoolName,
-          schoolId,
-          students: filtered,
-          profesorIndrumatorEmail: profesorIndrumator,
-          profesorEmail: email.trim(),
-          telefon,
-          createdAt: Date.now(),
-        });
-      }
-      await batch.commit();
     } catch (err) {
       console.error("Eroare la înscriere:", err);
-      setMessage({
-        type: "error",
-        content:
-          "A apărut o eroare la înscriere. Încercați din nou.",
-      });
+      let content =
+        "A apărut o eroare la înscriere. Elevii NU au fost înscriși. Încercați din nou.";
+      if (err?.message === "LIMIT") {
+        content = err.left
+          ? `Pentru ${err.className} mai sunt disponibile doar ${err.left} loc(uri). Ajustați lista.`
+          : `Școala dvs. a atins deja limita de 5 elevi pentru ${err.className}. În caz de neclarități, contact@scoala5vaslui.ro`;
+      } else if (err?.message === "TIMEOUT") {
+        content =
+          "Serverul nu a confirmat înscrierea (conexiune slabă). NU retrimiteți încă: reîncărcați pagina și verificați numărul de locuri ocupate. Dacă elevii nu apar, înscrieți-i din nou.";
+      } else if (err?.code === "permission-denied") {
+        content =
+          "Înscrierea nu a fost acceptată: înscrierile s-au închis între timp sau școala nu mai există în listă. Reîncărcați pagina. Pentru ajutor: contact@scoala5vaslui.ro";
+      }
+      setMessage({ type: "error", content });
       setLoading(false);
       return;
     }
@@ -578,31 +590,24 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
     // ci oferim confirmarea spre descărcare.
     const receiptData = {
       schoolName,
-      profesor: profesorIndrumator.trim(),
+      profesor: teacherName,
       email: email.trim(),
-      telefon,
+      telefon: phone,
       date: new Date().toLocaleString("ro-RO"),
-      classes: classes
-        .map((c) => ({
-          className: c,
-          students: studentsByClass[c].map((s) => s?.trim()).filter(Boolean),
-        }))
-        .filter((c) => c.students.length),
+      classes: Object.entries(byClass).map(([className, list]) => ({
+        className,
+        students: list,
+      })),
     };
 
     try {
-      const rows = classes
-        .map((c) => {
-          const arr = studentsByClass[c]
-            .map((s) => s?.trim())
-            .filter(Boolean);
-          if (!arr.length) return "";
+      const rows = Object.entries(byClass)
+        .map(([c, arr]) => {
           const li = arr
             .map((s) => `<li>${escapeHtml(s)}</li>`)
             .join("");
           return `<tr><td>${c}</td><td><ul>${li}</ul></td></tr>`;
         })
-        .filter(Boolean)
         .join("");
 
       const emailContent =

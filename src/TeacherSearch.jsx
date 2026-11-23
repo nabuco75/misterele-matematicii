@@ -14,6 +14,7 @@ import {
   validateTeacher,
 } from "./teachers";
 import { applyRemovals, applyRenames } from "./studentSync";
+import { rebuildClassCounts } from "./classCounts";
 
 const MAX_RESULTS = 40;
 
@@ -246,6 +247,9 @@ function TeacherSearch({ onClose }) {
         if (next.length === 0) tx.delete(regRef);
         else tx.update(regRef, { students: next });
       });
+      // elevii scoși eliberează locul și în contorul public (limita de 5)
+      if (removed.length)
+        rebuildClassCounts().catch((e) => console.error("Contoarele nu s-au putut recalcula:", e));
 
       // elevii redenumiți își păstrează sala, codul și notele; cei scoși eliberează locul
       let note = "";

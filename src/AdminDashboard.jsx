@@ -21,6 +21,7 @@ import AllocationProcess from "./AllocationProcess.jsx";
 import Grading from "./Grading.jsx";
 import ClassForm from "./ClassForm.jsx";
 import { applyRemovals, applyRenames } from "./studentSync";
+import { adminMaintenance, rebuildClassCounts } from "./classCounts";
 import {
   cleanTeacherName,
   plainText,
@@ -50,6 +51,9 @@ const ExcelIcon = () => (
   </svg>
 );
 
+// "  Vaslui " → "Vaslui" (altfel apar două județe în lista publică)
+const cleanField = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
+
 function AdminDashboard() {
   // ------------------------------------------------------------------
   // 1. STARE NAVIGARE
@@ -75,6 +79,8 @@ function AdminDashboard() {
   const [schoolName, setSchoolName] = useState("");
   const [judet, setJudet] = useState("");
   const [localitate, setLocalitate] = useState("");
+  // școală fără limita de 5 elevi/clasă (verificat și de regulile Firestore)
+  const [schoolVip, setSchoolVip] = useState(false);
 
   // —— Mesaje de confirmare pentru operațiuni școală
   const [schoolOperationMessage, setSchoolOperationMessage] =
@@ -129,8 +135,22 @@ function AdminDashboard() {
 
   // ====== INIT ======
   useEffect(() => {
-    fetchSchools();
+    fetchSchools().then(async (list) => {
+      // VIP vechi după nume → câmpul vip; contoarele publice recalculate din înscrieri
+      try {
+        const r = await adminMaintenance(list || []);
+        if (r.vipMarked) fetchSchools();
+      } catch (err) {
+        console.error("Întreținerea contoarelor a eșuat:", err);
+      }
+    });
   }, []);
+
+  // după orice modificare a înscrierilor: contorul public de locuri rămâne corect
+  const syncCounts = () =>
+    rebuildClassCounts().catch((err) =>
+      console.error("Contoarele de locuri nu s-au putut recalcula:", err)
+    );
 
   // școala selectată ca obiect
   const selectedSchool =
@@ -155,8 +175,10 @@ function AdminDashboard() {
           })
       );
       setSchools(list);
+      return list;
     } catch (err) {
       console.error("Eroare la aducerea listei de școli:", err);
+      return [];
     }
   };
 
@@ -181,6 +203,7 @@ function AdminDashboard() {
     setSchoolName("");
     setJudet("");
     setLocalitate("");
+    setSchoolVip(false);
     setSelectedSchoolId("");
     setIsEditing(false);
     setEditingSchoolId("");
@@ -194,16 +217,18 @@ function AdminDashboard() {
     try {
       if (isEditing && editingSchoolId) {
         await updateDoc(doc(db, "schools", editingSchoolId), {
-          name: schoolName,
-          county: judet,
-          locality: localitate,
+          name: cleanField(schoolName),
+          county: cleanField(judet),
+          locality: cleanField(localitate),
+          vip: schoolVip,
         });
         showSuccessMessage("Școala a fost actualizată cu succes!");
       } else {
         await addDoc(collection(db, "schools"), {
-          name: schoolName,
-          county: judet,
-          locality: localitate,
+          name: cleanField(schoolName),
+          county: cleanField(judet),
+          locality: cleanField(localitate),
+          vip: schoolVip,
         });
         showSuccessMessage("Școala a fost adăugată cu succes!");
       }
@@ -221,6 +246,7 @@ function AdminDashboard() {
     setSchoolName(sc.name || "");
     setJudet(sc.county || "");
     setLocalitate(sc.locality || "");
+    setSchoolVip(sc.vip === true);
     setEditingSchoolId(sc.id);
     setIsEditing(true);
     setShowAddSchoolForm(true);
@@ -231,9 +257,10 @@ function AdminDashboard() {
       return;
     try {
       await updateDoc(doc(db, "schools", editingSchoolId), {
-        name: schoolName,
-        county: judet,
-        locality: localitate,
+        name: cleanField(schoolName),
+        county: cleanField(judet),
+        locality: cleanField(localitate),
+        vip: schoolVip,
       });
       showSuccessMessage("Școala a fost actualizată cu succes!");
       resetSchoolForm();
@@ -274,6 +301,7 @@ function AdminDashboard() {
             await deleteDoc(regDoc.ref);
           }
           await deleteDoc(doc(db, "schools", selectedSchoolId));
+          syncCounts();
           let syncNote = "";
           try {
             const r = await applyRemovals(removed);
@@ -916,9 +944,9 @@ function AdminDashboard() {
         }
         seen.add(key);
         toAdd.push({
-          name: row.Nume,
-          county: row.Județ,
-          locality: row.Localitate,
+          name: cleanField(row.Nume),
+          county: cleanField(row.Județ),
+          locality: cleanField(row.Localitate),
         });
       });
 
@@ -1247,6 +1275,7 @@ function AdminDashboard() {
 
           setStudents(reindex);
           setOriginalStudents(reindex);
+          syncCounts();
           // elevul scos nu mai ocupă loc în sală; codul lui devine „retras”
           let syncNote = "";
           if (expectedName) {
@@ -1311,6 +1340,7 @@ function AdminDashboard() {
             .filter((st) => st.id.startsWith(`${reg.id}-`))
             .map((st) => ({ regId: reg.id, nume: st.nume }));
           await deleteDoc(doc(db, "registration", reg.id));
+          syncCounts();
           removeRegFromEditor(reg.id);
           // elevii înscrierii nu mai ocupă loc în săli; codurile lor devin „retrase”
           try {
@@ -1452,6 +1482,7 @@ function AdminDashboard() {
             schoolId: target.id,
             school: target.name,
           });
+          syncCounts();
           removeRegFromEditor(reg.id);
           showStudentEditorMessage(
             `✅ Înscrierea a fost mutată la ${target.name}.`,
@@ -1499,6 +1530,7 @@ function AdminDashboard() {
             deleteDoc(docu.ref)
           );
           await Promise.all(deletePromises);
+          syncCounts();
 
           setShowStudentEditor(false);
           setShowAdminEnroll(false);
@@ -1817,6 +1849,15 @@ function AdminDashboard() {
               placeholder="Localitatea școlii"
               className={styles.inputField}
             />
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0 8px" }}>
+              <input
+                type="checkbox"
+                checked={schoolVip}
+                onChange={(e) => setSchoolVip(e.target.checked)}
+              />
+              Fără limita de 5 elevi/clasă (școală organizatoare / parteneră)
+            </label>
 
             <div className={styles.formActions}>
               {isEditing ? (

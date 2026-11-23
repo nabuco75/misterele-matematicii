@@ -8,46 +8,115 @@ rules_version = '2';
 // Principiul: fiecare colectie primeste exact dreptul de care are nevoie aplicatia, nimic
 // in plus. Ce nu e scris aici explicit e interzis (vezi regula finala de respingere).
 //
-// Cine e "admin": orice utilizator autentificat. Aplicatia nu are inca roluri - exista o
-// colectie `users` in Firestore, dar codul nu o foloseste. Pana cand apare un rol real,
-// protectia ramane "ai cont => ai acces", de aceea inregistrarea de conturi noi trebuie
-// sa fie DEZACTIVATA in Authentication → Settings → User actions.
+// Cine e "admin": un cont autentificat care are documentul admins/{uid}. Documentul se
+// creeaza MANUAL din consola (Firestore → colectia `admins` → ID = User UID din
+// Authentication → Users). Un cont nou, creat de altcineva, NU primeste acces.
+// (Tot e bine ca inregistrarea de conturi noi sa fie dezactivata in
+// Authentication → Settings → User actions.)
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function esteAutentificat() {
-      return request.auth != null;
+    function esteAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
     // inscrierile sunt deschise: config/appStatus.isActive == true (boolean), setat manual
     // din consola Firebase → Firestore → Data → config → appStatus
+    // (documentul lipsa → eroare → false)
     function inscrieriDeschise() {
-      let st = /databases/$(database)/documents/config/appStatus;
-      return exists(st) && get(st).data.get('isActive', false) == true;
+      return get(/databases/$(database)/documents/config/appStatus).data.get('isActive', false) == true;
     }
 
-    // o inscriere noua trimisa din formularul public (ClassForm.jsx) are exact forma asta
-    function inscriereValida() {
+    // un camp text optional, de cel mult `max` caractere
+    function textOk(d, f, max) {
+      return !(f in d) || (d[f] is string && d[f].size() <= max);
+    }
+
+    // elevul i (daca exista) e un nume de 3..80 caractere
+    function numeOk(l, i) {
+      return l.size() <= i || (l[i] is string && l[i].size() >= 3 && l[i].size() <= 80);
+    }
+
+    // o inscriere noua trimisa din formularul public (ClassForm.jsx → classCounts.js).
+    // Se scrie in aceeasi tranzactie cu contorul classCounts/{schoolId}:
+    //   - ID-ul e {schoolId}_{seq}_{clasa}, unde seq = valoarea NOUA din contor;
+    //   - contorul trebuie sa creasca seq cu exact 1 in aceeasi scriere.
+    // Regula contorului (mai jos) verifica la randul ei ca a crescut exact cu numarul
+    // de elevi din inscriere si ca nu trece de 5 (in afara de scolile vip).
+    function inscriereValida(regId) {
       let d = request.resource.data;
+      let cheie = {'a IV-a': 'IV', 'a V-a': 'V', 'a VI-a': 'VI', 'a VII-a': 'VII'};
+      let cnt = /databases/$(database)/documents/classCounts/$(d.schoolId);
+      let seqDupa = getAfter(cnt).data.seq;
       return d.keys().hasOnly(['class', 'school', 'schoolId', 'students',
                                'profesorIndrumatorEmail', 'profesorEmail',
                                'telefon', 'createdAt'])
         && d.keys().hasAll(['class', 'schoolId', 'students'])
         && d.class is string
+        && d.class in cheie
         && d.schoolId is string
-        && exists(/databases/$(database)/documents/schools/$(d.schoolId))
         && d.students is list
         && d.students.size() >= 1
-        && d.students.size() <= 5;
+        && d.students.size() <= 5
+        && numeOk(d.students, 0) && numeOk(d.students, 1) && numeOk(d.students, 2)
+        && numeOk(d.students, 3) && numeOk(d.students, 4)
+        && textOk(d, 'school', 200)
+        && textOk(d, 'profesorIndrumatorEmail', 100)
+        && textOk(d, 'profesorEmail', 100)
+        && textOk(d, 'telefon', 20)
+        && (!('createdAt' in d) || d.createdAt is int)
+        && regId == d.schoolId + '_' + string(seqDupa) + '_' + cheie[d.class]
+        && ((!exists(cnt) && seqDupa == 1)
+            || get(cnt).data.get('seq', 0) + 1 == seqDupa);
+    }
+
+    // o clasa din contor: ori ramane la fel, ori creste exact cu elevii din
+    // inscrierea scrisa in aceeasi tranzactie (si nu trece de 5, daca scoala nu e vip)
+    function clasaOk(n, o, k, regId, vip) {
+      let dupa = n.get(k, 0);
+      let inainte = o.get(k, 0);
+      return dupa is int && (dupa == inainte || (
+        getAfter(/databases/$(database)/documents/registration/$(regId)).data.students.size() == dupa - inainte
+        && (vip || dupa <= 5)));
+    }
+
+    // contorul unei scoli, scris de formularul public
+    function contorValid(schoolId) {
+      let n = request.resource.data;
+      let o = resource == null ? {} : resource.data;
+      let seq = o.get('seq', 0) + 1;
+      let prefix = schoolId + '_' + string(seq) + '_';
+      let scoala = /databases/$(database)/documents/schools/$(schoolId);
+      // atentie: fara exists(), o scoala inexistenta ar face `vip` eroare, iar
+      // `eroare || ...` poate iesi true → limita ar fi ocolita
+      let vip = exists(scoala) && get(scoala).data.get('vip', false) == true;
+      return inscrieriDeschise()
+        && exists(scoala)
+        && n.keys().hasOnly(['IV', 'V', 'VI', 'VII', 'seq'])
+        && n.seq == seq
+        && clasaOk(n, o, 'IV', prefix + 'IV', vip)
+        && clasaOk(n, o, 'V', prefix + 'V', vip)
+        && clasaOk(n, o, 'VI', prefix + 'VI', vip)
+        && clasaOk(n, o, 'VII', prefix + 'VII', vip);
+    }
+
+    // ── admins ───────────────────────────────────────────────────────────────
+    // Lista conturilor de admin (ID document = UID). Fiecare cont isi poate citi doar
+    // propriul document (aplicatia verifica asa daca e admin). Se modifica doar din consola.
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
     }
 
     // ── schools ──────────────────────────────────────────────────────────────
     // Publicul trebuie sa poata citi lista ca sa aleaga judet / localitate / scoala
     // (SchoolSelection.jsx). Scrierea e doar pentru admin (CRUD si import din Excel).
+    // Campul `vip: true` = scoala fara limita de 5 elevi/clasa (il seteaza doar adminul).
     match /schools/{schoolId} {
       allow read: if true;
-      allow write: if esteAutentificat();
+      allow write: if esteAdmin();
     }
 
     // ── config ───────────────────────────────────────────────────────────────
@@ -56,65 +125,66 @@ service cloud.firestore {
     // elevilor si salile lor, elevii veniti pe loc etc.) e doar pentru admin.
     match /config/appStatus {
       allow read: if true;
-      allow write: if esteAutentificat();
+      allow write: if esteAdmin();
     }
     match /config/{docId} {
-      allow read, write: if esteAutentificat();
+      allow read, write: if esteAdmin();
     }
 
     // ── registration ─────────────────────────────────────────────────────────
-    // Aici sunt datele personale ale elevilor.
+    // Aici sunt datele personale ale elevilor: le citeste DOAR adminul.
     //
-    // CREATE public: formularul de inscriere trebuie sa poata adauga, fara cont - dar
-    //   doar cat timp inscrierile sunt deschise si doar o inscriere cu forma corecta
-    //   (1-5 elevi, o scoala care exista). Adminul (autentificat) poate oricand.
-    //
-    // READ public: NECESAR cat timp inscrierile sunt deschise. ClassForm.jsx numara
-    //   inscrierile existente (`where schoolId ==`, `where class ==`) ca sa aplice
-    //   limita de 5 elevi/clasa, iar numaratoarea se face in browser.
-    //   ATENTIE: in perioada de inscriere, numele elevilor si emailurile profesorilor
-    //   raman citibile de oricine stie sa interogheze Firestore. Se rezolva doar mutand
-    //   numaratoarea pe server (Cloud Function) sau tinand un contor separat.
-    //   Cand inscrierile sunt inchise, citirea e doar pentru admin.
-    //
-    // UPDATE / DELETE: doar admin. Asta opreste partea catastrofala - pana acum
-    //   oricine putea sterge toate inscrierile.
+    // CREATE public: doar cat timp inscrierile sunt deschise (verificat in regula
+    //   contorului, care trebuie scris in aceeasi tranzactie), cu forma corecta si
+    //   legata de contor (vezi inscriereValida). Adminul poate oricand.
+    // UPDATE / DELETE: doar admin.
     match /registration/{regId} {
-      allow read:   if esteAutentificat() || inscrieriDeschise();
-      allow create: if esteAutentificat() || (inscrieriDeschise() && inscriereValida());
-      allow update, delete: if esteAutentificat();
+      allow read: if esteAdmin();
+      allow create: if esteAdmin() || inscriereValida(regId);
+      allow update, delete: if esteAdmin();
+    }
+
+    // ── classCounts ──────────────────────────────────────────────────────────
+    // classCounts/{schoolId} = { IV, V, VI, VII, seq }: cati elevi are scoala la fiecare
+    // clasa. Doar numere, deci e public (formularul afiseaza locurile ramase).
+    // Formularul il creste odata cu inscrierea (contorValid); adminul il recalculeaza
+    // din inscrieri dupa orice modificare (classCounts.js → rebuildClassCounts).
+    match /classCounts/{schoolId} {
+      allow read: if true;
+      allow create, update: if esteAdmin() || contorValid(schoolId);
+      allow delete: if esteAdmin();
     }
 
     // ── rooms ────────────────────────────────────────────────────────────────
     // Salile se folosesc doar in zona de administrare (RoomAllocation,
     // AllocationProcess), deci nimic public.
     match /rooms/{roomId} {
-      allow read, write: if esteAutentificat();
+      allow read, write: if esteAdmin();
     }
 
     // ── codes ────────────────────────────────────────────────────────────────
     // Codurile de anonimizare (MMVS_01 ...), legate de numele elevilor. Doar admin.
     match /codes/{codeId} {
-      allow read, write: if esteAutentificat();
+      allow read, write: if esteAdmin();
     }
 
     // ── grades ───────────────────────────────────────────────────────────────
     // Notele pe coduri (s1, s2, s3, absent, mentiune). Doar admin.
     match /grades/{codeId} {
-      allow read, write: if esteAutentificat();
+      allow read, write: if esteAdmin();
     }
 
     // ── users ────────────────────────────────────────────────────────────────
     // Colectia exista in Firestore dar codul nu o atinge. O inchidem complet; daca
     // devine suportul pentru roluri, regula se rescrie atunci.
     match /users/{userId} {
-      allow read, write: if esteAutentificat();
+      allow read, write: if esteAdmin();
     }
 
     // ── quotas ───────────────────────────────────────────────────────────────
     // La fel: exista in baza de date, nefolosita in cod. Inchisa.
     match /quotas/{quotaId} {
-      allow read, write: if esteAutentificat();
+      allow read, write: if esteAdmin();
     }
 
     // ── orice altceva ────────────────────────────────────────────────────────

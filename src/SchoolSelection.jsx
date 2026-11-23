@@ -1,64 +1,79 @@
-import React, { useEffect, useState } from "react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import React, { useEffect, useMemo, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
 import styles from "./SchoolSelection.module.css";
 
+// "  Vaslui " și "Vaslui" sunt același județ
+const clean = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
+const byRo = (a, b) => a.localeCompare(b, "ro", { sensitivity: "base" });
+const sameText = (a, b) => byRo(a, b) === 0;
+
+// valori unice (fără diferențe de majuscule/diacritice), sortate
+const uniqueSorted = (values) => {
+  const out = [];
+  values.forEach((v) => {
+    if (v && !out.some((o) => sameText(o, v))) out.push(v);
+  });
+  return out.sort(byRo);
+};
+
 function SchoolSelection({ setSelectedSchool }) {
-  const [counties, setCounties] = useState([]);
-  const [localities, setLocalities] = useState([]);
-  const [schools, setSchools] = useState([]);
+  // toată lista se citește o singură dată; filtrarea se face aici
+  const [allSchools, setAllSchools] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [selectedCounty, setSelectedCounty] = useState("");
   const [selectedLocality, setSelectedLocality] = useState("");
   const [selectedSchoolId, setSelectedSchoolId] = useState("");
 
   useEffect(() => {
-    const fetchCounties = async () => {
-      const snap = await getDocs(collection(db, "schools"));
-      const setc = new Set();
-      snap.forEach((d) => setc.add(d.data().county));
-      const sorted = [...setc].sort((a, b) => 
-        a.localeCompare(b, "ro", { sensitivity: "base" })
-      );
-      setCounties(sorted);
+    let alive = true;
+    getDocs(collection(db, "schools"))
+      .then((snap) => {
+        if (!alive) return;
+        setAllSchools(
+          snap.docs
+            .map((d) => {
+              const data = d.data();
+              return {
+                id: d.id,
+                name: clean(data.name),
+                county: clean(data.county),
+                locality: clean(data.locality),
+                vip: data.vip === true,
+              };
+            })
+            .filter((s) => s.name && s.county && s.locality)
+        );
+      })
+      .catch((err) => {
+        console.error("Eroare la încărcarea școlilor:", err);
+        if (alive)
+          setLoadError(
+            "Lista școlilor nu s-a putut încărca. Verificați conexiunea la internet și reîncărcați pagina."
+          );
+      })
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
     };
-    fetchCounties();
   }, []);
 
-  useEffect(() => {
-    if (!selectedCounty) {
-      setLocalities([]);
-      return;
-    }
-    const fetchLocalities = async () => {
-      const snap = await getDocs(query(collection(db, "schools"), where("county", "==", selectedCounty)));
-      const setl = new Set();
-      snap.forEach((d) => setl.add(d.data().locality));
-      const sorted = [...setl].sort((a, b) => 
-        a.localeCompare(b, "ro", { sensitivity: "base" })
-      );
-      setLocalities(sorted);
-    };
-    fetchLocalities();
-  }, [selectedCounty]);
-
-  useEffect(() => {
-    if (!selectedLocality) {
-      setSchools([]);
-      return;
-    }
-    const fetchSchools = async () => {
-      const snap = await getDocs(query(collection(db, "schools"), where("county", "==", selectedCounty), where("locality", "==", selectedLocality)));
-      const list = snap.docs.map((scDoc) => ({
-        id: scDoc.id,
-        name: scDoc.data().name,
-      }));
-      list.sort((a, b) => 
-        a.name.localeCompare(b.name, "ro", { sensitivity: "base" })
-      );
-      setSchools(list);
-    };
-    fetchSchools();
-  }, [selectedLocality, selectedCounty]);
+  const counties = useMemo(() => uniqueSorted(allSchools.map((s) => s.county)), [allSchools]);
+  const localities = useMemo(
+    () =>
+      uniqueSorted(
+        allSchools.filter((s) => sameText(s.county, selectedCounty)).map((s) => s.locality)
+      ),
+    [allSchools, selectedCounty]
+  );
+  const schools = useMemo(
+    () =>
+      allSchools
+        .filter((s) => sameText(s.county, selectedCounty) && sameText(s.locality, selectedLocality))
+        .sort((a, b) => byRo(a.name, b.name)),
+    [allSchools, selectedCounty, selectedLocality]
+  );
 
   return (
     <div className={styles.selectionContainer}>
@@ -66,21 +81,27 @@ function SchoolSelection({ setSelectedSchool }) {
         <h2 className={styles.cardTitle}>Alegeți școala</h2>
         <p className={styles.cardHint}>Județul, apoi localitatea și școala la care predați.</p>
       </div>
+
+      {loadError && (
+        <p role="alert" style={{ color: "#b91c1c", fontWeight: 600 }}>
+          {loadError}
+        </p>
+      )}
+
       <label htmlFor="countySelect">Județul</label>
       <select
         id="countySelect"
         value={selectedCounty}
+        disabled={loading || !!loadError}
         onChange={(e) => {
           setSelectedCounty(e.target.value);
           setSelectedLocality("");
           setSelectedSchoolId("");
           setSelectedSchool(null);
-          setSchools([]);
-          setLocalities([]);
         }}
         className={styles.selectField}
       >
-        <option value="">Selectează județul</option>
+        <option value="">{loading ? "Se încarcă..." : "Selectează județul"}</option>
         {counties.map((county) => (
           <option key={county} value={county}>
             {county}
@@ -98,7 +119,6 @@ function SchoolSelection({ setSelectedSchool }) {
               setSelectedLocality(e.target.value);
               setSelectedSchoolId("");
               setSelectedSchool(null);
-              setSchools([]);
             }}
             className={styles.selectField}
           >
@@ -119,12 +139,9 @@ function SchoolSelection({ setSelectedSchool }) {
             id="schoolSelect"
             value={selectedSchoolId}
             onChange={(e) => {
-              const schoolId = e.target.value;
-              const schoolName = schools.find(s => s.id === schoolId)?.name || "";
-              
-              
-              setSelectedSchoolId(schoolId);
-              setSelectedSchool(schoolId ? { id: schoolId, name: schoolName } : null);
+              const school = schools.find((s) => s.id === e.target.value) || null;
+              setSelectedSchoolId(school ? school.id : "");
+              setSelectedSchool(school);
             }}
             className={styles.selectField}
           >
