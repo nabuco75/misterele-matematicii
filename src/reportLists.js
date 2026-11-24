@@ -28,6 +28,8 @@ const clean = (s) => String(s || "").trim().replace(/\s+/g, " ");
 // toți elevii cu notele, suma și premiul (ca la Notare)
 export const loadResults = async () => {
   const [data, gradesSnap] = await Promise.all([loadContestStudents(), getDocs(collection(db, GRADES_COLLECTION))]);
+  // fără coduri, notele și bifele „absent” puse pe cod nu se văd: documentul ar ieși greșit
+  if (data.codesError) throw new Error("Codurile de anonimizare nu au putut fi citite. Reîncercați.");
   const grades = {};
   gradesSnap.forEach((d) => (grades[d.id] = d.data()));
   return buildResults(data.students, grades);
@@ -40,6 +42,8 @@ export const loadReportData = async () => {
     getDocs(collection(db, "registration")),
     getDocs(collection(db, "schools")),
   ]);
+  // fără coduri, notele și bifele „absent” puse pe cod nu se văd: documentul ar ieși greșit
+  if (data.codesError) throw new Error("Codurile de anonimizare nu au putut fi citite. Reîncercați.");
   const grades = {};
   gradesSnap.forEach((d) => (grades[d.id] = d.data()));
   const results = buildResults(data.students, grades);
@@ -53,9 +57,10 @@ export const loadReportData = async () => {
   regsSnap.forEach((d) => (regs[d.id] = d.data()));
 
   // 1) rezultate: doar prezenții, pe clase, suma descrescător (cei fără sumă completă la final).
-  // Prezent = are cel puțin o notă. Elevii fără nicio notă și fără bifa „absent” nu se
-  // numără ca prezenți (probabil n-au venit, dar nu au fost bifați): apar ca avertizare.
-  const present = results.filter((r) => r.stare === "notat" || r.stare === "incomplet");
+  // Prezent = fără bifa „absent” — aceeași regulă ca la Prezență, Borderouri și Notare, ca
+  // documentele să nu se contrazică. Prezenții fără nicio notă apar la final, cu „—”, și sunt
+  // semnalați (au fost la concurs? lucrarea s-a notat?).
+  const present = results.filter((r) => !r.absent);
   const ungraded = results.filter((r) => r.stare === "nenotat");
   const resultsByClass = [...new Set([...CLASS_ORDER, ...present.map((r) => r.clasa)])]
     .map((clasa) => ({

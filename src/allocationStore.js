@@ -97,7 +97,11 @@ export const markBatchPrinted = async (at) => {
 // - altfel (elevi noi, elev venit pe loc, din coduri): se scriu DOAR schimbările făcute aici
 //   față de `previous`, peste repartizarea proaspătă din baza de date, ca să nu se piardă ce
 //   a salvat între timp alt calculator.
-export const saveAllocation = async ({ data, roomSummaries, rooms, type, added = 0, previous }) => {
+// - limits (opțional): Map sală → câți elevi pot fi trecuți în ea; dacă una din sălile în care am
+//   pus elevi ar trece de limită pe datele proaspete, nu se scrie nimic (eroare „ROOM_FULL”).
+// - un elev mutat între timp de alt calculator în altă sală rămâne unde l-a pus acela
+//   (nu-l mutăm înapoi); întoarcem lista lor în `conflicts`.
+export const saveAllocation = async ({ data, roomSummaries, rooms, type, added = 0, previous, limits = null }) => {
   const entry = {
     at: new Date().toISOString(),
     type,
@@ -105,7 +109,9 @@ export const saveAllocation = async ({ data, roomSummaries, rooms, type, added =
     ...allocationStats(roomSummaries, rooms),
   };
   const mine = data.map((s) => ({ id: s.id, sala: s.sala }));
+  const conflicts = [];
   const saved = await mutateAllocation((cur) => {
+    conflicts.length = 0; // tranzacția se poate relua
     let assignments;
     if (type === "completa") {
       assignments = mine;
@@ -113,10 +119,29 @@ export const saveAllocation = async ({ data, roomSummaries, rooms, type, added =
       const before = previous?.assignments || new Map();
       const merged = new Map((cur.assignments || []).map((a) => [a.id, a.sala]));
       const mineIds = new Set();
+      const touched = new Set();
       mine.forEach(({ id, sala }) => {
         mineIds.add(id);
-        if (before.get(id) !== sala) merged.set(id, sala);
+        if (before.get(id) === sala) return;
+        const theirs = merged.get(id);
+        if (theirs !== undefined && theirs !== before.get(id) && theirs !== sala) {
+          conflicts.push({ id, sala: theirs });
+          return;
+        }
+        merged.set(id, sala);
+        touched.add(sala);
       });
+      if (limits) {
+        touched.forEach((sala) => {
+          if (!limits.has(sala)) return;
+          const count = [...merged.values()].filter((x) => x === sala).length;
+          if (count > limits.get(sala)) {
+            const err = new Error("ROOM_FULL");
+            err.sala = sala;
+            throw err;
+          }
+        });
+      }
       // scos de aici (era în repartizarea de la care am pornit, nu mai e)
       before.forEach((_, id) => {
         if (!mineIds.has(id)) merged.delete(id);
@@ -125,7 +150,7 @@ export const saveAllocation = async ({ data, roomSummaries, rooms, type, added =
     }
     return { assignments, history: withHistory(cur, entry) };
   });
-  return toState(saved);
+  return { ...toState(saved), conflicts };
 };
 
 // „18 noiembrie 2026, ora 22:15”

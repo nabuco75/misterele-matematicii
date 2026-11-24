@@ -1295,3 +1295,12 @@
 .tableScroll > table {
   min-width: 520px;
 }
+
+.msgClose {
+  margin-left: 12px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}

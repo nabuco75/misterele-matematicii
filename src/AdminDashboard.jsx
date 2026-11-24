@@ -34,6 +34,7 @@ import TeacherSearch from "./TeacherSearch.jsx";
 import AttendanceView from "./AttendanceView.jsx";
 import BorderouriView from "./BorderouriView.jsx";
 import ReportsView from "./ReportsView.jsx";
+import EditionResetModal from "./EditionResetModal.jsx";
 import { StageBar, useStageStatus } from "./StageNav.jsx";
 import DashboardHero from "./DashboardHero.jsx";
 import AuroraStage from "./Aurora.jsx";
@@ -120,6 +121,7 @@ function AdminDashboard() {
   const [showAttendance, setShowAttendance] = useState(false);
   const [showBorderouri, setShowBorderouri] = useState(false);
   const [showReports, setShowReports] = useState(false);
+  const [showEditionReset, setShowEditionReset] = useState(false);
   const [profEditError, setProfEditError] = useState("");
 
   // —— Form de înscriere suplimentară (ADMIN)
@@ -152,6 +154,8 @@ function AdminDashboard() {
         console.error("Întreținerea contoarelor a eșuat:", err);
       }
     });
+  // o singură dată, la deschiderea panoului
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // după orice modificare a înscrierilor: contorul public de locuri rămâne corect
@@ -186,6 +190,7 @@ function AdminDashboard() {
       return list;
     } catch (err) {
       console.error("Eroare la aducerea listei de școli:", err);
+      showSuccessMessage("❌ Lista școlilor nu a putut fi citită. Verificați conexiunea și reîncărcați pagina.");
       return [];
     }
   };
@@ -198,7 +203,12 @@ function AdminDashboard() {
     clearTimeout(msgTimers.current[name]);
     msgTimers.current[name] = setTimeout(() => setter(null), ms);
   };
-  const showSuccessMessage = (message) => flash("school", setSchoolOperationMessage, message);
+  // un mesaj de eroare (❌ / ⚠️ / „eroare”) rămâne până e închis, ca adminul să-l poată citi
+  const isErrorText = (m) => /^\s*(❌|⚠️)|eroare|nu s-a putut|nu a putut|nu au putut/i.test(String(m || ""));
+  const showSuccessMessage = (message) =>
+    isErrorText(message)
+      ? (clearTimeout(msgTimers.current.school), setSchoolOperationMessage(message))
+      : flash("school", setSchoolOperationMessage, message);
 
   // ====== HELPER: Afișare mesaj în editor elevi ======
   const showStudentEditorMessage = (message, type = "success") =>
@@ -1287,6 +1297,8 @@ function AdminDashboard() {
               }
             } catch (syncErr) {
               console.error("Eroare la eliberarea locului:", syncErr);
+              syncNote =
+                " ⚠️ Locul din sală și codul NU au putut fi eliberate (conexiune). Deschideți Repartizare › reconciliere ca să le verificați.";
             }
           }
           showStudentEditorMessage(
@@ -1344,14 +1356,17 @@ function AdminDashboard() {
           syncCounts();
           removeRegFromEditor(reg.id);
           // elevii înscrierii nu mai ocupă loc în săli; codurile lor devin „retrase”
+          let removalWarning = "";
           try {
             await applyRemovals(removed);
           } catch (syncErr) {
             console.error("Eroare la eliberarea locurilor:", syncErr);
+            removalWarning =
+              " ⚠️ Locurile din săli și codurile elevilor NU au putut fi eliberate (conexiune). Verificați la Repartizare › reconciliere.";
           }
           showStudentEditorMessage(
-            "✅ Înscrierea a fost ștearsă.",
-            "success"
+            `✅ Înscrierea a fost ștearsă.${removalWarning}`,
+            removalWarning ? "error" : "success"
           );
           if (showStatistics) fetchStatistics();
           if (showRegisteredSchools) fetchRegisteredSchools();
@@ -1495,54 +1510,16 @@ function AdminDashboard() {
     });
   };
 
-  // ====== ȘTERGERE ÎN MASĂ ======
-  const handleDeleteAllRegistrations = (type = "elevi") => {
-    const messages = {
-      elevi: {
-        title: "⚠️ ATENȚIE: Ștergere completă elevi",
-        message:
-          "Sigur doriți să ștergeți TOȚI elevii înscriși (și profesorii îndrumători asociați) din TOATE școlile? Această acțiune este IREVERSIBILĂ și va șterge toate înregistrările din sistem! Școlile și sălile rămân neatinse.",
-        success: (count) =>
-          `✅ Au fost șterse ${count} înregistrări (elevi + îndrumători)!`,
-        error: "❌ Eroare la ștergerea elevilor!",
-      },
-    };
-
-    const config = messages[type];
-
-    setConfirmModal({
-      isOpen: true,
-      title: config.title,
-      message: config.message,
-      onConfirm: async () => {
-        try {
-          const regsSnap = await getDocs(
-            collection(db, "registration")
-          );
-          const deletePromises = regsSnap.docs.map((docu) =>
-            deleteDoc(docu.ref)
-          );
-          await Promise.all(deletePromises);
-          syncCounts();
-
-          setShowStudentEditor(false);
-          setShowAdminEnroll(false);
-          setStudents([]);
-          setOriginalStudents([]);
-          setHasUnsavedChanges(false);
-
-          showSuccessMessage(config.success(regsSnap.size));
-
-          if (showStatistics) fetchStatistics();
-          if (showRegisteredSchools || showSchoolsWithoutRegs)
-            fetchRegisteredSchools();
-        } catch (err) {
-          console.error(`Eroare la ștergerea ${type}:`, err);
-          showSuccessMessage(config.error);
-        }
-        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
-      },
-    });
+  // ====== EDIȚIE NOUĂ (înlocuiește „șterge toate înscrierile”) ======
+  // după golire: editoarele se închid, iar listele se recitesc
+  const afterEditionReset = () => {
+    setShowStudentEditor(false);
+    setShowAdminEnroll(false);
+    setStudents([]);
+    setOriginalStudents([]);
+    setHasUnsavedChanges(false);
+    if (showStatistics) fetchStatistics();
+    if (showRegisteredSchools || showSchoolsWithoutRegs) fetchRegisteredSchools();
   };
 
   // ===========================================
@@ -1617,8 +1594,16 @@ function AdminDashboard() {
         </div>
 
         {schoolOperationMessage && (
-          <p className={styles.successMessage}>
+          <p
+            className={isErrorText(schoolOperationMessage) ? styles.errorMessage : styles.successMessage}
+            role={isErrorText(schoolOperationMessage) ? "alert" : "status"}
+          >
             {schoolOperationMessage}
+            {isErrorText(schoolOperationMessage) && (
+              <button className={styles.msgClose} onClick={() => setSchoolOperationMessage(null)} aria-label="Închide mesajul">
+                ✖
+              </button>
+            )}
           </p>
         )}
 
@@ -1792,15 +1777,15 @@ function AdminDashboard() {
           <section className={`${styles.dashSection} ${styles.dangerZone}`}>
             <h2 className={styles.dashTitle}>Zonă periculoasă</h2>
             <button
-              onClick={() => handleDeleteAllRegistrations("elevi")}
+              onClick={() => setShowEditionReset(true)}
               className={`${styles.tile} ${styles.tile_red}`}
             >
               <span className={styles.tileIcon}>
                 <Icon name="trash" size={22} />
               </span>
               <span className={styles.tileText}>
-                <span className={styles.tileLabel}>Șterge toate înscrierile</span>
-                <span className={styles.tileSub}>Elevi + îndrumători — nu se poate anula</span>
+                <span className={styles.tileLabel}>Pregătește ediția nouă</span>
+                <span className={styles.tileSub}>Copie completă, apoi golește înscrierile, codurile, notele și repartizarea</span>
               </span>
             </button>
           </section>
@@ -1814,8 +1799,14 @@ function AdminDashboard() {
           style={{ display: "none" }}
         />
         {bulkUploadStatus && (
-          <p className={styles.successMessage}>
+          <p
+            className={isErrorText(bulkUploadStatus) ? styles.errorMessage : styles.successMessage}
+            role={isErrorText(bulkUploadStatus) ? "alert" : "status"}
+          >
             {bulkUploadStatus}
+            <button className={styles.msgClose} onClick={() => setBulkUploadStatus(null)} aria-label="Închide mesajul">
+              ✖
+            </button>
           </p>
         )}
 
@@ -1927,6 +1918,9 @@ function AdminDashboard() {
         {showAttendance && <AttendanceView onClose={() => setShowAttendance(false)} />}
         {showBorderouri && <BorderouriView onClose={() => setShowBorderouri(false)} />}
         {showReports && <ReportsView onClose={() => setShowReports(false)} />}
+        {showEditionReset && (
+          <EditionResetModal onClose={() => setShowEditionReset(false)} onDone={afterEditionReset} />
+        )}
 
         {showRegisteredSchools && (
           <div className={styles.registeredSchoolsContainer}>

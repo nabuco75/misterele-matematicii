@@ -342,7 +342,7 @@ export const printRoomsPdf = (groups, header, fileLabel = "Repartizare_pe_Sali",
 
 // ====== ANONIMIZARE: coduri MMVS_01, MMVS_02 ... ======
 export const CODE_PREFIX = "MMVS";
-const formatCode = (n) => `${CODE_PREFIX}_${String(n).padStart(2, "0")}`;
+export const formatCode = (n) => `${CODE_PREFIX}_${String(n).padStart(2, "0")}`;
 
 // Codurile sunt definitive: elevii care au deja cod îl păstrează. Doar elevii fără cod primesc
 // coduri noi, în ordinea listelor de pe uși (Sala 1 elevul 1, 2, ..., apoi sala următoare),

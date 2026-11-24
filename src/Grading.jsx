@@ -316,11 +316,23 @@ function Grading({ onDashboard, stageBar }) {
   };
 
   const cellKey = (row, key) => `${row.gradeId}|${key}`;
+  // nota trimisă acum pentru fiecare căsuță (Enter + ieșirea din căsuță n-o mai trimit de două ori)
+  const inflightRef = useRef({});
 
   const commit = async (row, key) => {
     const k = cellKey(row, key);
     if (!(k in drafts)) return;
-    const parsed = parseScore(drafts[k]);
+    const sent = drafts[k];
+    if (inflightRef.current[k] === sent) return;
+    // ciorna se șterge doar dacă profesorul n-a scris între timp altceva în căsuță
+    const dropDraft = () =>
+      setDrafts((prev) => {
+        if (prev[k] !== sent) return prev;
+        const next = { ...prev };
+        delete next[k];
+        return next;
+      });
+    const parsed = parseScore(sent);
     if (parsed.error) {
       setCellErrors((prev) => ({ ...prev, [k]: parsed.error }));
       return;
@@ -331,19 +343,14 @@ function Grading({ onDashboard, stageBar }) {
       return next;
     });
     if (parsed.value === row[key]) {
-      setDrafts((prev) => {
-        const next = { ...prev };
-        delete next[k];
-        return next;
-      });
+      dropDraft();
       return;
     }
-    if (await save(row, { [key]: parsed.value })) {
-      setDrafts((prev) => {
-        const next = { ...prev };
-        delete next[k];
-        return next;
-      });
+    inflightRef.current[k] = sent;
+    try {
+      if (await save(row, { [key]: parsed.value })) dropDraft();
+    } finally {
+      if (inflightRef.current[k] === sent) delete inflightRef.current[k];
     }
   };
 

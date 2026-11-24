@@ -12,6 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm ci
+      # verificări înainte de publicare: dacă una pică, site-ul NU se actualizează
+      - run: npm run lint
+      - run: npm test
       - run: npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:

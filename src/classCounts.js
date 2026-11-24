@@ -146,10 +146,10 @@ export async function adminMaintenance(schools) {
  * Întoarce numărul de contoare actualizate.
  */
 export async function rebuildClassCounts() {
-  const [regsSnap, countsSnap] = await Promise.all([
-    getDocs(collection(db, "registration")),
-    getDocs(collection(db, COUNTS_COLLECTION)),
-  ]);
+  // întâi contoarele, apoi înscrierile: o înscriere publică făcută după citirea contoarelor
+  // schimbă contorul, iar tranzacția de mai jos o observă și nu-l mai suprascrie
+  const countsSnap = await getDocs(collection(db, COUNTS_COLLECTION));
+  const regsSnap = await getDocs(collection(db, "registration"));
 
   const existing = new Map(countsSnap.docs.map((d) => [d.id, countsFromDoc(d.data())]));
   const next = new Map();
@@ -171,10 +171,21 @@ export async function rebuildClassCounts() {
     return !old || Object.keys(c).some((k) => c[k] !== old[k]);
   });
 
-  for (let i = 0; i < changed.length; i += 400) {
-    const batch = writeBatch(db);
-    changed.slice(i, i + 400).forEach(([id, c]) => batch.set(doc(db, COUNTS_COLLECTION, id), c));
-    await batch.commit();
+  // fiecare școală într-o tranzacție: dacă între timp un profesor s-a înscris (contorul nu mai e
+  // cel citit), nu scriem peste el — recalcularea următoare îl va prinde corect
+  let written = 0;
+  for (const [id, c] of changed) {
+    const ref = doc(db, COUNTS_COLLECTION, id);
+    const wrote = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      const now = snap.exists() ? countsFromDoc(snap.data()) : null;
+      const old = existing.get(id) || null;
+      const same = now === old || (now && old && Object.keys(now).every((k) => now[k] === old[k]));
+      if (!same) return false;
+      tx.set(ref, { ...c, seq: Math.max(c.seq, now ? now.seq : 0) });
+      return true;
+    });
+    if (wrote) written += 1;
   }
-  return changed.length;
+  return written;
 }

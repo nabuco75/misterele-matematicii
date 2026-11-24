@@ -97,7 +97,9 @@ function Landing() {
         )}
 
         {/* ========== FORMULAR ACTIV ========== */}
-        {isActive && (
+        {/* dacă înscrierile se închid în timp ce profesorul completează, formularul rămâne
+            (serverul refuză trimiterea cu mesaj clar), ca să nu piardă ce a scris */}
+        {(isActive || showClassForm) && (
           <>
             {/* pașii */}
             <ol className={styles.steps} aria-label="Pașii înscrierii">

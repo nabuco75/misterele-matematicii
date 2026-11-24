@@ -18,20 +18,46 @@ import {
 import { db } from "./firebase";
 import { CODES_COLLECTION, normName } from "./contestData";
 import { GRADES_COLLECTION, nameGradeId } from "./grading";
+import { formatCode } from "./roomLists";
 
 const allocationRef = () => doc(db, "config", "allocation");
 const codeCounterRef = () => doc(db, "config", "codeCounter");
 
-// Rezervă `count` numere de cod consecutive și întoarce ultimul număr folosit înainte de ele.
-// Contorul config/codeCounter crește atomic, deci două calculatoare care dau coduri în
-// același timp primesc intervale diferite (MMVS_51.. și MMVS_54..), nu același cod.
-// scannedMax = cel mai mare număr găsit în colecția codes (pentru date mai vechi decât contorul).
-export const reserveCodeNumbers = (count, scannedMax = 0) =>
+// cheia unui elev pentru coduri: înscriere + nume normalizat
+export const codeKeyOf = (s) => `${s.regId}|${normName(s.nume)}`;
+
+// Dă coduri elevilor (cheile în ordinea dorită), atomic, de pe oricâte calculatoare:
+// config/codeCounter ține ultimul număr (n) și ce număr a primit fiecare elev (keys).
+// Un elev care a primit deja un număr (de pe alt calculator, chiar în aceeași secundă)
+// îl primește pe ACELAȘI, nu pe al doilea. Un cod retras nu se refolosește.
+// Întoarce Map cheie → { n, nou } (nou = documentul de cod trebuie scris de noi).
+export const reserveCodes = (keys, scannedMax = 0) =>
   runTransaction(db, async (tx) => {
     const snap = await tx.get(codeCounterRef());
-    const start = Math.max(snap.exists() ? snap.data().n || 0 : 0, scannedMax);
-    tx.set(codeCounterRef(), { n: start + count, at: new Date().toISOString() });
-    return start;
+    const data = snap.exists() ? snap.data() : {};
+    const given = { ...(data.keys || {}) };
+    // citirile înaintea scrierilor: starea codurilor deja date acestor elevi
+    const prior = new Map();
+    for (const k of keys) {
+      if (given[k] && !prior.has(k)) {
+        const c = await tx.get(doc(db, CODES_COLLECTION, formatCode(given[k])));
+        prior.set(k, c.exists() ? (c.data().retras ? "retras" : "activ") : "lipsa");
+      }
+    }
+    let n = Math.max(data.n || 0, scannedMax);
+    const out = new Map();
+    keys.forEach((k) => {
+      const st = prior.get(k);
+      if (st === "activ") out.set(k, { n: given[k], nou: false });
+      else if (st === "lipsa") out.set(k, { n: given[k], nou: true }); // celălalt calculator încă scrie: aceleași date
+      else {
+        n += 1;
+        given[k] = n;
+        out.set(k, { n, nou: true });
+      }
+    });
+    tx.set(codeCounterRef(), { n, keys: given, at: new Date().toISOString() });
+    return out;
   });
 
 // Schimbă repartizarea salvată pornind de la documentul proaspăt (tranzacție).

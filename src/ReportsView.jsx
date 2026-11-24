@@ -19,7 +19,7 @@ export default function ReportsView({ onClose }) {
       setData(await loadReportData());
     } catch (err) {
       console.error("Eroare la încărcarea situațiilor:", err);
-      setError("Datele nu au putut fi citite. Verificați conexiunea și încercați din nou.");
+      setError(String(err?.message || "").startsWith("Codurile") ? err.message : "Datele nu au putut fi citite. Verificați conexiunea și încercați din nou.");
     } finally {
       setLoading(false);
     }
@@ -97,13 +97,13 @@ export default function ReportsView({ onClose }) {
           <>
             {data.ungradedCount > 0 && (
               <p className={base.warn}>
-                ⚠️ {data.ungradedCount} elevi nu au nicio notă și nici bifa „absent”: NU sunt numărați ca prezenți
-                și nu apar în liste. Bifați-i absenți la Notare (sau treceți-le notele), apoi actualizați.
+                ⚠️ {data.ungradedCount} elevi nu au nicio notă și nici bifa „absent”: sunt numărați ca prezenți și
+                apar la finalul clasei, cu „—”. Dacă n-au venit, bifați-i absenți la Notare; altfel treceți-le notele.
               </p>
             )}
             {data.incomplete > 0 && (
               <p className={base.warn}>
-                ⚠️ {data.incomplete} elevi prezenți nu sunt notați complet: apar la finalul clasei lor, cu „—” la sumă.
+                ⚠️ {data.incomplete} elevi prezenți nu au suma completă (lipsesc note): apar la finalul clasei lor, cu „—” la sumă.
               </p>
             )}
             <div className={styles.cards}>

@@ -19,8 +19,11 @@ organizat de Școala Gimnazială „Ștefan cel Mare” Vaslui.
   ultima sală poate fi „mozaic”. Elevii sunt alfabetic, în continuare de la o sală la alta. Dacă nu ajung locurile,
   fiecare clasă cedează proporțional (ultimii alfabetic), iar cei rămași fără loc sunt afișați pe nume.
 - **Mai multe calculatoare deodată:** repartizarea, elevii veniți pe loc, tranșele de coduri, antetul și sumele
-  premiilor se salvează în baza de date pornind de la datele proaspete (tranzacții); numerele de cod se rezervă
-  atomic (`config/codeCounter`), deci două calculatoare nu pot da același cod.
+  premiilor se salvează în baza de date pornind de la datele proaspete (tranzacții). Codurile se dau atomic
+  (`config/codeCounter` ține ultimul număr și ce număr a primit fiecare elev), deci două calculatoare nu pot da
+  același cod și nici două coduri aceluiași elev. Așezarea unui elev venit pe loc verifică locurile pe datele
+  proaspete (o sală nu trece de capacitate dacă două calculatoare așază în același timp).
+- **Săli:** o sală cu elevi repartizați nu se poate redenumi, șterge sau micșora sub numărul lor.
 - **Deschidere/închidere înscrieri:** documentul Firestore `config/appStatus` (`isActive`, `message`), schimbat
   din consola Firebase. Pe localhost se poate testa cu `?force=true`.
 
@@ -29,9 +32,34 @@ organizat de Școala Gimnazială „Ștefan cel Mare” Vaslui.
 ```bash
 npm install
 npm run dev       # server local
+npm test          # testele (repartizare, note, premii, coduri)
+npm run lint      # verificarea codului
 npm run build     # build în dist/
-firebase deploy --only hosting
 ```
+
+**Publicarea site-ului:** prin `git push` pe `main`. GitHub Actions rulează lint + teste + build și, doar dacă
+toate trec, publică pe Firebase Hosting. **Regulile Firestore NU se publică automat:** după orice schimbare în
+`firestore.rules`, conținutul se lipește în consolă (Firestore → Rules → Publish).
+
+## Ediție nouă (o dată pe an)
+
+1. Panoul de admin → **Zonă periculoasă → Pregătește ediția nouă**.
+2. **Descărcați copia completă** (un Excel de citit + un fișier JSON cu tot). Păstrați-le în siguranță: conțin
+   date personale ale elevilor și profesorilor.
+3. Scrieți `EDITIE NOUA` și apăsați **Golește datele**. Se șterg, în ordine: notele, codurile, înscrierile,
+   repartizarea pe săli și contorul de coduri; locurile libere ale școlilor se recalculează. Rămân școlile,
+   sălile, antetul și sumele premiilor. Dacă se oprește la mijloc (conexiune), se apasă din nou.
+4. La **Tipărire › Antet**: ediția și data noi.
+5. Dacă e cazul, schimbați codul de acces pentru profesori (mai jos) și verificați sălile.
+6. Deschideți înscrierile: Firestore → `config/appStatus` → `isActive: true`. Faceți o înscriere de probă și
+   ștergeți-o.
+
+## Adăugarea unui admin
+
+1. Authentication → Users → **Add user** (email + parolă).
+2. Copiați **User UID** al contului.
+3. Firestore → Data → colecția `admins` → **Add document**, cu Document ID = UID-ul copiat
+   (un câmp oarecare, ex. `nume`).
 
 ## Colecții Firestore
 
@@ -68,3 +96,8 @@ node -e "console.log(require('crypto').createHash('sha256').update('COD_NOU').di
    Authentication → Users. Fără el, contul nu are acces la panou (și regulile îl refuză).
 2. **Firestore → Rules:** conținutul fișierului `firestore.rules` (se lipește în consolă și se publică).
 3. **Authentication → Settings → User actions:** dezactivați „Enable create (sign-up)”.
+4. **Recomandat — App Check** (oprește înscrierile false trimise de programe): Firebase Console → App Check →
+   înregistrați aplicația web cu reCAPTCHA v3 (sau Enterprise), puneți cheia de site în `src/firebase.js`
+   (`RECAPTCHA_SITE_KEY`), publicați, verificați câteva zile în „Metrics” că cererile reale sunt verificate,
+   apoi apăsați **Enforce** pentru Firestore. Fără cheie, aplicația funcționează ca înainte.
+5. Colecțiile `users` și `quotas` din reguli nu sunt folosite de aplicație (rămân închise, doar admin).

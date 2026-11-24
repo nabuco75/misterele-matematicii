@@ -32,7 +32,7 @@ export default function PrizeMoneyCard({ header }) {
       setRows(await loadResults());
     } catch (err) {
       console.error("Eroare la încărcarea premiilor:", err);
-      setError("Premiile nu au putut fi citite. Încercați din nou.");
+      setError(String(err?.message || "").startsWith("Codurile") ? err.message : "Premiile nu au putut fi citite. Încercați din nou.");
     } finally {
       setLoading(false);
     }

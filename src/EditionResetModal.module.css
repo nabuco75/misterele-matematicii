@@ -1,0 +1,131 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.6);
+}
+.modal {
+  width: min(620px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+  background: #fff;
+  color: #1e293b;
+  border-radius: 18px;
+  padding: 22px 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  border-top: 6px solid #b91c1c;
+}
+.title {
+  margin: 0 0 10px;
+  font-size: 1.4rem;
+  color: #7f1d1d;
+}
+.note {
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+.steps {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.steps li {
+  line-height: 1.4;
+}
+.steps li > div {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.steps input {
+  display: block;
+  margin-top: 6px;
+  width: 100%;
+  max-width: 260px;
+  padding: 9px 11px;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 1rem;
+  letter-spacing: 1px;
+}
+.steps input:focus-visible {
+  outline: 3px solid #1e3a8a;
+  outline-offset: 1px;
+}
+.done::marker {
+  color: #059669;
+  font-weight: 900;
+}
+.check {
+  color: #047857;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.step {
+  margin: 14px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+.error {
+  margin: 14px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+.ok {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  color: #065f46;
+  font-weight: 700;
+}
+.buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+.buttons button,
+.secondary {
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.secondary {
+  border: 2px solid #1e3a8a;
+  background: #fff;
+  color: #1e3a8a;
+}
+.primary {
+  border: none;
+  background: #1e3a8a;
+  color: #fff;
+}
+.danger {
+  border: none;
+  background: #b91c1c;
+  color: #fff;
+}
+.buttons button:disabled,
+.secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.buttons button:focus-visible,
+.secondary:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 2px;
+}

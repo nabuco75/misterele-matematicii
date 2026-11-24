@@ -29,7 +29,7 @@ export default function BorderouriView({ onClose }) {
       setPres(await loadPresence());
     } catch (err) {
       console.error("Eroare la încărcarea prezenței:", err);
-      setError("Datele nu au putut fi citite. Încercați din nou.");
+      setError(String(err?.message || "").startsWith("Codurile") ? err.message : "Datele nu au putut fi citite. Încercați din nou.");
     } finally {
       setLoading(false);
     }
@@ -100,6 +100,12 @@ export default function BorderouriView({ onClose }) {
               </div>
             </div>
 
+            {pres.registeredTotal > pres.students.length && (
+              <p className={base.warn}>
+                ⚠️ {pres.registeredTotal - pres.students.length} elevi înscriși nu au sală, deci lucrările lor NU apar pe
+                borderouri. Așezați-i întâi la Repartizare (elevi noi), apoi actualizați.
+              </p>
+            )}
             {pres.absentCount === 0 && (
               <p className={base.warn}>
                 ⚠️ Nu este bifat niciun absent. Bifați absenții la <b>Notare</b> înainte de a tipări borderourile,

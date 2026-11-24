@@ -64,7 +64,7 @@ export default function AttendanceView({ onClose }) {
       setStamp(new Date().toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }));
     } catch (err) {
       console.error("Eroare la încărcarea prezenței:", err);
-      setError("Datele nu au putut fi citite. Încercați din nou.");
+      setError(String(err?.message || "").startsWith("Codurile") ? err.message : "Datele nu au putut fi citite. Încercați din nou.");
     } finally {
       setLoading(false);
     }

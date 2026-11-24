@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth"; // Importă Authentication
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
 // Configurația Firebase pentru aplicația ta web
 const firebaseConfig = {
@@ -16,6 +17,17 @@ const firebaseConfig = {
 
 // Inițializează Firebase
 const app = initializeApp(firebaseConfig);
+
+// App Check: dovedește serverului că cererile vin din acest site, nu dintr-un program.
+// Se activează punând aici cheia de site reCAPTCHA v3 din Firebase Console → App Check
+// (vezi README, „Securitate”). Cât timp e goală, aplicația funcționează ca înainte.
+const RECAPTCHA_SITE_KEY = "";
+if (RECAPTCHA_SITE_KEY && typeof window !== "undefined") {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
 
 // Inițializează Firestore
 const db = getFirestore(app);

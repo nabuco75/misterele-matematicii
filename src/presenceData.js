@@ -14,6 +14,8 @@ export const loadPresence = async () => {
     loadAllocation(),
     getDocs(collection(db, GRADES_COLLECTION)),
   ]);
+  // fără coduri, notele și bifele „absent” puse pe cod nu se văd: documentul ar ieși greșit
+  if (data.codesError) throw new Error("Codurile de anonimizare nu au putut fi citite. Reîncercați.");
   const rooms = sortRooms(roomsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
   const placed = allocateKeepingCodes(data.students, rooms, {
     saved: saved?.assignments || new Map(),

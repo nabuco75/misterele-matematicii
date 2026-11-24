@@ -144,6 +144,28 @@ function RoomAllocation({ onNextStep, onCancel, stageBar }) {
             return;
         }
 
+        // o sală cu elevi repartizați nu se redenumește și nu se micșorează sub numărul lor:
+        // altfel elevii ei ar dispărea din liste, bilețele, borderouri și prezență
+        if (isEditing && editingRoomId) {
+            const old = rooms.find((r) => r.id === editingRoomId);
+            const placed = old ? await placedInRoom(old.name) : 0;
+            if (placed === null) return;
+            if (placed > 0 && norm(old.name) !== norm(roomName)) {
+                showMessage(
+                    "error",
+                    `Sala „${old.name}” are ${placed} elevi repartizați și nu poate fi redenumită. Refaceți întâi repartizarea fără ea.`
+                );
+                return;
+            }
+            if (placed > seatsNum) {
+                showMessage(
+                    "error",
+                    `Sala „${old.name}” are deja ${placed} elevi repartizați: nu puteți pune mai puține locuri (${seatsNum}).`
+                );
+                return;
+            }
+        }
+
         try {
             const roomData = {
                 name: roomName.trim(),
@@ -169,6 +191,19 @@ function RoomAllocation({ onNextStep, onCancel, stageBar }) {
         }
     };
 
+    // câți elevi are sala în repartizarea salvată (citită proaspăt); null = nu s-a putut citi
+    const placedInRoom = async (name) => {
+        try {
+            const saved = await loadAllocation();
+            if (!saved) return 0;
+            return [...saved.assignments.values()].filter((sala) => sala === name).length;
+        } catch (err) {
+            console.error("Repartizarea nu a putut fi citită:", err);
+            showMessage("error", "❌ Nu am putut verifica dacă sala are elevi repartizați. Încercați din nou.");
+            return null;
+        }
+    };
+
     // ====== EDITARE SALĂ ======
     const handleEditRoom = (room) => {
         setIsEditing(true);
@@ -183,6 +218,16 @@ function RoomAllocation({ onNextStep, onCancel, stageBar }) {
     const handleDeleteRoom = async (roomId) => {
         const room = rooms.find((r) => r.id === roomId);
         if (!room) return;
+
+        const placed = await placedInRoom(room.name);
+        if (placed === null) return;
+        if (placed > 0) {
+            showMessage(
+                "error",
+                `Sala „${room.name}” are ${placed} elevi repartizați și nu poate fi ștearsă. Refaceți întâi repartizarea fără ea.`
+            );
+            return;
+        }
 
         if (!window.confirm(`Sigur doriți să ștergeți sala "${room.name}"?`)) {
             return;

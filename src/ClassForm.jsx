@@ -88,7 +88,8 @@ const validateStudent = (value, full = true) => {
   if (v.includes("@"))
     return "Numele elevului nu poate conține @ (adresa de email se scrie mai jos).";
   if (/\d/.test(v)) return "Numele elevului nu poate conține cifre.";
-  if (full && v.split(/\s+/).filter(Boolean).length < 2)
+  if (v.length > 80) return "Numele elevului e prea lung (cel mult 80 de caractere).";
+  if (full && v.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length < 2)
     return "Scrieți numele și prenumele elevului.";
   return "";
 };
@@ -231,7 +232,9 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
       return "Ați introdus o adresă de email. Aici scrieți numele și prenumele profesorului; emailul se completează în câmpul de mai jos.";
     if (/\d/.test(v))
       return "Numele nu poate conține cifre. Telefonul se completează în câmpul de mai jos.";
-    if (v.split(/\s+/).filter(Boolean).length < 2)
+    if (v.length > 100)
+      return "Numele profesorului e prea lung (cel mult 100 de caractere).";
+    if (v.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length < 2)
       return "Scrieți numele și prenumele profesorului (ex: Popescu Maria).";
     return "";
   };
@@ -447,9 +450,11 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
     }
 
     // emailul și telefonul: marcăm câmpul greșit și spunem exact ce e greșit
-    const emailError = emailRegex.test(email.trim())
-      ? ""
-      : "Adresa de email nu este validă!";
+    const emailError = !emailRegex.test(email.trim())
+      ? "Adresa de email nu este validă!"
+      : email.trim().length > 100
+      ? "Adresa de email e prea lungă (cel mult 100 de caractere)."
+      : "";
     const phoneError = phoneRegex.test(cleanPhone(telefon))
       ? ""
       : "Numărul de telefon trebuie să conțină 10 cifre!";
@@ -539,6 +544,22 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
       telefon: phone,
     };
 
+    // după 20 s fără răspuns NU renunțăm (înscrierea poate fi încă în drum spre server și o
+    // retrimitere ar dubla elevii): butonul rămâne blocat și așteptăm confirmarea până la capăt
+    const waitForServer = async (promise) => {
+      try {
+        return await withTimeout(promise, 20000);
+      } catch (e) {
+        if (e?.message !== "TIMEOUT") throw e;
+        setMessage({
+          type: "warning",
+          content:
+            "Conexiunea e lentă: așteptăm confirmarea serverului. NU închideți pagina și NU retrimiteți — rezultatul apare aici.",
+        });
+        return await promise;
+      }
+    };
+
     // —— 1. Salvare în baza de date (totul sau nimic)
     try {
       if (isAdminOverride) {
@@ -553,16 +574,15 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
             ...fields,
           });
         }
-        await withTimeout(batch.commit(), 20000);
+        await waitForServer(batch.commit());
         // contorul public trebuie să țină pasul cu înscrierile adminului
         rebuildClassCounts().catch((e) =>
           console.error("Contoarele nu s-au putut recalcula:", e)
         );
       } else {
         // tranzacție: limita de 5 se verifică pe date proaspete și pe server
-        await withTimeout(
-          registerWithCounts({ schoolId, unlimited: isUnlimited, byClass, fields }),
-          20000
+        await waitForServer(
+          registerWithCounts({ schoolId, unlimited: isUnlimited, byClass, fields })
         );
       }
     } catch (err) {
@@ -573,12 +593,12 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
         content = err.left
           ? `Pentru ${err.className} mai sunt disponibile doar ${err.left} loc(uri). Ajustați lista.`
           : `Școala dvs. a atins deja limita de 5 elevi pentru ${err.className}. În caz de neclarități, contact@scoala5vaslui.ro`;
-      } else if (err?.message === "TIMEOUT") {
-        content =
-          "Serverul nu a confirmat înscrierea (conexiune slabă). NU retrimiteți încă: reîncărcați pagina și verificați numărul de locuri ocupate. Dacă elevii nu apar, înscrieți-i din nou.";
       } else if (err?.code === "permission-denied") {
         content =
-          "Înscrierea nu a fost acceptată: înscrierile s-au închis între timp sau școala nu mai există în listă. Reîncărcați pagina. Pentru ajutor: contact@scoala5vaslui.ro";
+          "Serverul nu a acceptat înscrierea, deci elevii NU au fost înscriși. Cauze posibile: înscrierile s-au închis între timp, locurile școlii s-au ocupat chiar acum sau datele nu respectă formatul cerut. Reîncărcați pagina și verificați numărul de locuri. Dacă problema persistă: contact@scoala5vaslui.ro";
+      } else if (err?.code === "unavailable" || err?.code === "deadline-exceeded") {
+        content =
+          "Nu există conexiune cu serverul, deci elevii NU au fost înscriși. Verificați internetul și încercați din nou.";
       }
       setMessage({ type: "error", content });
       setLoading(false);
@@ -864,6 +884,8 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
                             index + 1
                           }`}
                           value={student}
+                          maxLength={80}
+                          aria-label={`Elevul ${index + 1}, ${className}: nume și prenume`}
                           onChange={(e) =>
                             handleChange(
                               className,
@@ -928,6 +950,9 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
               <input
                 type="text"
                 placeholder="Nume și prenume profesor"
+                maxLength={100}
+                aria-label="Numele și prenumele profesorului îndrumător"
+                autoComplete="name"
                 value={profesorIndrumator}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -962,6 +987,9 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
               <input
                 type="email"
                 placeholder="E-mail profesor (pentru confirmare)"
+                maxLength={100}
+                aria-label="Adresa de e-mail a profesorului"
+                autoComplete="email"
                 value={email}
                 onChange={(e) =>
                   setEmail(e.target.value)
@@ -983,6 +1011,9 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
               <input
                 type="tel"
                 placeholder="Telefon (10 cifre)"
+                aria-label="Telefonul profesorului"
+                autoComplete="tel"
+                inputMode="tel"
                 value={telefon}
                 onChange={(e) =>
                   setTelefon(e.target.value)
@@ -1011,6 +1042,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
 
         {message.content && (
           <div
+            role={message.type === "error" ? "alert" : "status"}
             className={`${styles.message} ${
               message.type === "success"
                 ? styles.success
@@ -1049,7 +1081,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
             <p>
               Confirmi înscrierea elevilor la <strong>{schoolName}</strong>?
               {!isUnlimited &&
-                " (Limita este 5 elevi/școală pentru fiecare ciclu.)"}
+                " (Limita este de 5 elevi pe clasă pentru fiecare școală.)"}
             </p>
             <button
               onClick={handleConfirmInscriere}

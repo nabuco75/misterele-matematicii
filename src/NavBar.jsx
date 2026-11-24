@@ -16,7 +16,8 @@ function NavBar() {
 
   const handleHomeClick = () => {
     if (location.pathname === "/") {
-      navigate(0);
+      // fără reîncărcare: profesorul nu pierde ce a scris în formular
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } else {
       navigate("/");
     }
