@@ -95,6 +95,12 @@ export default function ReportsView({ onClose }) {
 
         {!loading && data && (
           <>
+            {data.unplacedCount > 0 && (
+              <p className={base.warn}>
+                ⚠️ {data.unplacedCount} elevi înscriși nu au sală, deci nu sunt numărați ca prezenți (la fel ca la
+                Prezență și Borderouri). Dacă au scris, așezați-i la Repartizare › elevi noi, apoi actualizați.
+              </p>
+            )}
             {data.ungradedCount > 0 && (
               <p className={base.warn}>
                 ⚠️ {data.ungradedCount} elevi nu au nicio notă și nici bifa „absent”: sunt numărați ca prezenți și

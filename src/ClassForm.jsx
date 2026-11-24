@@ -66,10 +66,16 @@ const nameKey = (v) =>
     .join(" ");
 
 // spațiile duble din mijloc și cele de la capete dispar
-const cleanSpaces = (v) => String(v || "").replace(/\s+/g, " ").trim();
+// NFC: diacriticele lipite „descompuse” (ș = s + virgulă) devin un singur caracter, ca limita
+// de lungime din reguli să numere la fel ca browserul
+const cleanSpaces = (v) => String(v || "").normalize("NFC").replace(/\s+/g, " ").trim();
 
 // telefonul fără spații, puncte sau liniuțe ("0740 123 456" → "0740123456")
-const cleanPhone = (v) => String(v || "").replace(/[\s.\-()]/g, "");
+// „+40 740 123 456” sau „0040…” → „0740123456”
+const cleanPhone = (v) =>
+  String(v || "")
+    .replace(/[\s.\-()]/g, "")
+    .replace(/^(\+|00)40(?=7)/, "0");
 
 // commit-ul nu dă eroare când pică internetul, ci așteaptă; după 20 s spunem asta
 const withTimeout = (promise, ms) =>
@@ -636,7 +642,9 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
         "</tbody></table>" +
         `<p style="margin-top:16px;padding:10px;border:2px solid #b45309;background:#fff7ed;font-weight:bold">⚠️ IMPORTANT: ${GDPR_REMINDER}</p>`;
 
-      const response = await emailjs.send(
+      // elevii sunt deja salvați: dacă serviciul de email nu răspunde în 15 s, nu mai așteptăm
+      // (altfel butonul rămâne „în curs” și profesorul ar putea retrimite) și oferim confirmarea
+      const response = await withTimeout(emailjs.send(
         "service_e2pf9w6",
         "template_st5cb5c",
         {
@@ -646,7 +654,7 @@ function ClassForm({ selectedSchool, isAdminOverride = false, onAuthenticated, o
           reply_to: email,
         },
         { publicKey: "IpIiJlmFDSQJ6WnbS" }
-      );
+      ), 15000);
 
       if (response.status === 200) {
         const successMsg = isUnlimited

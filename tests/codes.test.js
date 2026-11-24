@@ -49,7 +49,7 @@ describe("reserveCodes", () => {
   it("al doilea calculator primește ACELAȘI cod pentru același elev, nu un al doilea", async () => {
     const first = await reserveCodes(["a|ana"]);
     // primul calculator a scris și documentul de cod
-    store.set("codes/MMVS_01", { n: 1, regId: "a", nume: "Ana" });
+    store.set("codes/MMVS_01", { n: 1, regId: "a", nume: "Ana" }); // cheia „a|ana”
     const second = await reserveCodes(["a|ana", "a|ion"]);
     expect(second.get("a|ana")).toEqual({ n: first.get("a|ana").n, nou: false });
     expect(second.get("a|ion").n).toBe(2);
@@ -66,6 +66,14 @@ describe("reserveCodes", () => {
     store.set("codes/MMVS_01", { n: 1, retras: true });
     const again = await reserveCodes(["a|ana"]);
     expect(again.get("a|ana").n).toBe(2);
+  });
+
+  it("după o corectare de nume, un elev nou cu numele vechi NU primește codul celui redenumit", async () => {
+    await reserveCodes(["a|ana pop"]);
+    // codul MMVS_01 a fost dat Anei, apoi numele a fost corectat în „Ion Ion”
+    store.set("codes/MMVS_01", { n: 1, regId: "a", nume: "Ion Ion" });
+    const r = await reserveCodes(["a|ana pop"]);
+    expect(r.get("a|ana pop")).toEqual({ n: 2, nou: true });
   });
 
   it("pornește după cel mai mare cod existent (date vechi, fără contor)", async () => {

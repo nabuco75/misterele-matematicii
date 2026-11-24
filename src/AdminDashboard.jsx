@@ -204,15 +204,22 @@ function AdminDashboard() {
     msgTimers.current[name] = setTimeout(() => setter(null), ms);
   };
   // un mesaj de eroare (❌ / ⚠️ / „eroare”) rămâne până e închis, ca adminul să-l poată citi
-  const isErrorText = (m) => /^\s*(❌|⚠️)|eroare|nu s-a putut|nu a putut|nu au putut/i.test(String(m || ""));
+  const isErrorText = (m) =>
+    /❌|⚠️|eroare|nu s-a putut|nu s-au putut|nu a putut|nu au putut|nu s-a salvat|parțial/i.test(String(m || ""));
   const showSuccessMessage = (message) =>
     isErrorText(message)
       ? (clearTimeout(msgTimers.current.school), setSchoolOperationMessage(message))
       : flash("school", setSchoolOperationMessage, message);
 
   // ====== HELPER: Afișare mesaj în editor elevi ======
-  const showStudentEditorMessage = (message, type = "success") =>
-    flash("editor", setStudentEditorMessage, { text: message, type });
+  // la fel în editorul de elevi: erorile și avertismentele rămân până la închidere
+  const showStudentEditorMessage = (message, type = "success") => {
+    const sticky = type !== "success" || isErrorText(message);
+    if (sticky) {
+      clearTimeout(msgTimers.current.editor);
+      setStudentEditorMessage({ text: message, type: type === "success" ? "error" : type });
+    } else flash("editor", setStudentEditorMessage, { text: message, type });
+  };
 
   // ====== CRUD ȘCOALĂ ======
   const resetSchoolForm = () => {
@@ -946,8 +953,12 @@ function AdminDashboard() {
 
       let skipped = 0;
       const toAdd = [];
+      let invalid = 0;
       rows.forEach((row) => {
-        if (!(row.Nume && row.Județ && row.Localitate)) return;
+        if (!(row.Nume && row.Județ && row.Localitate)) {
+          invalid++;
+          return;
+        }
         const key = schoolKey(row.Nume, row.Județ, row.Localitate);
         if (seen.has(key)) {
           skipped++;
@@ -964,19 +975,18 @@ function AdminDashboard() {
       await Promise.all(
         toAdd.map((school) => addDoc(collection(db, "schools"), school))
       );
+      // fără timer: mesajul rămâne până la ✖ (un rezultat greșit nu trebuie să treacă neobservat)
       setBulkUploadStatus(
-        skipped
-          ? `Școlile au fost încărcate cu succes! Adăugate: ${toAdd.length}, sărite (existau deja): ${skipped}.`
-          : "Școlile au fost încărcate cu succes!"
+        toAdd.length === 0
+          ? `⚠️ Nu s-a adăugat nicio școală. Rânduri fără coloanele exacte „Nume”, „Județ”, „Localitate”: ${invalid}; existau deja: ${skipped}.`
+          : `✅ Adăugate: ${toAdd.length} școli.${skipped ? ` Sărite (existau deja): ${skipped}.` : ""}${
+              invalid ? ` ⚠️ Rânduri ignorate (lipsesc Nume / Județ / Localitate): ${invalid}.` : ""
+            }`
       );
       fetchSchools();
-      setTimeout(() => setBulkUploadStatus(null), skipped ? 6000 : 3000);
     } catch (err) {
       console.error("Eroare la încărcarea bulk:", err);
-      setBulkUploadStatus(
-        "Eroare la încărcarea bulk a școlilor."
-      );
-      setTimeout(() => setBulkUploadStatus(null), 3000);
+      setBulkUploadStatus("❌ Eroare la încărcarea școlilor din Excel. Verificați fișierul și conexiunea.");
     }
   };
 
@@ -2102,8 +2112,14 @@ function AdminDashboard() {
                     ? styles.successMessage
                     : styles.errorMessage
                 }
+                role={studentEditorMessage.type === "success" ? "status" : "alert"}
               >
                 {studentEditorMessage.text}
+                {studentEditorMessage.type !== "success" && (
+                  <button className={styles.msgClose} onClick={() => setStudentEditorMessage(null)} aria-label="Închide mesajul">
+                    ✖
+                  </button>
+                )}
               </p>
             )}
 

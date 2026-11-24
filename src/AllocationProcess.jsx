@@ -414,6 +414,11 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
         }
         let merged = result;
         try {
+            // dacă toți au încăput, locurile se verifică pe datele proaspete (alt calculator poate
+            // așeza elevi între timp în aceleași săli); dacă oricum s-a trecut peste locuri, se anunță mai jos
+            const limits = result.overflow
+                ? null
+                : new Map(rooms.map((r) => [r.name, parseInt(r.seats || 0, 10) || 0]));
             const newSaved = await saveAllocation({
                 data: result.data,
                 roomSummaries: result.roomSummaries,
@@ -421,6 +426,7 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
                 type: "elevi-noi",
                 added: result.newcomers,
                 previous: saved,
+                limits,
             });
             setSaved(newSaved);
             setWalkInLog(newSaved.walkIns);
@@ -430,6 +436,25 @@ function AllocationProcess({ onBack, onDashboard, section = "repartizare", onGo,
             setRoomSummaries(merged.roomSummaries);
         } catch (err) {
             console.error("Eroare la salvarea repartizării:", err);
+            if (err?.message === "ROOM_FULL") {
+                showMessage(
+                    "error",
+                    `❌ ${err.sala} s-a umplut chiar acum (probabil de pe alt calculator). Nimic nu s-a salvat; apăsați din nou „Repartizează elevii noi”.`,
+                    12000
+                );
+                try {
+                    const fresh = await loadAllocation();
+                    if (fresh) {
+                        setSaved(fresh);
+                        const r = allocateKeepingCodes(students, rooms, { saved: fresh.assignments, placeNew: false });
+                        setAllocationResult(r.data);
+                        setRoomSummaries(r.roomSummaries);
+                    }
+                } catch (e) {
+                    console.error("Repartizarea nu a putut fi recitită:", e);
+                }
+                return;
+            }
             showMessage("error", "❌ Elevii noi au fost așezați, dar repartizarea nu s-a putut salva.");
             return;
         }

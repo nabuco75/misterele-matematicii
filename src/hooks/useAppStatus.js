@@ -33,7 +33,7 @@ export const useAppStatus = () => {
       (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          setIsActive(data?.isActive ?? false);
+          setIsActive(data?.isActive === true); // aceeași regulă ca serverul (doar true boolean)
           setMessage(data?.message ?? '');
         } else {
           console.warn('⚠️ Firebase config not found');

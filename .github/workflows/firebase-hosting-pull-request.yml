@@ -7,12 +7,20 @@ permissions:
   checks: write
   contents: read
   pull-requests: write
+# două publicări nu rulează în paralel (ultima ajunge pe site în ordinea corectă)
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   build_and_preview:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
       - run: npm ci
       # verificări înainte de publicare: dacă una pică, site-ul NU se actualizează
       - run: npm run lint

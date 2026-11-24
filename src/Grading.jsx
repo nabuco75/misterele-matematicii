@@ -477,6 +477,11 @@ function Grading({ onDashboard, stageBar }) {
   ];
 
   const doExport = (kind, id) => {
+    // fără coduri, notele puse pe cod nu se văd: documentul ar ieși greșit
+    if (codesFailed) {
+      window.alert("Codurile nu au putut fi citite, deci listele ar ieși greșite. Reîncărcați pagina, apoi descărcați.");
+      return;
+    }
     const unsaved = Object.keys(drafts).length + Object.keys(cellErrors).length;
     if (
       unsaved > 0 &&
@@ -812,7 +817,7 @@ function Grading({ onDashboard, stageBar }) {
                     <input
                       type="checkbox"
                       checked={r.absent}
-                      onChange={(e) => save(r, { absent: e.target.checked })}
+                      onChange={(e) => save(r, e.target.checked ? { absent: true, premiu: "" } : { absent: false })}
                       disabled={codesFailed}
                       title="Absent"
                     />
@@ -843,7 +848,7 @@ function Grading({ onDashboard, stageBar }) {
             sumele, premiile și bifele de absent. Elevii, codurile și repartizarea rămân neatinse.
           </p>
         </div>
-        <button className={styles.dangerButton} onClick={deleteAllGrades} disabled={deleting || gradedCount === 0}>
+        <button className={styles.dangerButton} onClick={deleteAllGrades} disabled={deleting || gradedCount === 0 || codesFailed || pendingSaves > 0}>
           {deleting ? "Se șterge..." : "🗑️ Șterge toate notele"}
         </button>
       </div>

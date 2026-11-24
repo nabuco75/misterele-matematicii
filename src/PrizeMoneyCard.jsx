@@ -18,6 +18,7 @@ import {
   prizeSummary,
 } from "./prizeMoney";
 import { loadResults } from "./reportLists";
+import { syncSettings } from "./settings";
 import styles from "./PrizeMoneyCard.module.css";
 
 export default function PrizeMoneyCard({ header }) {
@@ -30,6 +31,13 @@ export default function PrizeMoneyCard({ header }) {
     setError("");
     try {
       setRows(await loadResults());
+      // sumele pot fi schimbate între timp pe alt calculator: le aducem din baza de date
+      try {
+        await syncSettings();
+        setPrizeAmountsState(loadPrizeAmounts());
+      } catch (e) {
+        console.error("Sumele premiilor nu au putut fi recitite:", e);
+      }
     } catch (err) {
       console.error("Eroare la încărcarea premiilor:", err);
       setError(String(err?.message || "").startsWith("Codurile") ? err.message : "Premiile nu au putut fi citite. Încercați din nou.");
@@ -78,7 +86,8 @@ export default function PrizeMoneyCard({ header }) {
   const awardCounts = useMemo(() => {
     const c = {};
     rows.forEach((r) => {
-      if (!r.absent && r.premiu) c[r.premiu] = (c[r.premiu] || 0) + 1;
+      // aceeași regulă ca tabelul: doar elevii notați complet primesc bani
+      if (r.stare === "notat" && r.premiu) c[r.premiu] = (c[r.premiu] || 0) + 1;
     });
     return c;
   }, [rows]);
@@ -182,10 +191,10 @@ export default function PrizeMoneyCard({ header }) {
         </button>
       )}
       <div className={styles.prizeBtns}>
-        <button onClick={() => doPrizes("pdf")} disabled={loading}>
+        <button onClick={() => doPrizes("pdf")} disabled={loading || !!error}>
           📄 Tabel premii (PDF)
         </button>
-        <button onClick={() => doPrizes("excel")} disabled={loading}>
+        <button onClick={() => doPrizes("excel")} disabled={loading || !!error}>
           📥 Tabel premii (Excel)
         </button>
       </div>

@@ -150,7 +150,8 @@ function RoomAllocation({ onNextStep, onCancel, stageBar }) {
             const old = rooms.find((r) => r.id === editingRoomId);
             const placed = old ? await placedInRoom(old.name) : 0;
             if (placed === null) return;
-            if (placed > 0 && norm(old.name) !== norm(roomName)) {
+            // orice schimbare a numelui (chiar și doar litere mari/mici sau spații) desparte elevii de sală
+            if (placed > 0 && old.name !== roomName.trim()) {
                 showMessage(
                     "error",
                     `Sala „${old.name}” are ${placed} elevi repartizați și nu poate fi redenumită. Refaceți întâi repartizarea fără ea.`

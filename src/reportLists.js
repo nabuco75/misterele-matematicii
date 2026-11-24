@@ -6,7 +6,8 @@ import XLSX from "xlsx-js-style";
 import * as FileSaver from "file-saver";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
-import { CLASS_ORDER } from "./allocation";
+import { CLASS_ORDER, allocateKeepingCodes, sortRooms } from "./allocation";
+import { loadAllocation } from "./allocationStore";
 import { loadContestStudents } from "./contestData";
 import { AWARD_TEXT, GRADES_COLLECTION, buildResults, classRank, formatSuma } from "./grading";
 import { ORGANIZER, editionLine, escapeHtml, openPrintWindow } from "./roomLists";
@@ -36,11 +37,13 @@ export const loadResults = async () => {
 };
 
 export const loadReportData = async () => {
-  const [data, gradesSnap, regsSnap, schoolsSnap] = await Promise.all([
+  const [data, gradesSnap, regsSnap, schoolsSnap, roomsSnap, saved] = await Promise.all([
     loadContestStudents(),
     getDocs(collection(db, GRADES_COLLECTION)),
     getDocs(collection(db, "registration")),
     getDocs(collection(db, "schools")),
+    getDocs(collection(db, "rooms")),
+    loadAllocation(),
   ]);
   // fără coduri, notele și bifele „absent” puse pe cod nu se văd: documentul ar ieși greșit
   if (data.codesError) throw new Error("Codurile de anonimizare nu au putut fi citite. Reîncercați.");
@@ -60,8 +63,17 @@ export const loadReportData = async () => {
   // Prezent = fără bifa „absent” — aceeași regulă ca la Prezență, Borderouri și Notare, ca
   // documentele să nu se contrazică. Prezenții fără nicio notă apar la final, cu „—”, și sunt
   // semnalați (au fost la concurs? lucrarea s-a notat?).
-  const present = results.filter((r) => !r.absent);
-  const ungraded = results.filter((r) => r.stare === "nenotat");
+  // ca la Prezență și Borderouri: se numără doar elevii așezați în săli (cei fără sală n-au
+  // avut unde scrie; apar ca avertizare). Fără nicio repartizare salvată, se numără toți.
+  const rooms = sortRooms(roomsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  const placedIds = saved
+    ? new Set(
+        allocateKeepingCodes(data.students, rooms, { saved: saved.assignments, placeNew: false }).data.map((s) => s.id)
+      )
+    : null;
+  const unplacedCount = placedIds ? results.filter((r) => !placedIds.has(r.id)).length : 0;
+  const present = results.filter((r) => !r.absent && (!placedIds || placedIds.has(r.id)));
+  const ungraded = present.filter((r) => r.stare === "nenotat");
   const resultsByClass = [...new Set([...CLASS_ORDER, ...present.map((r) => r.clasa)])]
     .map((clasa) => ({
       clasa,
@@ -123,6 +135,7 @@ export const loadReportData = async () => {
     presentCount: present.length,
     incomplete: present.filter((r) => r.suma == null).length,
     ungradedCount: ungraded.length,
+    unplacedCount,
     absentCount: results.filter((r) => r.absent).length,
     schools: schoolList,
     teachers: teacherList,

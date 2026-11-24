@@ -37,6 +37,9 @@ npm run lint      # verificarea codului
 npm run build     # build în dist/
 ```
 
+> Nu rulați `npm audit fix --force`: ar coborî Firebase la o versiune veche. Vulnerabilitățile rămase sunt în
+> părțile de server ale pachetelor (nu ajung în site); trecerea la Firebase 12 se face separat, testat.
+
 **Publicarea site-ului:** prin `git push` pe `main`. GitHub Actions rulează lint + teste + build și, doar dacă
 toate trec, publică pe Firebase Hosting. **Regulile Firestore NU se publică automat:** după orice schimbare în
 `firestore.rules`, conținutul se lipește în consolă (Firestore → Rules → Publish).
@@ -74,7 +77,7 @@ toate trec, publică pe Firebase Hosting. **Regulile Firestore NU se publică au
 | `grades/{cod sau elev_…}` | `s1`, `s2`, `s3`, `absent`, `premiu` | admin |
 | `config/appStatus` | `isActive`, `message` | public |
 | `config/allocation` | repartizarea (`assignments`), jurnalul, elevii veniți pe loc, tranșele de coduri | admin |
-| `config/codeCounter` | ultimul număr de cod rezervat | admin |
+| `config/codeCounter` | ultimul număr de cod (`n`) și ce număr a primit fiecare elev (`keys`: înscriere + nume) | admin |
 | `config/settings` | antetul listelor (ediția, data) și sumele premiilor în bani | admin |
 
 Înscrierile publice au ID-ul `{schoolId}_{seq}_{clasă}` și se scriu în aceeași tranzacție cu `classCounts`

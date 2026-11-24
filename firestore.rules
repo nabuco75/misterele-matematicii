@@ -69,7 +69,11 @@ service cloud.firestore {
         && (!('createdAt' in d) || d.createdAt is int)
         && regId == d.schoolId + '_' + string(seqDupa) + '_' + cheie[d.class]
         && ((!exists(cnt) && seqDupa == 1)
-            || get(cnt).data.get('seq', 0) + 1 == seqDupa);
+            || get(cnt).data.get('seq', 0) + 1 == seqDupa)
+        // contorul clasei înscrierii trebuie să crească exact cu elevii ei (altfel o înscriere
+        // trimisă direct, fără să crească contorul, ar ocoli limita de 5)
+        && getAfter(cnt).data.get(cheie[d.class], 0)
+             == (exists(cnt) ? get(cnt).data.get(cheie[d.class], 0) : 0) + d.students.size();
     }
 
     // o clasa din contor: ori ramane la fel, ori creste exact cu elevii din
@@ -96,6 +100,9 @@ service cloud.firestore {
         && exists(scoala)
         && n.keys().hasOnly(['IV', 'V', 'VI', 'VII', 'seq'])
         && n.seq == seq
+        // cel puțin o clasă crește (nu se poate umfla doar seq, fără înscriere)
+        && n.get('IV', 0) + n.get('V', 0) + n.get('VI', 0) + n.get('VII', 0)
+             > o.get('IV', 0) + o.get('V', 0) + o.get('VI', 0) + o.get('VII', 0)
         && clasaOk(n, o, 'IV', prefix + 'IV', vip)
         && clasaOk(n, o, 'V', prefix + 'V', vip)
         && clasaOk(n, o, 'VI', prefix + 'VI', vip)

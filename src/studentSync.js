@@ -37,11 +37,18 @@ export const reserveCodes = (keys, scannedMax = 0) =>
     const data = snap.exists() ? snap.data() : {};
     const given = { ...(data.keys || {}) };
     // citirile înaintea scrierilor: starea codurilor deja date acestor elevi
+    // un cod e al acestui elev doar dacă documentul lui are aceeași înscriere și același nume:
+    // după o corectare de nume, cheia veche poate trimite la codul ALTUI copil
     const prior = new Map();
     for (const k of keys) {
       if (given[k] && !prior.has(k)) {
         const c = await tx.get(doc(db, CODES_COLLECTION, formatCode(given[k])));
-        prior.set(k, c.exists() ? (c.data().retras ? "retras" : "activ") : "lipsa");
+        if (!c.exists()) prior.set(k, "lipsa");
+        else {
+          const d = c.data();
+          const sameStudent = codeKeyOf(d) === k.replace(/#\d+$/, "");
+          prior.set(k, d.retras || !sameStudent ? "altul" : "activ");
+        }
       }
     }
     let n = Math.max(data.n || 0, scannedMax);

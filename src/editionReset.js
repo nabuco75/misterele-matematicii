@@ -16,12 +16,17 @@ const plain = (v) => {
   if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, plain(x)]));
   return v;
 };
+// Excel nu acceptă mai mult de 32767 caractere într-o celulă (repartizarea mare ar depăși):
+// textul se taie, iar varianta completă e oricum în fișierul JSON
+const MAX_CELL = 32000;
 const cell = (v) => {
   const p = plain(v);
   if (p === null || p === undefined) return "";
-  if (Array.isArray(p)) return p.map((x) => (typeof x === "object" ? JSON.stringify(x) : x)).join("; ");
-  if (typeof p === "object") return JSON.stringify(p);
-  return p;
+  let out = p;
+  if (Array.isArray(p)) out = p.map((x) => (typeof x === "object" ? JSON.stringify(x) : x)).join("; ");
+  else if (typeof p === "object") out = JSON.stringify(p);
+  if (typeof out === "string" && out.length > MAX_CELL) out = `${out.slice(0, MAX_CELL)} …[tăiat — vezi fișierul JSON]`;
+  return out;
 };
 const stamp = () => new Date().toISOString().slice(0, 16).replace("T", "_").replace(":", "-");
 
@@ -47,8 +52,18 @@ const sheetFrom = (rows) => {
   return ws;
 };
 
-// salvează copia: un Excel (câte o foaie pe colecție, plus elevii pe rânduri) și un JSON complet
+// câte documente are fiecare colecție (pentru a compara copia cu ce e acum în baza de date)
+export const countsOf = (data) =>
+  Object.fromEntries(Object.entries(data.collections).map(([k, v]) => [k, v.length]));
+
+// salvează copia: întâi JSON-ul complet (cel mai important), apoi un Excel de citit
+// (câte o foaie pe colecție, plus elevii pe rânduri). Întoarce { elevi, excelOk }.
 export const downloadBackup = (data) => {
+  const when = stamp();
+  FileSaver.saveAs(
+    new Blob([JSON.stringify(data, null, 1)], { type: "application/json;charset=UTF-8" }),
+    `Copie_completa_concurs_${when}.json`
+  );
   const schools = new Map(data.collections.schools.map((s) => [s.id, s]));
   const codeByKey = new Map(
     data.collections.codes.filter((c) => !c.retras).map((c) => [`${c.regId}|${c.nume}`, c.id])
@@ -69,25 +84,43 @@ export const downloadBackup = (data) => {
       };
     })
   );
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, sheetFrom(elevi), "Elevi");
-  COLLECTIONS.forEach((name) => XLSX.utils.book_append_sheet(wb, sheetFrom(data.collections[name]), name));
-  XLSX.utils.book_append_sheet(
-    wb,
-    sheetFrom(Object.entries(data.config).map(([id, v]) => ({ id, ...v }))),
-    "config"
-  );
-  const when = stamp();
-  const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  FileSaver.saveAs(
-    new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8" }),
-    `Copie_completa_concurs_${when}.xlsx`
-  );
-  FileSaver.saveAs(
-    new Blob([JSON.stringify(data, null, 1)], { type: "application/json;charset=UTF-8" }),
-    `Copie_completa_concurs_${when}.json`
-  );
-  return { elevi: elevi.length };
+  let excelOk = true;
+  try {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sheetFrom(elevi), "Elevi");
+    COLLECTIONS.forEach((name) => XLSX.utils.book_append_sheet(wb, sheetFrom(data.collections[name]), name));
+    XLSX.utils.book_append_sheet(
+      wb,
+      sheetFrom(Object.entries(data.config).map(([id, v]) => ({ id, ...v }))),
+      "config"
+    );
+    const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    FileSaver.saveAs(
+      new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8" }),
+      `Copie_completa_concurs_${when}.xlsx`
+    );
+  } catch (err) {
+    console.error("Excelul copiei nu a putut fi generat (JSON-ul s-a salvat):", err);
+    excelOk = false;
+  }
+  return { elevi: elevi.length, excelOk };
+};
+
+// înainte de golire: înscrierile trebuie să fie închise, iar de la copie să nu fi apărut date noi
+// (o notă sau o înscriere salvată după copie s-ar pierde). Întoarce un text de eroare sau "".
+export const checkBeforeReset = async (backupCounts) => {
+  const st = await getDoc(doc(db, "config", "appStatus"));
+  if (st.exists() && st.data().isActive === true) {
+    return "Înscrierile sunt DESCHISE. Închideți-le întâi (Firestore → config → appStatus → isActive: false), apoi reveniți.";
+  }
+  for (const name of ["registration", "codes", "grades"]) {
+    const now = (await getDocs(collection(db, name))).size;
+    // mai puține = o golire începută și oprită (se poate relua); mai multe = date noi, nesalvate în copie
+    if (now > backupCounts[name]) {
+      return `De la copie s-au schimbat datele (${name}: ${backupCounts[name]} → ${now}). Descărcați din nou copia, apoi goliți.`;
+    }
+  }
+  return "";
 };
 
 const deleteAll = async (name, onStep) => {

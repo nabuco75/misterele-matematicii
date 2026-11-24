@@ -1,12 +1,13 @@
 // Fereastra „Pregătește ediția nouă”: copie completă obligatorie, apoi golire confirmată prin cuvânt.
 import React, { useEffect, useRef, useState } from "react";
-import { downloadBackup, readEverything, resetEdition } from "./editionReset";
+import { checkBeforeReset, countsOf, downloadBackup, readEverything, resetEdition } from "./editionReset";
 import styles from "./EditionResetModal.module.css";
 
 const WORD = "EDITIE NOUA";
 
 export default function EditionResetModal({ onClose, onDone }) {
-  const [backup, setBackup] = useState(null); // { elevi, at }
+  const [backup, setBackup] = useState(null); // { elevi, at, excelOk, counts }
+  const [haveFiles, setHaveFiles] = useState(false);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState("");
@@ -14,12 +15,17 @@ export default function EditionResetModal({ onClose, onDone }) {
   const [result, setResult] = useState(null);
   const firstBtn = useRef(null);
 
+  // focusul intră o singură dată în fereastră; Escape închide (nu în timpul lucrului)
+  const busyRef = useRef(false);
+  busyRef.current = busy;
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     firstBtn.current?.focus();
-    const onKey = (e) => e.key === "Escape" && !busy && onClose();
+    const onKey = (e) => e.key === "Escape" && !busyRef.current && closeRef.current();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [busy, onClose]);
+  }, []);
 
   const doBackup = async () => {
     setBusy(true);
@@ -28,7 +34,8 @@ export default function EditionResetModal({ onClose, onDone }) {
     try {
       const data = await readEverything();
       const r = downloadBackup(data);
-      setBackup({ ...r, at: new Date().toLocaleTimeString("ro-RO") });
+      setBackup({ ...r, counts: countsOf(data), at: new Date().toLocaleTimeString("ro-RO") });
+      setHaveFiles(false);
       setStep("");
     } catch (err) {
       console.error("Copia nu a putut fi făcută:", err);
@@ -42,6 +49,13 @@ export default function EditionResetModal({ onClose, onDone }) {
     setBusy(true);
     setError("");
     try {
+      setStep("Se verifică dacă înscrierile sunt închise și dacă datele s-au schimbat de la copie...");
+      const problem = await checkBeforeReset(backup.counts);
+      if (problem) {
+        setError(problem);
+        setStep("");
+        return;
+      }
       const done = await resetEdition(setStep);
       setResult(done);
       setStep("");
@@ -56,7 +70,7 @@ export default function EditionResetModal({ onClose, onDone }) {
     }
   };
 
-  const canReset = backup && typed.trim().toUpperCase() === WORD && !busy;
+  const canReset = backup && haveFiles && typed.trim().toUpperCase() === WORD && !busy;
 
   return (
     <div className={styles.overlay} onClick={() => !busy && onClose()}>
@@ -93,6 +107,10 @@ export default function EditionResetModal({ onClose, onDone }) {
               Se șterg <b>toate înscrierile, codurile de anonimizare, notele și repartizarea pe săli</b>. Rămân școlile,
               sălile, antetul și sumele premiilor. Operația nu se poate anula — de aceea copia e obligatorie.
             </p>
+            <p className={styles.warnBox}>
+              ⚠️ Înainte: <b>închideți înscrierile</b> și <b>închideți paginile Notare / Repartizare</b> deschise pe alte
+              calculatoare (altfel pot rescrie date vechi după golire).
+            </p>
 
             <ol className={styles.steps}>
               <li className={backup ? styles.done : ""}>
@@ -103,10 +121,25 @@ export default function EditionResetModal({ onClose, onDone }) {
                   </button>
                   {backup && (
                     <span className={styles.check}>
-                      ✅ copie descărcată la {backup.at} ({backup.elevi} elevi) — păstrați fișierele
+                      ✅ copie descărcată la {backup.at} ({backup.elevi} elevi)
+                      {!backup.excelOk && " — doar JSON-ul (Excelul nu s-a putut genera)"}
                     </span>
                   )}
                 </div>
+                {backup && (
+                  <label className={styles.confirmFiles}>
+                    <input type="checkbox" checked={haveFiles} onChange={(e) => setHaveFiles(e.target.checked)} />
+                    Am verificat în folderul Descărcări că am fișierul <b>.json</b>
+                    {backup.excelOk && (
+                      <>
+                        {" "}
+                        și fișierul <b>.xlsx</b>
+                      </>
+                    )}{" "}
+                    (browserul poate cere permisiunea pentru mai multe descărcări). Conțin date personale: păstrați-le
+                    în siguranță.
+                  </label>
+                )}
               </li>
               <li className={canReset ? styles.done : ""}>
                 <label htmlFor="edition-word">
@@ -116,9 +149,9 @@ export default function EditionResetModal({ onClose, onDone }) {
                   id="edition-word"
                   value={typed}
                   onChange={(e) => setTyped(e.target.value)}
-                  disabled={!backup || busy}
+                  disabled={!backup || !haveFiles || busy}
                   autoComplete="off"
-                  placeholder={backup ? WORD : "întâi descărcați copia"}
+                  placeholder={backup && haveFiles ? WORD : "întâi descărcați și verificați copia"}
                 />
               </li>
             </ol>
